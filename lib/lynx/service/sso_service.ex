@@ -93,7 +93,13 @@ defmodule Lynx.Service.SSOService do
 
     with {:ok, doc} <- fetch_discovery_document(issuer),
          {:ok, tokens} <-
-           exchange_code_for_tokens(doc["token_endpoint"], code, client_id, client_secret, redirect_uri),
+           exchange_code_for_tokens(
+             doc["token_endpoint"],
+             code,
+             client_id,
+             client_secret,
+             redirect_uri
+           ),
          {:ok, claims} <- decode_id_token(tokens["id_token"]) do
       {:ok, extract_oidc_claims(claims)}
     else

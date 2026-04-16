@@ -18,7 +18,15 @@ defmodule LynxWeb.SettingsController do
   alias Lynx.Module.SCIMTokenModule
   alias Lynx.Service.ValidatorService
 
-  plug :super_user when action in [:update, :update_sso, :generate_saml_cert, :generate_scim_token, :revoke_scim_token, :list_scim_tokens]
+  plug :super_user
+       when action in [
+              :update,
+              :update_sso,
+              :generate_saml_cert,
+              :generate_scim_token,
+              :revoke_scim_token,
+              :list_scim_tokens
+            ]
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")

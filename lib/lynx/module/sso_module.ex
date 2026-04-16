@@ -75,7 +75,8 @@ defmodule Lynx.Module.SSOModule do
                 external_id: external_id
               })
             else
-              {:error, "User not found. JIT provisioning is disabled -- users must be provisioned via SCIM before they can log in."}
+              {:error,
+               "User not found. JIT provisioning is disabled -- users must be provisioned via SCIM before they can log in."}
             end
 
           existing_user ->

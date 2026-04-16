@@ -37,7 +37,17 @@ defmodule Lynx.Middleware.Logger do
   defp sanitize_body(body_params) do
     body_params
     |> Enum.map(fn {key, value} ->
-      if key in ["admin_password", "password", "sso_client_secret", "sso_saml_sp_key", "sso_saml_sp_cert", "sso_saml_idp_cert", "token", "secret", "SAMLResponse"] do
+      if key in [
+           "admin_password",
+           "password",
+           "sso_client_secret",
+           "sso_saml_sp_key",
+           "sso_saml_sp_cert",
+           "sso_saml_idp_cert",
+           "token",
+           "secret",
+           "SAMLResponse"
+         ] do
         {key, "REDACTED"}
       else
         {key, value}

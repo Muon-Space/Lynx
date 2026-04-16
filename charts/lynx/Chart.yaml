@@ -1,0 +1,6 @@
+apiVersion: v2
+name: lynx
+description: A Fast, Secure and Reliable Terraform Backend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
