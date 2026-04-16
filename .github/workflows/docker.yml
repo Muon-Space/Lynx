@@ -42,7 +42,11 @@ jobs:
           echo "platform_tag=${PLATFORM_TAG}" >> $GITHUB_OUTPUT
           OWNER="${{ github.repository_owner }}"
           echo "owner=${OWNER,,}" >> $GITHUB_OUTPUT
-          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="dev-${GITHUB_SHA::7}"
+          fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
@@ -75,7 +79,11 @@ jobs:
         run: |
           OWNER="${{ github.repository_owner }}"
           echo "owner=${OWNER,,}" >> $GITHUB_OUTPUT
-          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="dev-${GITHUB_SHA::7}"
+          fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
 
       - name: Log in to GHCR
@@ -94,6 +102,7 @@ jobs:
           docker manifest push ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}
 
       - name: Create and push latest manifest
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           docker manifest create \
             ghcr.io/${{ steps.vars.outputs.owner }}/lynx:latest \
