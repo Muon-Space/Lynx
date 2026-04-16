@@ -73,6 +73,14 @@ defmodule Lynx.Context.ProjectContext do
   @doc """
   Get project by slug within a team (via join table)
   """
+  def get_project_by_slug(slug) do
+    from(p in Project,
+      where: p.slug == ^slug
+    )
+    |> limit(1)
+    |> Repo.one()
+  end
+
   def get_project_by_slug_team_id(slug, team_id) do
     from(p in Project,
       join: pt in ProjectTeam,

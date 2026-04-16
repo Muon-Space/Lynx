@@ -115,7 +115,7 @@ defmodule LynxWeb.UsersLive do
            api_key: Ecto.UUID.generate()
          }) do
       {:ok, user} ->
-        AuditModule.log_system("created", "user", user.uuid, user.name)
+        AuditModule.log_user(socket.assigns.current_user, "created", "user", user.uuid, user.name)
 
         {:noreply,
          socket
@@ -160,7 +160,7 @@ defmodule LynxWeb.UsersLive do
 
     case UserModule.delete_user_by_uuid(uuid) do
       {:ok, _} ->
-        AuditModule.log_system("deleted", "user", uuid)
+        AuditModule.log_user(socket.assigns.current_user, "deleted", "user", uuid)
         {:noreply, socket |> put_flash(:info, "User deleted") |> load_users()}
 
       _ ->

@@ -114,7 +114,13 @@ defmodule LynxWeb.SnapshotsLive do
                team_id: params["team_id"]
              }) do
           {:ok, snapshot} ->
-            AuditModule.log_system("created", "snapshot", snapshot.uuid, snapshot.title)
+            AuditModule.log_user(
+              socket.assigns.current_user,
+              "created",
+              "snapshot",
+              snapshot.uuid,
+              snapshot.title
+            )
 
             {:noreply,
              socket

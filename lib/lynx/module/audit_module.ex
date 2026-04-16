@@ -34,6 +34,28 @@ defmodule Lynx.Module.AuditModule do
   @doc """
   Log an audit event with explicit actor (for non-HTTP contexts like SCIM).
   """
+  def log_user(
+        user,
+        action,
+        resource_type,
+        resource_id \\ nil,
+        resource_name \\ nil,
+        metadata \\ nil
+      ) do
+    attrs = %{
+      actor_id: to_string_or_nil(user.id),
+      actor_name: user.name,
+      actor_type: "user",
+      action: action,
+      resource_type: resource_type,
+      resource_id: to_string_or_nil(resource_id),
+      resource_name: resource_name,
+      metadata: encode_metadata(metadata)
+    }
+
+    AuditContext.create_event(attrs)
+  end
+
   def log_system(action, resource_type, resource_id \\ nil, resource_name \\ nil, metadata \\ nil) do
     attrs = %{
       actor_id: nil,

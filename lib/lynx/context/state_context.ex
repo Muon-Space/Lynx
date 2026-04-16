@@ -19,6 +19,7 @@ defmodule Lynx.Context.StateContext do
     %{
       name: attrs.name,
       value: attrs.value,
+      sub_path: Map.get(attrs, :sub_path, ""),
       environment_id: attrs.environment_id,
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
@@ -81,7 +82,16 @@ defmodule Lynx.Context.StateContext do
       s in State,
       where: s.environment_id == ^environment_id
     )
-    # |> last(:inserted_at)
+    |> last(:id)
+    |> Repo.one()
+  end
+
+  def get_latest_state_by_environment_and_path(environment_id, sub_path) do
+    from(
+      s in State,
+      where: s.environment_id == ^environment_id,
+      where: s.sub_path == ^sub_path
+    )
     |> last(:id)
     |> Repo.one()
   end
@@ -106,6 +116,29 @@ defmodule Lynx.Context.StateContext do
       where: s.environment_id == ^environment_id
     )
     |> Repo.one()
+  end
+
+  def count_states_by_path(environment_id, sub_path) do
+    from(s in State,
+      select: count(s.id),
+      where: s.environment_id == ^environment_id,
+      where: s.sub_path == ^sub_path
+    )
+    |> Repo.one()
+  end
+
+  def list_sub_paths(environment_id) do
+    from(s in State,
+      select: %{
+        sub_path: s.sub_path,
+        count: count(s.id),
+        latest: max(s.inserted_at)
+      },
+      where: s.environment_id == ^environment_id,
+      group_by: s.sub_path,
+      order_by: [asc: s.sub_path]
+    )
+    |> Repo.all()
   end
 
   @doc """

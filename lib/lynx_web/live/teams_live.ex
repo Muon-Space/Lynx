@@ -123,7 +123,7 @@ defmodule LynxWeb.TeamsLive do
          }) do
       {:ok, team} ->
         TeamModule.sync_team_members(team.id, List.wrap(params["members"]))
-        AuditModule.log_system("created", "team", team.uuid, team.name)
+        AuditModule.log_user(socket.assigns.current_user, "created", "team", team.uuid, team.name)
 
         {:noreply,
          socket |> assign(:show_add, false) |> put_flash(:info, "Team created") |> load_teams()}

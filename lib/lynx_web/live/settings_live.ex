@@ -207,7 +207,7 @@ defmodule LynxWeb.SettingsLive do
       app_email: params["app_email"]
     })
 
-    AuditModule.log_system("updated", "settings", nil, "general")
+    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "general")
 
     {:noreply,
      socket
@@ -232,7 +232,7 @@ defmodule LynxWeb.SettingsLive do
     }
 
     SettingsModule.update_sso_configs(configs)
-    AuditModule.log_system("updated", "settings", nil, "sso")
+    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "sso")
 
     {:noreply,
      socket
@@ -251,7 +251,7 @@ defmodule LynxWeb.SettingsLive do
   def handle_event("generate_scim_token", _, socket) do
     case SCIMTokenModule.generate_token("") do
       {:ok, result} ->
-        AuditModule.log_system("generated", "scim_token", result.uuid)
+        AuditModule.log_user(socket.assigns.current_user, "generated", "scim_token", result.uuid)
 
         {:noreply,
          socket
@@ -266,7 +266,7 @@ defmodule LynxWeb.SettingsLive do
   def handle_event("revoke_token", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
     SCIMTokenModule.revoke_token(uuid)
-    AuditModule.log_system("revoked", "scim_token", uuid)
+    AuditModule.log_user(socket.assigns.current_user, "revoked", "scim_token", uuid)
 
     {:noreply,
      socket

@@ -129,7 +129,13 @@ defmodule LynxWeb.ProjectsLive do
            team_ids: List.wrap(params["team_ids"])
          }) do
       {:ok, project} ->
-        AuditModule.log_system("created", "project", project.uuid, project.name)
+        AuditModule.log_user(
+          socket.assigns.current_user,
+          "created",
+          "project",
+          project.uuid,
+          project.name
+        )
 
         {:noreply,
          socket
