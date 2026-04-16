@@ -3,105 +3,117 @@
     <h3 align="center">Lynx</h3>
     <p align="center">A Fast, Secure and Reliable Terraform Backend, Set up in Minutes.</p>
     <p align="center">
-        <a href="https://github.com/Clivern/Lynx/actions/workflows/ci.yml">
-            <img src="https://github.com/Clivern/Lynx/actions/workflows/server_ci.yml/badge.svg"/>
+        <a href="https://github.com/Muon-Space/Lynx/actions/workflows/server_ci.yml">
+            <img src="https://github.com/Muon-Space/Lynx/actions/workflows/server_ci.yml/badge.svg"/>
         </a>
-        <a href="https://github.com/Clivern/Lynx/releases">
+        <a href="https://github.com/Muon-Space/Lynx/releases">
             <img src="https://img.shields.io/badge/Version-0.12.9-1abc9c.svg">
         </a>
-        <a href="https://hub.docker.com/r/clivern/lynx/tags">
-            <img src="https://img.shields.io/badge/Docker-0.12.9-1abc9c.svg">
+        <a href="https://ghcr.io/muon-space/lynx">
+            <img src="https://img.shields.io/badge/GHCR-latest-1abc9c.svg">
         </a>
-        <a href="https://github.com/Clivern/terraform-provider-lynx">
-            <img src="https://img.shields.io/badge/Terraform-Provider-yellow.svg">
-        </a>
-        <a href="https://github.com/Clivern/Lynx/blob/main/LICENSE">
+        <a href="https://github.com/Muon-Space/Lynx/blob/main/LICENSE">
             <img src="https://img.shields.io/badge/LICENSE-MIT-orange.svg">
         </a>
     </p>
 </p>
 <br/>
 
-Lynx is a Fast, Secure and Reliable Terraform Backend. It is built in Elixir with Phoenix framework.
+Lynx is a remote Terraform backend built in Elixir with Phoenix LiveView. It stores your Terraform state over HTTP, handles locking, and gives your team a clean admin UI to manage projects, environments, and access control.
 
-#### Features:
+This is a fork of [Clivern/Lynx](https://github.com/Clivern/Lynx) with significant additions: SSO (OIDC + SAML), SCIM 2.0 provisioning, OIDC token authentication for CI/CD pipelines, audit logging, multi-team project membership, and a full frontend rewrite from Vue.js to Phoenix LiveView with Tailwind CSS.
 
-- Simplified Setup: Easy installation and maintenance for hassle-free usage.
-- Team Collaboration: Manage multiple teams and users seamlessly.
-- User-Friendly Interface: Enjoy a visually appealing dashboard for intuitive navigation.
-- Project Flexibility: Support for multiple projects within each team.
-- Environment Management: Create and manage multiple environments per project.
-- State Versioning: Keep track of Terraform state versions for better control.
-- Rollback Capability: Easily revert to previous states for efficient infrastructure management.
-- Terraform Locking Support: The project also supports Terraform locking, ensuring state integrity and preventing concurrent operations that could lead to data corruption
-- [RESTful Endpoints](https://lynx.apidocumentation.com/reference): for seamless teams, users, projects, environments, and snapshots management.
-- Snapshots Support: for both projects and environments to ensure data integrity and provide recovery options at specific points in time.
-- [Terraform Provider](https://github.com/Clivern/terraform-provider-lynx): Automate creation/updates of teams, users, projects, environments and snapshots with terraform.
+### What Lynx does
 
-#### Upcoming Features:
+Lynx replaces the need for S3 + DynamoDB or Terraform Cloud for state management. You point your Terraform `backend "http"` block at Lynx, and it handles state storage, locking, and versioning in PostgreSQL. No object storage required.
 
-- Single Sign-On (SSO): Support for OAuth2 Providers like Azure AD OAuth, Keycloak, Okta ... etc
+The admin UI lets you organize work into teams, projects, and environments. Each environment gets its own state endpoint with credentials. You can lock environments, view state versions, roll back, and take snapshots.
 
+### What's different in this fork
 
-#### Quick Start
+**SSO and SCIM** — Lynx supports OIDC and SAML 2.0 login with JIT user provisioning. SCIM 2.0 lets your IdP (Okta, Azure AD, etc.) automatically sync users and groups into Lynx teams. All configuration lives in the Settings page or environment variables.
 
-> [!IMPORTANT]
->
-> Make sure you have docker and docker-compose installed for the quick start.
+**OIDC token auth for CI/CD** — GitHub Actions, GitLab CI, and other OIDC-capable runners can authenticate to Terraform backends using their native tokens instead of static secrets. You configure providers and per-environment claim-based access rules through the UI.
 
-Lynx requires a [PostgreSQL](https://www.postgresql.org/) database. No Object Storage is required.
+**Audit logging** — Every significant action (create, update, delete, lock, unlock, state push) is logged with who did it and when. The audit log page has filtering by action type and resource type.
 
-To run `Lynx` alone on port `4000` on docker.
+**Multi-team projects** — Projects can belong to multiple teams, so you can share infrastructure across organizational boundaries without duplicating configuration.
+
+**Phoenix LiveView frontend** — The original Vue.js + jQuery + Bootstrap frontend has been replaced with server-rendered Phoenix LiveView and Tailwind CSS. No CDN dependencies, no flash of unstyled content, and the UI stays in sync with the server automatically.
+
+### Quick start
+
+You need Docker and docker-compose. Lynx requires PostgreSQL — no object storage needed.
+
+Run Lynx on port 4000:
 
 ```bash
-$ wget https://raw.githubusercontent.com/Clivern/Lynx/main/docker-compose.yml \
+wget https://raw.githubusercontent.com/Muon-Space/Lynx/main/docker-compose.yml \
     -O docker-compose.yml
 
-$ docker-compose up -d
+docker-compose up -d
 ```
 
-To run `Lynx` behind nginx reverse proxy on port `80` on docker.
+Open `http://localhost:4000` and follow the install wizard to create your admin account.
+
+To run behind nginx on port 80:
 
 ```bash
-$ wget https://raw.githubusercontent.com/Clivern/Lynx/main/docker-compose-nginx.yml \
+wget https://raw.githubusercontent.com/Muon-Space/Lynx/main/docker-compose-nginx.yml \
     -O docker-compose.yml
-$ wget https://raw.githubusercontent.com/Clivern/Lynx/main/nginx.conf \
+wget https://raw.githubusercontent.com/Muon-Space/Lynx/main/nginx.conf \
     -O nginx.conf
 
-$ docker-compose up -d
+docker-compose up -d
 ```
 
-To run a 3 Nodes of `Lynx` behind nginx reverse proxy on port `80` on docker.
+For Kubernetes, there's a Helm chart:
 
 ```bash
-$ wget https://raw.githubusercontent.com/Clivern/Lynx/main/docker-compose-cluster.yml \
-    -O docker-compose.yml
-$ wget https://raw.githubusercontent.com/Clivern/Lynx/main/nginx-cluster.conf \
-    -O nginx-cluster.conf
-
-$ docker-compose up -d
+helm install lynx oci://ghcr.io/muon-space/charts/lynx
 ```
 
-Here is a [video demonstration](https://www.youtube.com/watch?v=YNkHfysr3-0)
+### Connecting Terraform
 
+Once you've created a team, project, and environment in the UI, grab the backend configuration from the environment's "View" button:
 
-#### Manual Installation
+```hcl
+terraform {
+  backend "http" {
+    address        = "https://lynx.example.com/client/my-team/my-project/prod/state"
+    lock_address   = "https://lynx.example.com/client/my-team/my-project/prod/lock"
+    unlock_address = "https://lynx.example.com/client/my-team/my-project/prod/unlock"
+    lock_method    = "POST"
+    unlock_method  = "POST"
+    username       = "env-username"
+    password       = "env-secret"
+  }
+}
+```
 
-Please check [this guide](https://lynx.clivern.com/documentation/Installation/) for a manual setup on Ubuntu server.
+For OIDC token auth (e.g., from GitHub Actions), set the username to your OIDC provider name and the password to the JWT token.
 
+### Development
 
-#### Important Links
+Prerequisites: Elixir 1.19+, Erlang/OTP 28+, PostgreSQL.
 
-| Name             | Description                                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------- |
-| API Documentation| [https://lynx.apidocumentation.com/reference](https://lynx.apidocumentation.com/reference)
-| Bug Tracker      | [Submit issues on GitHub](https://github.com/clivern/lynx/issues)                                  |
-| Security Issues  | [Submit security vulnerability on GitHub](https://github.com/Clivern/Lynx/security/advisories/new) |
-| Contributing     | [Read the contribution guide here](./docs/how-to/development/Reamd.md)                             |
+```bash
+make deps       # fetch dependencies
+make migrate    # create and migrate database
+make run        # start dev server on port 4000
+make test       # run tests
+make build      # compile with warnings-as-errors
+make fmt        # format code
+```
 
+### API
 
-#### License
+Lynx exposes a RESTful JSON API for programmatic management of users, teams, projects, environments, and snapshots. All endpoints require a Bearer token (user API key) in the `Authorization` header.
 
-© 2023, Clivern. Released under [MIT License](https://opensource.org/licenses/mit-license.php).
+The SCIM 2.0 API at `/scim/v2/` supports Users and Groups with full CRUD, filtering, and PATCH operations for IdP integration.
 
-Lynx is authored and maintained by [@clivern](http://github.com/clivern).
+### License
+
+© 2023 [Clivern](https://github.com/Clivern). Released under the [MIT License](https://opensource.org/licenses/mit-license.php).
+
+This fork is maintained by [Muon Space](https://github.com/Muon-Space).

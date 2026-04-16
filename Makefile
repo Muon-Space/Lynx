@@ -45,15 +45,6 @@ build:
 	@$(mix) compile --warnings-as-errors --all-warnings
 
 
-## release: Release the code
-.PHONY: release
-release:
-	@echo ">> ============= Release the code ============= <<"
-	-rm -rf _build
-	# mix phx.digest
-	MIX_ENV=prod mix release
-
-
 ## i: Run interactive shell
 .PHONY: i
 i:

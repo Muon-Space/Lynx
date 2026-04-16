@@ -6,8 +6,6 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
   use ExUnit.Case
 
   alias Lynx.Module.OIDCBackendModule
-  alias Lynx.Context.OIDCProviderContext
-  alias Lynx.Context.OIDCAccessRuleContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.TeamContext
@@ -108,7 +106,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
   describe "claim matching" do
     test "eq operator matches exactly" do
-      claims = %{"repository" => "myorg/myrepo", "environment" => "production"}
+      _claims = %{"repository" => "myorg/myrepo", "environment" => "production"}
 
       rules = [
         %{"claim" => "repository", "operator" => "eq", "value" => "myorg/myrepo"},

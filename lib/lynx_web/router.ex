@@ -39,21 +39,22 @@ defmodule LynxWeb.Router do
   scope "/", LynxWeb do
     pipe_through :browser
 
-    get "/404", PageController, :not_found
-    get "/install", PageController, :install
-    get "/", PageController, :home
-    get "/login", PageController, :login
-    get "/logout", PageController, :logout
-    get "/admin/profile", PageController, :profile
-    get "/admin/snapshots", PageController, :snapshots
-    get "/admin/teams", PageController, :teams
-    get "/admin/users", PageController, :users
-    get "/admin/projects", PageController, :projects
-    get "/admin/projects/:uuid", PageController, :project
-    get "/admin/settings", PageController, :settings
-    get "/admin/audit", PageController, :audit
-    get "/admin/state/download/:uuid", PageController, :state
-    get "/admin/environment/download/:uuid", PageController, :environment
+    # LiveView pages
+    live "/", HomeLive
+    live "/install", InstallLive
+    live "/login", LoginLive
+    live "/admin/profile", ProfileLive
+    live "/admin/audit", AuditLive
+    live "/admin/users", UsersLive
+    live "/admin/teams", TeamsLive
+    live "/admin/projects", ProjectsLive
+    live "/admin/projects/:uuid", ProjectLive
+    live "/admin/snapshots", SnapshotsLive
+    live "/admin/settings", SettingsLive
+
+    get "/logout", SessionController, :logout
+    get "/admin/state/download/:uuid", DownloadController, :state
+    get "/admin/environment/download/:uuid", DownloadController, :environment
     get "/auth/sso/finalize", SSOController, :finalize
   end
 
@@ -62,8 +63,8 @@ defmodule LynxWeb.Router do
 
     get "/_health", HealthController, :health
     get "/_ready", ReadyController, :ready
-    post "/action/install", MiscController, :install
-    post "/action/auth", MiscController, :auth
+    post "/action/install", InstallController, :install
+    post "/action/auth", SessionController, :auth
   end
 
   # SSO routes (public - no auth middleware, handled by controller)

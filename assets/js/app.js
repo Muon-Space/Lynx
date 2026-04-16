@@ -1,44 +1,106 @@
-// We import the CSS which is extracted to its own file by esbuild.
-// Remove this line if you add a your own CSS build pipeline (e.g postcss).
-import "../css/app.css"
-
-// If you want to use Phoenix channels, run `mix help phx.gen.channel`
-// to get started and then uncomment the line below.
-// import "./user_socket.js"
-
-// You can include dependencies in two ways.
-//
-// The simplest option is to put them in assets/vendor and
-// import them using relative paths:
-//
-//     import "../vendor/some-package.js"
-//
-// Alternatively, you can `npm install some-package --prefix assets` and import
-// them using a path starting with the package name:
-//
-//     import "some-package"
-//
-
-// Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
-// Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+let Hooks = {}
+
+Hooks.CustomSelect = {
+  mounted() {
+    this.isOpen = false
+    this.multiple = this.el.dataset.multiple === "true"
+    this.name = this.el.dataset.name
+
+    this.trigger = this.el.querySelector("[data-trigger]")
+    this.dropdown = this.el.querySelector("[data-dropdown]")
+    this.inputs = this.el.querySelector("[data-inputs]")
+    this.labelEl = this.trigger.querySelector("[data-label]")
+
+    this.trigger.addEventListener("click", e => {
+      e.preventDefault()
+      this.isOpen ? this.close() : this.open()
+    })
+
+    this.dropdown.addEventListener("click", e => {
+      let opt = e.target.closest("[data-value]")
+      if (!opt) return
+
+      if (this.multiple) {
+        let wasSelected = opt.dataset.selected === "true"
+        opt.dataset.selected = wasSelected ? "false" : "true"
+        opt.classList.toggle("bg-blue-50", !wasSelected)
+        opt.classList.toggle("text-blue-700", !wasSelected)
+        let check = opt.querySelector("[data-check]")
+        if (check) check.textContent = !wasSelected ? "\u2713" : ""
+        this.syncMultiple()
+      } else {
+        this.dropdown.querySelectorAll("[data-value]").forEach(o => {
+          o.classList.remove("bg-blue-50", "text-blue-700")
+        })
+        opt.classList.add("bg-blue-50", "text-blue-700")
+        this.labelEl.textContent = opt.dataset.label
+        this.inputs.innerHTML = `<input type="hidden" name="${this.name}" value="${this.esc(opt.dataset.value)}" />`
+        this.close()
+        this.notify()
+      }
+    })
+
+    this._close = e => { if (!this.el.contains(e.target)) this.close() }
+    this._esc = e => { if (e.key === "Escape") this.close() }
+    document.addEventListener("click", this._close)
+    document.addEventListener("keydown", this._esc)
+  },
+
+  destroyed() {
+    document.removeEventListener("click", this._close)
+    document.removeEventListener("keydown", this._esc)
+  },
+
+  open() {
+    this.isOpen = true
+    this.dropdown.classList.remove("hidden")
+  },
+
+  close() {
+    this.isOpen = false
+    this.dropdown.classList.add("hidden")
+  },
+
+  syncMultiple() {
+    let selected = this.dropdown.querySelectorAll('[data-selected="true"]')
+    let n = this.name + "[]"
+    let html = ""
+    let labels = []
+    selected.forEach(s => {
+      html += `<input type="hidden" name="${n}" value="${this.esc(s.dataset.value)}" />`
+      labels.push(s.dataset.label)
+    })
+    this.inputs.innerHTML = html
+    this.labelEl.textContent = labels.length ? labels.join(", ") : "Select..."
+  },
+
+  notify() {
+    let input = this.inputs.querySelector("input")
+    if (input) input.dispatchEvent(new Event("input", { bubbles: true }))
+  },
+
+  esc(s) {
+    let d = document.createElement("div")
+    d.textContent = s
+    return d.innerHTML
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}})
+let liveSocket = new LiveSocket("/live", Socket, {
+  longPollFallbackMs: 2500,
+  params: {_csrf_token: csrfToken},
+  hooks: Hooks
+})
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", info => topbar.show())
-window.addEventListener("phx:page-loading-stop", info => topbar.hide())
+topbar.config({barColors: {0: "#3b82f6"}, shadowColor: "rgba(0, 0, 0, .3)"})
+window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
+window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
-// connect if there are any LiveViews on the page
 liveSocket.connect()
-
-// expose liveSocket on window for web console debug logs and latency simulation:
-// >> liveSocket.enableDebug()
-// >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
-// >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket

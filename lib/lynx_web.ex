@@ -39,6 +39,8 @@ defmodule LynxWeb do
       use Phoenix.LiveView,
         layout: {LynxWeb.Layouts, :app}
 
+      alias Phoenix.LiveView.JS
+
       unquote(html_helpers())
     end
   end
@@ -76,26 +78,11 @@ defmodule LynxWeb do
     end
   end
 
-  # Keep backward compat for existing views during migration
-  def view do
-    quote do
-      use Phoenix.Component
-
-      import Phoenix.Controller,
-        only: [get_flash: 1, get_flash: 2, view_module: 1, view_template: 1]
-
-      import LynxWeb.ErrorHelpers
-      use Gettext, backend: LynxWeb.Gettext
-
-      unquote(verified_routes())
-    end
-  end
-
   defp html_helpers do
     quote do
       import Phoenix.HTML
+      import LynxWeb.CoreComponents
 
-      import LynxWeb.ErrorHelpers
       use Gettext, backend: LynxWeb.Gettext
 
       unquote(verified_routes())
