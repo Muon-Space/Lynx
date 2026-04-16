@@ -22,6 +22,7 @@ defmodule LynxWeb.SnapshotsLive do
       |> assign(:show_add, false)
       |> assign(:all_teams, all_teams)
       |> assign(:all_projects, all_projects)
+      |> assign(:confirm, nil)
       |> load_snapshots()
 
     {:ok, socket}
@@ -30,6 +31,7 @@ defmodule LynxWeb.SnapshotsLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="snapshots" />
     <div class="max-w-7xl mx-auto px-6">
       <.page_header title="Snapshots" />
@@ -38,7 +40,7 @@ defmodule LynxWeb.SnapshotsLive do
         <.button phx-click="show_add" variant="primary">+ Create Snapshot</.button>
       </div>
 
-      <.modal :if={@show_add} id="add-snapshot" show on_cancel={JS.push("hide_add")}>
+      <.modal :if={@show_add} id="add-snapshot" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Create Snapshot</h3>
         <form phx-submit="create_snapshot" class="space-y-4">
           <.input name="title" label="Title" value="" required />
@@ -66,8 +68,8 @@ defmodule LynxWeb.SnapshotsLive do
             <span class="text-xs text-gray-500">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={s}>
-            <.button phx-click="restore_snapshot" phx-value-uuid={s.uuid} variant="ghost" size="sm" data-confirm="Restore this snapshot? This will overwrite current environments.">Restore</.button>
-            <.button phx-click="delete_snapshot" phx-value-uuid={s.uuid} variant="ghost" size="sm" data-confirm="Delete this snapshot?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="restore_snapshot" phx-value-message="Restore this snapshot? This will overwrite current environments." phx-value-uuid={s.uuid} variant="ghost" size="sm">Restore</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_snapshot" phx-value-message="Delete this snapshot?" phx-value-uuid={s.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
         <.pagination page={@page} total_pages={@total_pages} />
@@ -77,6 +79,12 @@ defmodule LynxWeb.SnapshotsLive do
   end
 
   @impl true
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
   def handle_event("show_add", _, socket), do: {:noreply, assign(socket, :show_add, true)}
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
 
@@ -104,6 +112,7 @@ defmodule LynxWeb.SnapshotsLive do
   end
 
   def handle_event("restore_snapshot", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case SnapshotModule.restore_snapshot(uuid) do
       {:ok, _} -> {:noreply, put_flash(socket, :info, "Snapshot restored successfully")}
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
@@ -111,6 +120,7 @@ defmodule LynxWeb.SnapshotsLive do
   end
 
   def handle_event("delete_snapshot", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case SnapshotModule.delete_snapshot_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Snapshot deleted") |> load_snapshots()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}

@@ -39,6 +39,8 @@ defmodule LynxWeb do
       use Phoenix.LiveView,
         layout: {LynxWeb.Layouts, :app}
 
+      alias Phoenix.LiveView.JS
+
       unquote(html_helpers())
     end
   end

@@ -15,12 +15,14 @@ defmodule LynxWeb.ProfileLive do
       |> assign(:api_key, "••••••••••••••••")
       |> assign(:api_key_visible, false)
 
+    socket = assign(socket, :confirm, nil)
     {:ok, socket}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="profile" />
     <div class="max-w-3xl mx-auto px-6">
       <.page_header title="Profile" />
@@ -40,7 +42,7 @@ defmodule LynxWeb.ProfileLive do
         <div class="flex items-center gap-4">
           <code class="flex-1 bg-gray-100 px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
           <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm">Show</.button>
-          <.button phx-click="rotate_api_key" variant="danger" size="sm" data-confirm="Rotate API key? The old key will stop working immediately.">Rotate</.button>
+          <.button phx-click="confirm_action" phx-value-event="rotate_api_key" phx-value-message="Rotate API key? The old key will stop working immediately." variant="danger" size="sm">Rotate</.button>
         </div>
       </.card>
     </div>
@@ -48,6 +50,12 @@ defmodule LynxWeb.ProfileLive do
   end
 
   @impl true
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
   def handle_event("update_profile", params, socket) do
     case UserModule.update_user(%{
            uuid: socket.assigns.current_user.uuid,
@@ -67,6 +75,7 @@ defmodule LynxWeb.ProfileLive do
   end
 
   def handle_event("rotate_api_key", _, socket) do
+    socket = assign(socket, :confirm, nil)
     new_key = AuthService.get_uuid()
 
     case UserModule.rotate_api_key(socket.assigns.current_user.uuid, new_key) do

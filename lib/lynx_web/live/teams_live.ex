@@ -15,9 +15,11 @@ defmodule LynxWeb.TeamsLive do
       socket
       |> assign(:page, 1)
       |> assign(:show_add, false)
+      |> assign(:add_slug, "")
       |> assign(:editing_team, nil)
       |> assign(:editing_members, [])
       |> assign(:all_users, UserModule.get_users(0, 10000))
+      |> assign(:confirm, nil)
       |> load_teams()
 
     {:ok, socket}
@@ -26,6 +28,7 @@ defmodule LynxWeb.TeamsLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="teams" />
     <div class="max-w-7xl mx-auto px-6">
       <.page_header title="Teams" />
@@ -34,11 +37,11 @@ defmodule LynxWeb.TeamsLive do
         <.button phx-click="show_add" variant="primary">+ Add Team</.button>
       </div>
 
-      <.modal :if={@show_add} id="add-team" show on_cancel={JS.push("hide_add")}>
+      <.modal :if={@show_add} id="add-team" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Add New Team</h3>
-        <form phx-submit="create_team" class="space-y-4">
-          <.input name="name" label="Name" value="" required phx-keyup="slugify_name" phx-target={@myself || ""} />
-          <.input name="slug" label="Slug" value="" required />
+        <form phx-submit="create_team" phx-change="form_change" class="space-y-4">
+          <.input name="name" label="Name" value="" required />
+          <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
           <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={[]} hint="Hold Ctrl/Cmd to select multiple" />
           <div class="flex gap-3 pt-2">
@@ -48,7 +51,7 @@ defmodule LynxWeb.TeamsLive do
         </form>
       </.modal>
 
-      <.modal :if={@editing_team} id="edit-team" show on_cancel={JS.push("hide_edit")}>
+      <.modal :if={@editing_team} id="edit-team" show on_close="hide_edit">
         <h3 class="text-lg font-semibold mb-4">Edit Team</h3>
         <form phx-submit="update_team" class="space-y-4">
           <.input name="name" label="Name" value={@editing_team.name} required />
@@ -73,7 +76,7 @@ defmodule LynxWeb.TeamsLive do
           </:col>
           <:action :let={team}>
             <.button phx-click="edit_team" phx-value-uuid={team.uuid} variant="ghost" size="sm">Edit</.button>
-            <.button phx-click="delete_team" phx-value-uuid={team.uuid} variant="ghost" size="sm" data-confirm="Delete this team?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_team" phx-value-message="Delete this team?" phx-value-uuid={team.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
         <.pagination page={@page} total_pages={@total_pages} />
@@ -83,8 +86,19 @@ defmodule LynxWeb.TeamsLive do
   end
 
   @impl true
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, :show_add, true)}
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
+  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, show_add: true, add_slug: "")}
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
+
+  def handle_event("form_change", %{"name" => name}, socket) do
+    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    {:noreply, assign(socket, :add_slug, slug)}
+  end
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_team, nil)}
 
   def handle_event("create_team", params, socket) do
@@ -118,6 +132,7 @@ defmodule LynxWeb.TeamsLive do
   end
 
   def handle_event("delete_team", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case TeamModule.delete_team_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Team deleted") |> load_teams()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}

@@ -16,6 +16,7 @@ defmodule LynxWeb.UsersLive do
       |> assign(:per_page, @per_page)
       |> assign(:show_add, false)
       |> assign(:editing_user, nil)
+      |> assign(:confirm, nil)
       |> load_users()
 
     {:ok, socket}
@@ -24,6 +25,7 @@ defmodule LynxWeb.UsersLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="users" />
     <div class="max-w-7xl mx-auto px-6">
       <.page_header title="Users" />
@@ -33,7 +35,7 @@ defmodule LynxWeb.UsersLive do
       </div>
 
       <%!-- Add User Modal --%>
-      <.modal :if={@show_add} id="add-user-modal" show on_cancel={JS.push("hide_add")}>
+      <.modal :if={@show_add} id="add-user-modal" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Add New User</h3>
         <form phx-submit="create_user" class="space-y-4">
           <.input name="name" label="Name" value="" required />
@@ -48,7 +50,7 @@ defmodule LynxWeb.UsersLive do
       </.modal>
 
       <%!-- Edit User Modal --%>
-      <.modal :if={@editing_user} id="edit-user-modal" show on_cancel={JS.push("hide_edit")}>
+      <.modal :if={@editing_user} id="edit-user-modal" show on_close="hide_edit">
         <h3 class="text-lg font-semibold mb-4">Edit User</h3>
         <form phx-submit="update_user" class="space-y-4">
           <.input name="name" label="Name" value={@editing_user.name} required />
@@ -79,7 +81,7 @@ defmodule LynxWeb.UsersLive do
           </:col>
           <:action :let={user}>
             <.button phx-click="edit_user" phx-value-uuid={user.uuid} variant="ghost" size="sm">Edit</.button>
-            <.button phx-click="delete_user" phx-value-uuid={user.uuid} variant="ghost" size="sm" data-confirm="Delete this user?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_user" phx-value-message="Delete this user?" phx-value-uuid={user.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
         <.pagination page={@page} total_pages={@total_pages} />
@@ -89,6 +91,12 @@ defmodule LynxWeb.UsersLive do
   end
 
   @impl true
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
   def handle_event("show_add", _, socket), do: {:noreply, assign(socket, :show_add, true)}
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_user, nil)}
@@ -143,6 +151,7 @@ defmodule LynxWeb.UsersLive do
   end
 
   def handle_event("delete_user", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case UserModule.delete_user_by_uuid(uuid) do
       {:ok, _} ->
         AuditModule.log_system("deleted", "user", uuid)

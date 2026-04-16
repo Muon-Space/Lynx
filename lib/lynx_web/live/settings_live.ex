@@ -46,12 +46,14 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:oidc_signout_uri, app_url <> "/logout")
       |> assign(:saml_acs_url, app_url <> "/auth/sso/saml_callback")
 
+    socket = assign(socket, :confirm, nil)
     {:ok, socket}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="settings" />
     <div class="max-w-4xl mx-auto px-6">
       <.page_header title="Settings" />
@@ -98,10 +100,10 @@ defmodule LynxWeb.SettingsLive do
       <.card class="mb-6">
         <h3 class="text-lg font-semibold mb-4">SCIM Provisioning</h3>
         <div class="space-y-4">
-          <div class="flex items-center gap-3">
-            <input type="checkbox" checked={@scim_enabled} phx-click="toggle_scim" class="rounded" />
+          <label class="flex items-center gap-3 cursor-pointer" phx-click="toggle_scim">
+            <input type="checkbox" checked={@scim_enabled} class="rounded" />
             <span class="text-sm font-medium">SCIM Enabled</span>
-          </div>
+          </label>
 
           <div :if={@scim_enabled}>
             <div class="bg-blue-50 rounded-lg p-4 text-sm space-y-1 mb-4">
@@ -128,7 +130,7 @@ defmodule LynxWeb.SettingsLive do
               </:col>
               <:col :let={t} label="Last Used">{if t.last_used_at, do: Calendar.strftime(t.last_used_at, "%Y-%m-%d %H:%M"), else: "Never"}</:col>
               <:action :let={t}>
-                <.button :if={t.is_active} phx-click="revoke_token" phx-value-uuid={t.uuid} variant="ghost" size="sm" data-confirm="Revoke this token?">Revoke</.button>
+                <.button :if={t.is_active} phx-click="confirm_action" phx-value-event="revoke_token" phx-value-message="Revoke this token?" phx-value-uuid={t.uuid} variant="ghost" size="sm">Revoke</.button>
               </:action>
             </.table>
           </div>
@@ -161,7 +163,7 @@ defmodule LynxWeb.SettingsLive do
           <:col :let={p} label="Discovery URL"><span class="text-xs truncate max-w-xs block">{p.discovery_url}</span></:col>
           <:col :let={p} label="Audience">{p.audience || "-"}</:col>
           <:action :let={p}>
-            <.button phx-click="delete_provider" phx-value-uuid={p.uuid} variant="ghost" size="sm" data-confirm="Delete this provider and all its rules?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_provider" phx-value-message="Delete this provider and all its rules?" phx-value-uuid={p.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
 
@@ -175,6 +177,12 @@ defmodule LynxWeb.SettingsLive do
 
   # -- General --
   @impl true
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
   def handle_event("save_general", params, socket) do
     SettingsModule.update_configs(%{app_name: params["app_name"], app_url: params["app_url"], app_email: params["app_email"]})
     AuditModule.log_system("updated", "settings", nil, "general")
@@ -184,9 +192,9 @@ defmodule LynxWeb.SettingsLive do
   # -- SSO --
   def handle_event("save_sso", params, socket) do
     configs = %{
-      "auth_password_enabled" => if(params["auth_password_enabled"], do: "true", else: "false"),
-      "auth_sso_enabled" => if(params["auth_sso_enabled"], do: "true", else: "false"),
-      "sso_jit_enabled" => if(params["sso_jit_enabled"], do: "true", else: "false"),
+      "auth_password_enabled" => if(params["auth_password_enabled"] == "true", do: "true", else: "false"),
+      "auth_sso_enabled" => if(params["auth_sso_enabled"] == "true", do: "true", else: "false"),
+      "sso_jit_enabled" => if(params["sso_jit_enabled"] == "true", do: "true", else: "false"),
       "sso_protocol" => params["sso_protocol"],
       "sso_login_label" => params["sso_login_label"],
       "sso_issuer" => params["sso_issuer"] || "",
@@ -216,6 +224,7 @@ defmodule LynxWeb.SettingsLive do
   end
 
   def handle_event("revoke_token", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     SCIMTokenModule.revoke_token(uuid)
     AuditModule.log_system("revoked", "scim_token", uuid)
     {:noreply, socket |> assign(:scim_tokens, SCIMTokenModule.list_tokens()) |> put_flash(:info, "Token revoked")}
@@ -235,6 +244,7 @@ defmodule LynxWeb.SettingsLive do
   end
 
   def handle_event("delete_provider", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     OIDCBackendModule.delete_provider(uuid)
     {:noreply, socket |> assign(:oidc_providers, OIDCBackendModule.list_providers()) |> put_flash(:info, "Provider deleted")}
   end

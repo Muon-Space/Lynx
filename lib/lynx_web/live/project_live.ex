@@ -46,21 +46,29 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:teams, teams)
           |> assign(:environments, envs_with_info)
           |> assign(:show_add_env, false)
+          |> assign(:add_env_slug, "")
           |> assign(:editing_env, nil)
           |> assign(:show_oidc_rules, nil)
           |> assign(:oidc_rules, [])
           |> assign(:oidc_providers, OIDCBackendModule.list_providers())
           |> assign(:show_add_rule, false)
 
-        {:ok, socket}
+        socket = assign(socket, :confirm, nil)
+    {:ok, socket}
     end
   end
 
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="projects" />
     <div class="max-w-7xl mx-auto px-6">
+      <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
+        <a href="/admin/projects" class="hover:text-gray-700">Projects</a>
+        <span>/</span>
+        <span class="text-gray-900 font-medium">{@project.name}</span>
+      </nav>
       <.page_header title={@project.name} subtitle={@project.description} />
 
       <div class="flex justify-end mb-4">
@@ -68,11 +76,11 @@ defmodule LynxWeb.ProjectLive do
       </div>
 
       <%!-- Add Environment Modal --%>
-      <.modal :if={@show_add_env} id="add-env" show on_cancel={JS.push("hide_add_env")}>
+      <.modal :if={@show_add_env} id="add-env" show on_close="hide_add_env">
         <h3 class="text-lg font-semibold mb-4">Add Environment</h3>
-        <form phx-submit="create_env" class="space-y-4">
+        <form phx-submit="create_env" phx-change="env_form_change" class="space-y-4">
           <.input name="name" label="Name" value="" required />
-          <.input name="slug" label="Slug" value="" required />
+          <.input name="slug" label="Slug" value={@add_env_slug} required />
           <.input name="username" label="Username" value={random_string(8)} required />
           <.input name="secret" label="Secret" value={random_string(16)} required />
           <div class="flex gap-3 pt-2">
@@ -83,7 +91,7 @@ defmodule LynxWeb.ProjectLive do
       </.modal>
 
       <%!-- Edit Environment Modal --%>
-      <.modal :if={@editing_env} id="edit-env" show on_cancel={JS.push("hide_edit_env")}>
+      <.modal :if={@editing_env} id="edit-env" show on_close="hide_edit_env">
         <h3 class="text-lg font-semibold mb-4">Edit Environment</h3>
         <form phx-submit="update_env" class="space-y-4">
           <.input name="name" label="Name" value={@editing_env.name} required />
@@ -98,7 +106,7 @@ defmodule LynxWeb.ProjectLive do
       </.modal>
 
       <%!-- OIDC Rules Modal --%>
-      <.modal :if={@show_oidc_rules} id="oidc-rules" show on_cancel={JS.push("hide_oidc_rules")}>
+      <.modal :if={@show_oidc_rules} id="oidc-rules" show on_close="hide_oidc_rules">
         <h3 class="text-lg font-semibold mb-4">OIDC Access Rules — {@show_oidc_rules.name}</h3>
 
         <div :if={@show_add_rule} class="border rounded-lg p-4 mb-4">
@@ -125,7 +133,7 @@ defmodule LynxWeb.ProjectLive do
             </div>
           </:col>
           <:action :let={r}>
-            <.button phx-click="delete_rule" phx-value-uuid={r.uuid} variant="ghost" size="sm" data-confirm="Delete this rule?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_rule" phx-value-message="Delete this rule?" phx-value-uuid={r.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
       </.modal>
@@ -137,9 +145,10 @@ defmodule LynxWeb.ProjectLive do
           <:col :let={env} label="Lock Status">
             <span
               class="cursor-pointer"
-              phx-click={if env.is_locked, do: "force_unlock", else: "force_lock"}
+              phx-click="confirm_action"
+              phx-value-event={if env.is_locked, do: "force_unlock", else: "force_lock"}
               phx-value-uuid={env.uuid}
-              data-confirm={if env.is_locked, do: "Force unlock? This will override running Terraform operations.", else: "Lock this environment?"}
+              phx-value-message={if env.is_locked, do: "Force unlock? This will override running Terraform operations.", else: "Lock this environment?"}
             >
               <.badge color={if env.is_locked, do: "red", else: "green"}>
                 {if env.is_locked, do: "Locked", else: "Not Locked"}
@@ -155,7 +164,7 @@ defmodule LynxWeb.ProjectLive do
             <.button :if={env.state_version != "v0"} phx-click="download_state" phx-value-uuid={env.uuid} variant="ghost" size="sm">State</.button>
             <.button phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>
             <.button phx-click="edit_env" phx-value-uuid={env.uuid} variant="ghost" size="sm">Edit</.button>
-            <.button phx-click="delete_env" phx-value-uuid={env.uuid} variant="ghost" size="sm" data-confirm="Delete this environment?">Delete</.button>
+            <.button phx-click="confirm_action" phx-value-event="delete_env" phx-value-message="Delete this environment?" phx-value-uuid={env.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
 
@@ -170,8 +179,19 @@ defmodule LynxWeb.ProjectLive do
 
   # -- Environment CRUD --
   @impl true
-  def handle_event("show_add_env", _, socket), do: {:noreply, assign(socket, :show_add_env, true)}
+  def handle_event("confirm_action", params, socket) do
+    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
+  def handle_event("show_add_env", _, socket), do: {:noreply, assign(socket, show_add_env: true, add_env_slug: "")}
   def handle_event("hide_add_env", _, socket), do: {:noreply, assign(socket, :show_add_env, false)}
+
+  def handle_event("env_form_change", %{"name" => name}, socket) do
+    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    {:noreply, assign(socket, :add_env_slug, slug)}
+  end
   def handle_event("hide_edit_env", _, socket), do: {:noreply, assign(socket, :editing_env, nil)}
 
   def handle_event("create_env", params, socket) do
@@ -211,6 +231,7 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("delete_env", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case EnvironmentModule.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
@@ -219,6 +240,7 @@ defmodule LynxWeb.ProjectLive do
 
   # -- Lock/Unlock --
   def handle_event("force_lock", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case EnvironmentContext.get_env_id_with_uuid(uuid) do
       nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
       env_id ->
@@ -229,6 +251,7 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("force_unlock", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case EnvironmentContext.get_env_id_with_uuid(uuid) do
       nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
       env_id ->
@@ -315,6 +338,7 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("delete_rule", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     OIDCBackendModule.delete_rule(uuid)
     rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
     {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}

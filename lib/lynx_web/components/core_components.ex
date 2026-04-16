@@ -44,7 +44,7 @@ defmodule LynxWeb.CoreComponents do
 
   attr :id, :string, required: true
   attr :show, :boolean, default: false
-  attr :on_cancel, JS, default: %JS{}
+  attr :on_close, :string, default: nil, doc: "phx-click event to fire when closing"
   slot :inner_block, required: true
 
   def modal(assigns) do
@@ -55,14 +55,11 @@ defmodule LynxWeb.CoreComponents do
       phx-remove={hide_modal(@id)}
       class="relative z-50 hidden"
     >
-      <div class="fixed inset-0 bg-black/50 transition-opacity" aria-hidden="true" />
-      <div class="fixed inset-0 overflow-y-auto">
+      <div class="fixed inset-0 bg-black/50 transition-opacity" aria-hidden="true" phx-click={@on_close} />
+      <div class="fixed inset-0 overflow-y-auto pointer-events-none">
         <div class="flex min-h-full items-center justify-center p-4">
-          <div
-            class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200"
-            phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-            data-cancel={JS.exec("phx-remove", to: "##{@id}") |> @on_cancel}
-          >
+          <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200 relative pointer-events-auto">
+            <button :if={@on_close} phx-click={@on_close} class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl cursor-pointer">&times;</button>
             {render_slot(@inner_block)}
           </div>
         </div>
@@ -80,11 +77,40 @@ defmodule LynxWeb.CoreComponents do
     JS.hide(to: "##{id}")
   end
 
+  # -- Confirm Dialog --
+
+  attr :id, :string, default: "confirm-dialog"
+  attr :title, :string, default: "Are you sure?"
+  attr :message, :string, required: true
+  attr :confirm_event, :string, required: true
+  attr :confirm_value, :map, default: %{}
+
+  def confirm_dialog(assigns) do
+    ~H"""
+    <div id={@id} class="relative z-[60]">
+      <div class="fixed inset-0 bg-black/50 transition-opacity" phx-click="cancel_confirm" />
+      <div class="fixed inset-0 overflow-y-auto pointer-events-none">
+        <div class="flex min-h-full items-center justify-center p-4">
+          <div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl pointer-events-auto">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">{@title}</h3>
+            <p class="text-sm text-gray-600 mb-6">{@message}</p>
+            <div class="flex justify-end gap-3">
+              <.button phx-click="cancel_confirm" variant="secondary" size="sm">Cancel</.button>
+              <.button phx-click={@confirm_event} phx-value-uuid={@confirm_value[:uuid]} variant="danger" size="sm">Confirm</.button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   # -- Table --
 
   attr :id, :string, default: nil
   attr :rows, :list, required: true
   attr :empty_message, :string, default: "No records found."
+  attr :row_click, :any, default: nil, doc: "fn(row) -> JS command for row click"
   slot :col, required: true do
     attr :label, :string
   end
@@ -101,8 +127,15 @@ defmodule LynxWeb.CoreComponents do
           </tr>
         </thead>
         <tbody>
-          <tr :for={row <- @rows} class="border-b border-gray-100 hover:bg-gray-50">
-            <td :for={col <- @col} class="px-4 py-3">
+          <tr
+            :for={row <- @rows}
+            class={["border-b border-gray-100 hover:bg-gray-50", @row_click && "cursor-pointer"]}
+          >
+            <td
+              :for={col <- @col}
+              class="px-4 py-3"
+              phx-click={@row_click && @row_click.(row)}
+            >
               {render_slot(col, row)}
             </td>
             <td :if={@action != []} class="px-4 py-3">
@@ -188,7 +221,7 @@ defmodule LynxWeb.CoreComponents do
     <button
       type={@type}
       class={[
-        "inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2",
+        "inline-flex items-center justify-center rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2",
         button_size(@size),
         button_variant(@variant),
         @class

@@ -18,9 +18,11 @@ defmodule LynxWeb.ProjectsLive do
       socket
       |> assign(:page, 1)
       |> assign(:show_add, false)
+      |> assign(:add_slug, "")
       |> assign(:editing_project, nil)
       |> assign(:editing_teams, [])
       |> assign(:all_teams, all_teams)
+      |> assign(:confirm, nil)
       |> load_projects()
 
     {:ok, socket}
@@ -37,11 +39,11 @@ defmodule LynxWeb.ProjectsLive do
         <.button phx-click="show_add" variant="primary">+ Add Project</.button>
       </div>
 
-      <.modal :if={@show_add} id="add-project" show on_cancel={JS.push("hide_add")}>
+      <.modal :if={@show_add} id="add-project" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Add New Project</h3>
-        <form phx-submit="create_project" class="space-y-4">
+        <form phx-submit="create_project" phx-change="form_change" class="space-y-4">
           <.input name="name" label="Name" value="" required />
-          <.input name="slug" label="Slug" value="" required />
+          <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
           <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={[]} hint="Hold Ctrl/Cmd to select multiple" />
           <div class="flex gap-3 pt-2">
@@ -51,7 +53,7 @@ defmodule LynxWeb.ProjectsLive do
         </form>
       </.modal>
 
-      <.modal :if={@editing_project} id="edit-project" show on_cancel={JS.push("hide_edit")}>
+      <.modal :if={@editing_project} id="edit-project" show on_close="hide_edit">
         <h3 class="text-lg font-semibold mb-4">Edit Project</h3>
         <form phx-submit="update_project" class="space-y-4">
           <.input name="name" label="Name" value={@editing_project.name} required />
@@ -65,9 +67,11 @@ defmodule LynxWeb.ProjectsLive do
         </form>
       </.modal>
 
+      <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
+
       <.card>
-        <.table rows={@projects}>
-          <:col :let={project} label="Name">{project.name}</:col>
+        <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
+          <:col :let={project} label="Name"><span class="font-medium text-blue-600">{project.name}</span></:col>
           <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">
             <%= for team <- ProjectModule.get_project_teams(project.id) do %>
@@ -80,7 +84,7 @@ defmodule LynxWeb.ProjectsLive do
           <:action :let={project}>
             <.button phx-click="view_project" phx-value-uuid={project.uuid} variant="ghost" size="sm">View</.button>
             <.button phx-click="edit_project" phx-value-uuid={project.uuid} variant="ghost" size="sm">Edit</.button>
-            <.button phx-click="delete_project" phx-value-uuid={project.uuid} variant="ghost" size="sm" data-confirm="Delete this project and all its environments?">Delete</.button>
+            <.button phx-click="confirm_delete" phx-value-uuid={project.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
         <.pagination page={@page} total_pages={@total_pages} />
@@ -90,9 +94,14 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   @impl true
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, :show_add, true)}
+  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, show_add: true, add_slug: "")}
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_project, nil)}
+
+  def handle_event("form_change", %{"name" => name}, socket) do
+    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    {:noreply, assign(socket, :add_slug, slug)}
+  end
 
   def handle_event("view_project", %{"uuid" => uuid}, socket) do
     {:noreply, push_navigate(socket, to: "/admin/projects/#{uuid}")}
@@ -137,7 +146,14 @@ defmodule LynxWeb.ProjectsLive do
     end
   end
 
+  def handle_event("confirm_delete", %{"uuid" => uuid}, socket) do
+    {:noreply, assign(socket, :confirm, %{message: "Delete this project and all its environments?", event: "delete_project", value: %{uuid: uuid}})}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
   def handle_event("delete_project", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
     case ProjectModule.delete_project_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Project deleted") |> load_projects()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
