@@ -46,7 +46,9 @@ defmodule Lynx.Context.AuditContext do
   defp maybe_filter(query, _field, nil), do: query
   defp maybe_filter(query, _field, ""), do: query
   defp maybe_filter(query, :action, value), do: where(query, [e], e.action == ^value)
-  defp maybe_filter(query, :resource_type, value), do: where(query, [e], e.resource_type == ^value)
+
+  defp maybe_filter(query, :resource_type, value),
+    do: where(query, [e], e.resource_type == ^value)
 
   defp maybe_filter(query, :actor_id, value) when is_integer(value),
     do: where(query, [e], e.actor_id == ^value)
