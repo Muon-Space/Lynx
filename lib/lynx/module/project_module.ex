@@ -150,7 +150,9 @@ defmodule Lynx.Module.ProjectModule do
   """
   def delete_project_by_uuid(uuid) do
     case ProjectContext.get_project_by_uuid(uuid) do
-      nil -> {:not_found, "Project with UUID #{uuid} not found"}
+      nil ->
+        {:not_found, "Project with UUID #{uuid} not found"}
+
       project ->
         ProjectContext.delete_project(project)
         {:ok, "Project with UUID #{uuid} deleted successfully"}
