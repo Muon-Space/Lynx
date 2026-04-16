@@ -13,6 +13,7 @@ defmodule LynxWeb.PageController do
   alias Lynx.Module.SettingsModule
   alias Lynx.Module.PermissionModule
   alias Lynx.Module.StateModule
+  alias Lynx.Module.SSOModule
 
   @doc """
   Login Page
@@ -40,7 +41,11 @@ defmodule LynxWeb.PageController do
             user_name: conn.assigns[:user_name],
             user_email: conn.assigns[:user_email],
             app_name: SettingsModule.get_config("app_name", ""),
-            app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url
+            app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url,
+            sso_enabled: SSOModule.is_sso_enabled?(),
+            password_enabled: SSOModule.is_password_enabled?(),
+            sso_login_url: "/auth/sso",
+            sso_login_label: SSOModule.get_sso_login_label()
           }
         )
     end

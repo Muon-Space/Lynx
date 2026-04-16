@@ -15,6 +15,7 @@ defmodule Lynx.Model.Team do
     field :name, :string
     field :slug, :string
     field :description, :string
+    field :external_id, :string
 
     timestamps()
   end
@@ -26,7 +27,8 @@ defmodule Lynx.Model.Team do
       :uuid,
       :name,
       :slug,
-      :description
+      :description,
+      :external_id
     ])
     |> validate_required([
       :uuid,

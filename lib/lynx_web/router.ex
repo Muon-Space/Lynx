@@ -64,6 +64,54 @@ defmodule LynxWeb.Router do
     post "/action/auth", MiscController, :auth
   end
 
+  # SSO routes (public - no auth middleware, handled by controller)
+  scope "/auth", LynxWeb do
+    pipe_through :pub
+
+    get "/sso", SSOController, :initiate
+    get "/sso/callback", SSOController, :callback_get
+    get "/sso/saml_callback", SSOController, :saml_callback
+    get "/sso/metadata", SSOController, :metadata
+  end
+
+  # Samly SAML router (handles SAML protocol flow internally)
+  scope "/sso" do
+    forward "/", Samly.Router
+  end
+
+  # SCIM 2.0 routes
+  pipeline :scim do
+    plug :accepts, ["json"]
+    plug :add_server_header
+    plug Lynx.Middleware.Logger
+    plug Lynx.Middleware.SCIMAuthMiddleware
+  end
+
+  scope "/scim/v2", LynxWeb do
+    pipe_through :scim
+
+    # Discovery
+    get "/ServiceProviderConfig", SCIMController, :service_provider_config
+    get "/ResourceTypes", SCIMController, :resource_types
+    get "/Schemas", SCIMController, :schemas
+
+    # Users
+    get "/Users", SCIMController, :list_users
+    post "/Users", SCIMController, :create_user
+    get "/Users/:id", SCIMController, :get_user
+    put "/Users/:id", SCIMController, :update_user
+    patch "/Users/:id", SCIMController, :patch_user
+    delete "/Users/:id", SCIMController, :delete_user
+
+    # Groups
+    get "/Groups", SCIMController, :list_groups
+    post "/Groups", SCIMController, :create_group
+    get "/Groups/:id", SCIMController, :get_group
+    put "/Groups/:id", SCIMController, :update_group
+    patch "/Groups/:id", SCIMController, :patch_group
+    delete "/Groups/:id", SCIMController, :delete_group
+  end
+
   scope "/api/v1", LynxWeb do
     pipe_through :api
 

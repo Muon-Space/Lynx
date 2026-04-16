@@ -40,6 +40,7 @@
         <div class="row h-100 m-auto w-100 align-items-center" style="max-width: 390px;">
             <div class="col-12" id="app_login">
                 <h1 class="mb-0 mb-sm-24"><%= gettext "Login" %></h1>
+                <%= if @data.password_enabled do %>
                 <form action={Routes.misc_path(@conn, :auth)} method="post" v-on:submit.prevent="loginAction" class="mt-16 mt-sm-32 mb-8">
                     <div class="mb-16">
                         <label class="form-label"><%= gettext "Email" %>:</label>
@@ -53,6 +54,17 @@
 
                     <button type="submit" class="btn btn-primary w-100"><%= gettext "Submit" %></button>
                 </form>
+                <% end %>
+                <%= if @data.sso_enabled do %>
+                    <%= if @data.password_enabled do %>
+                    <div class="text-center my-16">
+                        <span class="hp-p1-body hp-text-color-black-60"><%= gettext "or" %></span>
+                    </div>
+                    <% end %>
+                    <a href={@data.sso_login_url} class="btn btn-secondary w-100">
+                        <%= gettext "Login with %{provider}", provider: @data.sso_login_label %>
+                    </a>
+                <% end %>
             </div>
         </div>
     </div>

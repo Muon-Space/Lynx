@@ -24,6 +24,9 @@ defmodule Lynx.Context.UserContext do
       last_seen: attrs.last_seen,
       role: attrs.role,
       api_key: attrs.api_key,
+      auth_provider: Map.get(attrs, :auth_provider, "local"),
+      external_id: Map.get(attrs, :external_id),
+      is_active: Map.get(attrs, :is_active, true),
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
   end
@@ -46,7 +49,9 @@ defmodule Lynx.Context.UserContext do
     %{
       value: session.value,
       expire_at: session.expire_at,
-      user_id: session.user_id
+      user_id: session.user_id,
+      auth_method: Map.get(session, :auth_method, "password"),
+      idp_session_id: Map.get(session, :idp_session_id)
     }
   end
 
@@ -382,6 +387,42 @@ defmodule Lynx.Context.UserContext do
           users ++ user
       end
     end
+  end
+
+  @doc """
+  Get user by external ID
+  """
+  def get_user_by_external_id(external_id) do
+    from(
+      u in User,
+      where: u.external_id == ^external_id
+    )
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Get active users
+  """
+  def get_active_users(offset, limit) do
+    from(u in User,
+      order_by: [desc: u.inserted_at],
+      where: u.is_active == true,
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Count active users
+  """
+  def count_active_users() do
+    from(u in User,
+      select: count(u.id),
+      where: u.is_active == true
+    )
+    |> Repo.one()
   end
 
   @doc """

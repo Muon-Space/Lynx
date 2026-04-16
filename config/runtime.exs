@@ -24,6 +24,53 @@ if System.get_env("PHX_SERVER") do
   config :lynx, LynxWeb.Endpoint, server: true
 end
 
+# Auth configuration
+config :lynx,
+  auth_password_enabled: (System.get_env("AUTH_PASSWORD_ENABLED") || "true") == "true",
+  auth_sso_enabled: (System.get_env("AUTH_SSO_ENABLED") || "false") == "true",
+  sso_protocol: System.get_env("SSO_PROTOCOL") || "oidc",
+  sso_login_label: System.get_env("SSO_LOGIN_LABEL") || "SSO",
+  scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true",
+  scim_bearer_token: System.get_env("SCIM_BEARER_TOKEN")
+
+# OIDC configuration
+if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
+     (System.get_env("SSO_PROTOCOL") || "oidc") == "oidc" do
+  config :lynx, :openid_connect_providers,
+    lynx: [
+      discovery_document_uri:
+        "#{System.get_env("SSO_ISSUER")}/.well-known/openid-configuration",
+      client_id: System.get_env("SSO_CLIENT_ID"),
+      client_secret: System.get_env("SSO_CLIENT_SECRET"),
+      redirect_uri: System.get_env("SSO_REDIRECT_URI"),
+      response_type: "code",
+      scope: "openid email profile"
+    ]
+end
+
+# SAML configuration
+if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
+     (System.get_env("SSO_PROTOCOL") || "oidc") == "saml" do
+  config :samly, Samly.Provider,
+    idp_id_from: :path_segment,
+    service_providers: [
+      %{
+        id: "lynx-sp",
+        entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID"),
+        certfile: System.get_env("SSO_SAML_SP_CERTFILE") || "",
+        keyfile: System.get_env("SSO_SAML_SP_KEYFILE") || ""
+      }
+    ],
+    identity_providers: [
+      %{
+        id: "default",
+        sp_id: "lynx-sp",
+        base_url: System.get_env("APP_HOST") || "localhost",
+        metadata_url: System.get_env("SSO_SAML_IDP_METADATA_URL")
+      }
+    ]
+end
+
 if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6"), do: [:inet6], else: []
 

@@ -20,6 +20,7 @@ defmodule Lynx.Context.TeamContext do
       name: attrs.name,
       description: attrs.description,
       slug: attrs.slug,
+      external_id: Map.get(attrs, :external_id),
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
   end
@@ -122,6 +123,18 @@ defmodule Lynx.Context.TeamContext do
     from(
       t in Team,
       where: t.slug == ^slug
+    )
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Get team by external ID
+  """
+  def get_team_by_external_id(external_id) do
+    from(
+      t in Team,
+      where: t.external_id == ^external_id
     )
     |> limit(1)
     |> Repo.one()
