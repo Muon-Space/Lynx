@@ -156,7 +156,13 @@ defmodule Lynx.Service.SAMLService do
   defp fetch_metadata_extras(metadata_url) do
     case fetch_metadata_xml(metadata_url) do
       {:ok, xml_string} ->
-        xml_opts = [space: :normalize, namespace_conformant: true, comments: false, default_attrs: true]
+        xml_opts = [
+          space: :normalize,
+          namespace_conformant: true,
+          comments: false,
+          default_attrs: true
+        ]
+
         md_xml = parse(xml_string, xml_opts)
 
         nameid_format =
@@ -215,11 +221,27 @@ defmodule Lynx.Service.SAMLService do
   end
 
   defp parse_idp_metadata(xml_string) do
-    xml_opts = [space: :normalize, namespace_conformant: true, comments: false, default_attrs: true]
+    xml_opts = [
+      space: :normalize,
+      namespace_conformant: true,
+      comments: false,
+      default_attrs: true
+    ]
+
     md_xml = parse(xml_string, xml_opts)
 
-    sso_redirect_url = safe_xpath(md_xml, ~x"//md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect']/@Location"s)
-    sso_post_url = safe_xpath(md_xml, ~x"//md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST']/@Location"s)
+    sso_redirect_url =
+      safe_xpath(
+        md_xml,
+        ~x"//md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect']/@Location"s
+      )
+
+    sso_post_url =
+      safe_xpath(
+        md_xml,
+        ~x"//md:IDPSSODescriptor/md:SingleSignOnService[@Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST']/@Location"s
+      )
+
     login_url = non_empty(sso_redirect_url) || non_empty(sso_post_url)
 
     if login_url == nil do
@@ -249,11 +271,18 @@ defmodule Lynx.Service.SAMLService do
 
   defp extract_signing_certs(md_xml) do
     # Try signing-specific keys first, fall back to any keys
-    certs = safe_xpath(md_xml, ~x"//md:IDPSSODescriptor/md:KeyDescriptor[@use='signing']/ds:KeyInfo/ds:X509Data/ds:X509Certificate/text()"sl)
+    certs =
+      safe_xpath(
+        md_xml,
+        ~x"//md:IDPSSODescriptor/md:KeyDescriptor[@use='signing']/ds:KeyInfo/ds:X509Data/ds:X509Certificate/text()"sl
+      )
 
     certs =
       if certs == nil or certs == [] do
-        safe_xpath(md_xml, ~x"//md:IDPSSODescriptor/md:KeyDescriptor/ds:KeyInfo/ds:X509Data/ds:X509Certificate/text()"sl) || []
+        safe_xpath(
+          md_xml,
+          ~x"//md:IDPSSODescriptor/md:KeyDescriptor/ds:KeyInfo/ds:X509Data/ds:X509Certificate/text()"sl
+        ) || []
       else
         certs
       end
