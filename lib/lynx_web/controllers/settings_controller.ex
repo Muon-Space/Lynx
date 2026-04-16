@@ -64,23 +64,30 @@ defmodule LynxWeb.SettingsController do
   Update SSO/SCIM Settings Endpoint
   """
   def update_sso(conn, params) do
-    SettingsModule.update_sso_configs(%{
-      "auth_password_enabled" => params["auth_password_enabled"] || "true",
-      "auth_sso_enabled" => params["auth_sso_enabled"] || "false",
-      "sso_protocol" => params["sso_protocol"] || "oidc",
-      "sso_login_label" => params["sso_login_label"] || "SSO",
-      "sso_issuer" => params["sso_issuer"] || "",
-      "sso_client_id" => params["sso_client_id"] || "",
-      "sso_client_secret" => params["sso_client_secret"] || "",
-      "sso_saml_idp_sso_url" => params["sso_saml_idp_sso_url"] || "",
-      "sso_saml_idp_issuer" => params["sso_saml_idp_issuer"] || "",
-      "sso_saml_idp_cert" => params["sso_saml_idp_cert"] || "",
-      "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
-      "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
-      "sso_saml_sp_cert" => params["sso_saml_sp_cert"] || "",
-      "sso_saml_sp_key" => params["sso_saml_sp_key"] || "",
-      "scim_enabled" => params["scim_enabled"] || "false"
-    })
+    # Only update keys that are actually present in the request,
+    # so toggling one setting doesn't reset others to defaults
+    configs =
+      params
+      |> Map.take([
+        "auth_password_enabled",
+        "auth_sso_enabled",
+        "sso_protocol",
+        "sso_login_label",
+        "sso_issuer",
+        "sso_client_id",
+        "sso_client_secret",
+        "sso_saml_idp_sso_url",
+        "sso_saml_idp_issuer",
+        "sso_saml_idp_cert",
+        "sso_saml_idp_metadata_url",
+        "sso_saml_sp_entity_id",
+        "sso_saml_sp_cert",
+        "sso_saml_sp_key",
+        "sso_saml_sign_requests",
+        "scim_enabled"
+      ])
+
+    SettingsModule.update_sso_configs(configs)
 
     # Write SAML cert/key to temp files if provided
     write_saml_temp_files(params["sso_saml_sp_cert"], params["sso_saml_sp_key"])

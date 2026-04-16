@@ -471,7 +471,23 @@
                                     </div>
 
                                     <div v-if="scimEnabled">
-                                        <p class="hp-p1-body hp-text-color-black-60 mb-16"><%= gettext "SCIM Base URL:" %> <code>${ scimBaseUrl }</code></p>
+                                        <div class="alert alert-info mb-24">
+                                            <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                            <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                <tr>
+                                                    <td class="fw-semibold" style="width: 240px;"><%= gettext "SCIM connector base URL" %></td>
+                                                    <td><code>${ scimBaseUrl }</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Unique identifier field for users" %></td>
+                                                    <td><code>userName</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Authentication Mode" %></td>
+                                                    <td><%= gettext "HTTP Header" %></td>
+                                                </tr>
+                                            </table>
+                                        </div>
 
                                         <div class="mb-24">
                                             <div class="d-flex justify-content-between align-items-center mb-8">

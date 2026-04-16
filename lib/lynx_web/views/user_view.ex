@@ -34,6 +34,8 @@ defmodule LynxWeb.UserView do
       email: user.email,
       name: user.name,
       role: user.role,
+      isActive: user.is_active,
+      authProvider: user.auth_provider,
       createdAt: user.inserted_at,
       updatedAt: user.updated_at
     }
