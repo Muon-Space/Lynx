@@ -270,7 +270,7 @@
                                             <th></th>
                                             <th style="text-align: center"><%= gettext "Name" %></th>
                                             <th style="text-align: center"><%= gettext "Environments" %></th>
-                                            <th style="text-align: center"><%= gettext "Team" %></th>
+                                            <th style="text-align: center"><%= gettext "Teams" %></th>
                                             <th style="text-align: center"><%= gettext "Created at" %></th>
                                             <th></th>
                                         </tr>
@@ -287,7 +287,7 @@
                                         </td>
                                         <td style="text-align: center">${project.name}</td>
                                         <td style="text-align: center">${project.envCount}</td>
-                                        <td style="text-align: center">${project.team.name}</td>
+                                        <td style="text-align: center"><span v-for="(team, i) in project.teams" :key="team.id">${team.name}<span v-if="i < project.teams.length - 1">, </span></span></td>
                                         <td style="text-align: center">${formatDatetime(project.createdAt)}</td>
                                         <td>
                                             <button @click="showProjectInfoAction(project.description)" class="btn btn-dashed btn-sm text-black-100 border-black-100 hp-hover-text-color-black-80 hp-hover-border-color-black-80" data-bs-toggle="modal" data-bs-target="#show_project_info_modal"><%= gettext "Info" %></button>
@@ -393,12 +393,13 @@
 
                                     <div class="col-12">
                                         <div class="mb-24">
-                                            <label class="form-label"><%= gettext "Team" %></label>
-                                            <select class="form-select" name="team_id" required="required">
+                                            <label class="form-label"><%= gettext "Teams" %></label>
+                                            <select class="form-select" name="team_ids" multiple required="required">
                                                 <template v-for="team in teams">
                                                     <option :value="team.id">${team.name}</option>
                                                 </template>
                                             </select>
+                                            <small class="form-text text-muted"><%= gettext "Hold Ctrl/Cmd to select multiple teams" %></small>
                                         </div>
                                     </div>
                                 </div>
@@ -452,12 +453,13 @@
 
                                     <div class="col-12">
                                         <div class="mb-24">
-                                            <label class="form-label"><%= gettext "Team" %></label>
-                                            <select class="form-select" name="team_id" required="required">
+                                            <label class="form-label"><%= gettext "Teams" %></label>
+                                            <select class="form-select" name="team_ids" multiple required="required">
                                                 <template v-for="team in teams">
                                                     <option :value="team.id">${team.name}</option>
                                                 </template>
                                             </select>
+                                            <small class="form-text text-muted"><%= gettext "Hold Ctrl/Cmd to select multiple teams" %></small>
                                         </div>
                                     </div>
                                 </div>
