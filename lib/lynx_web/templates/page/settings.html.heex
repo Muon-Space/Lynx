@@ -295,10 +295,13 @@
                      data-sso-issuer={@data.sso_issuer}
                      data-sso-client-id={@data.sso_client_id}
                      data-sso-client-secret={@data.sso_client_secret}
+                     data-saml-idp-sso-url={@data.sso_saml_idp_sso_url}
+                     data-saml-idp-issuer={@data.sso_saml_idp_issuer}
+                     data-saml-idp-cert={@data.sso_saml_idp_cert}
                      data-saml-idp-metadata-url={@data.sso_saml_idp_metadata_url}
                      data-saml-sp-entity-id={@data.sso_saml_sp_entity_id}
                      data-saml-sp-cert={@data.sso_saml_sp_cert}
-                     data-saml-sp-key={@data.sso_saml_sp_key}
+                     data-saml-sign-requests={@data.sso_saml_sign_requests}
                      data-scim-enabled={@data.scim_enabled}>
                     <div class="card">
                         <div class="card-body">
@@ -401,19 +404,45 @@
                                                     <input class="form-control" type="text" v-model="samlSpEntityId" placeholder="https://lynx.example.com/sso/sp">
                                                 </div>
                                                 <div class="mb-24">
-                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %></label>
+                                                    <label class="form-label"><%= gettext "IdP Single Sign-On URL" %></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpSsoUrl">
+                                                    <small class="form-text text-muted"><%= gettext "The URL your IdP provides for SAML login" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Issuer" %></label>
+                                                    <input class="form-control" type="text" v-model="samlIdpIssuer">
+                                                    <small class="form-text text-muted"><%= gettext "The Identity Provider Issuer URI (Entity ID)" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Certificate (X.509 PEM)" %></label>
+                                                    <textarea class="form-control" v-model="samlIdpCert" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" style="font-family: monospace; font-size: 12px;"></textarea>
+                                                    <small class="form-text text-muted"><%= gettext "Paste the X.509 certificate from your IdP's SAML setup instructions" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %> <small class="text-muted">(<%= gettext "optional" %>)</small></label>
                                                     <input class="form-control" type="url" v-model="samlIdpMetadataUrl">
-                                                    <small class="form-text text-muted"><%= gettext "From your Identity Provider's SAML app configuration" %></small>
+                                                    <small class="form-text text-muted"><%= gettext "If provided, used to auto-discover IdP settings" %></small>
                                                 </div>
                                                 <div class="mb-24">
-                                                    <label class="form-label"><%= gettext "SP Certificate (PEM)" %></label>
-                                                    <textarea class="form-control" v-model="samlSpCert" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" style="font-family: monospace; font-size: 12px;"></textarea>
-                                                    <small class="form-text text-muted"><%= gettext "Paste the full PEM-encoded X.509 certificate for request signing" %></small>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" id="saml_sign_requests" v-model="samlSignRequests">
+                                                        <label class="form-check-label" for="saml_sign_requests"><%= gettext "Sign SAML Requests" %></label>
+                                                    </div>
+                                                    <small class="form-text text-muted"><%= gettext "Optional. Enable if your IdP requires signed AuthnRequests." %></small>
                                                 </div>
-                                                <div class="mb-24">
-                                                    <label class="form-label"><%= gettext "SP Private Key (PEM)" %></label>
-                                                    <textarea class="form-control" v-model="samlSpKey" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="font-family: monospace; font-size: 12px;"></textarea>
-                                                    <small class="form-text text-muted"><%= gettext "Paste the full PEM-encoded private key for request signing" %></small>
+                                                <div v-if="samlSignRequests" class="mb-24">
+                                                    <div v-if="samlSpCert" class="alert alert-success">
+                                                        <strong><%= gettext "SP certificate is configured." %></strong>
+                                                        <div class="mt-8">
+                                                            <small><%= gettext "Upload this certificate to your IdP's Signature Certificate field." %></small>
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-primary mt-8" v-on:click="downloadSamlCertAction"><%= gettext "Download Certificate" %></button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary mt-8" v-on:click="regenerateSamlCertAction"><%= gettext "Regenerate Certificate" %></button>
+                                                    </div>
+                                                    <div v-else>
+                                                        <p class="hp-p1-body hp-text-color-black-60"><%= gettext "No SP certificate configured. Generate one to enable request signing." %></p>
+                                                        <button type="button" class="btn btn-sm btn-primary" v-on:click="generateSamlCertAction"><%= gettext "Generate SP Certificate" %></button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

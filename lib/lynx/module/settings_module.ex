@@ -37,10 +37,14 @@ defmodule Lynx.Module.SettingsModule do
       "sso_issuer",
       "sso_client_id",
       "sso_client_secret",
+      "sso_saml_idp_sso_url",
+      "sso_saml_idp_issuer",
+      "sso_saml_idp_cert",
       "sso_saml_idp_metadata_url",
       "sso_saml_sp_entity_id",
       "sso_saml_sp_cert",
       "sso_saml_sp_key",
+      "sso_saml_sign_requests",
       "scim_enabled"
     ]
 

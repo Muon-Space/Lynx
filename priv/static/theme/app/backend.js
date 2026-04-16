@@ -207,10 +207,13 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                 ssoIssuer: el.getAttribute('data-sso-issuer') || '',
                 ssoClientId: el.getAttribute('data-sso-client-id') || '',
                 ssoClientSecret: el.getAttribute('data-sso-client-secret') || '',
+                samlIdpSsoUrl: el.getAttribute('data-saml-idp-sso-url') || '',
+                samlIdpIssuer: el.getAttribute('data-saml-idp-issuer') || '',
+                samlIdpCert: el.getAttribute('data-saml-idp-cert') || '',
                 samlIdpMetadataUrl: el.getAttribute('data-saml-idp-metadata-url') || '',
                 samlSpEntityId: el.getAttribute('data-saml-sp-entity-id') || '',
                 samlSpCert: el.getAttribute('data-saml-sp-cert') || '',
-                samlSpKey: el.getAttribute('data-saml-sp-key') || '',
+                samlSignRequests: el.getAttribute('data-saml-sign-requests') === 'true',
                 appBaseUrl: el.getAttribute('data-app-base-url') || window.location.origin,
             }
         },
@@ -222,7 +225,7 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                 return this.appBaseUrl + '/logout';
             },
             samlAcsUrl() {
-                return this.appBaseUrl + '/sso/sp/consume/default';
+                return this.appBaseUrl + '/auth/sso/saml_callback';
             },
             samlMetadataUrl() {
                 return this.appBaseUrl + '/auth/sso/metadata';
@@ -240,10 +243,12 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                     sso_issuer: this.ssoIssuer,
                     sso_client_id: this.ssoClientId,
                     sso_client_secret: this.ssoClientSecret,
+                    sso_saml_idp_sso_url: this.samlIdpSsoUrl,
+                    sso_saml_idp_issuer: this.samlIdpIssuer,
+                    sso_saml_idp_cert: this.samlIdpCert,
                     sso_saml_idp_metadata_url: this.samlIdpMetadataUrl,
                     sso_saml_sp_entity_id: this.samlSpEntityId,
-                    sso_saml_sp_cert: this.samlSpCert,
-                    sso_saml_sp_key: this.samlSpKey,
+                    sso_saml_sign_requests: this.samlSignRequests ? 'true' : 'false',
                 };
 
                 axios.put('/api/v1/action/update_sso_settings', data)
@@ -253,6 +258,29 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                     .catch((error) => {
                         show_notification(error.response.data.errorMessage);
                     });
+            },
+            downloadSamlCertAction() {
+                let blob = new Blob([this.samlSpCert], { type: 'application/x-pem-file' });
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.href = url;
+                a.download = 'lynx_sp_certificate.pem';
+                a.click();
+                URL.revokeObjectURL(url);
+            },
+            generateSamlCertAction() {
+                axios.post('/api/v1/action/saml_cert')
+                    .then((response) => {
+                        this.samlSpCert = response.data.cert_pem;
+                        show_notification(response.data.successMessage);
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            },
+            regenerateSamlCertAction() {
+                if (!confirm('Regenerate the SP certificate? You will need to re-upload it to your IdP.')) return;
+                this.generateSamlCertAction();
             }
         }
     });

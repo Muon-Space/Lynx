@@ -18,7 +18,7 @@ defmodule LynxWeb.SettingsController do
   alias Lynx.Module.SCIMTokenModule
   alias Lynx.Service.ValidatorService
 
-  plug :super_user when action in [:update, :update_sso, :generate_scim_token, :revoke_scim_token, :list_scim_tokens]
+  plug :super_user when action in [:update, :update_sso, :generate_saml_cert, :generate_scim_token, :revoke_scim_token, :list_scim_tokens]
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")
@@ -72,6 +72,9 @@ defmodule LynxWeb.SettingsController do
       "sso_issuer" => params["sso_issuer"] || "",
       "sso_client_id" => params["sso_client_id"] || "",
       "sso_client_secret" => params["sso_client_secret"] || "",
+      "sso_saml_idp_sso_url" => params["sso_saml_idp_sso_url"] || "",
+      "sso_saml_idp_issuer" => params["sso_saml_idp_issuer"] || "",
+      "sso_saml_idp_cert" => params["sso_saml_idp_cert"] || "",
       "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
       "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
       "sso_saml_sp_cert" => params["sso_saml_sp_cert"] || "",
@@ -96,6 +99,30 @@ defmodule LynxWeb.SettingsController do
     if key != nil and key != "" do
       path = Path.join(System.tmp_dir!(), "lynx_saml_sp_key.pem")
       File.write!(path, key)
+    end
+  end
+
+  @doc """
+  Generate SAML SP Certificate Endpoint
+  """
+  def generate_saml_cert(conn, _params) do
+    case Lynx.Service.SAMLService.generate_sp_certificate() do
+      {:ok, %{cert_pem: cert_pem, key_pem: key_pem}} ->
+        SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
+        SettingsModule.upsert_config("sso_saml_sp_key", key_pem)
+        SettingsModule.upsert_config("sso_saml_sign_requests", "true")
+
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          successMessage: "SP certificate generated successfully",
+          cert_pem: cert_pem
+        })
+
+      {:error, msg} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> render("error.json", %{message: msg})
     end
   end
 

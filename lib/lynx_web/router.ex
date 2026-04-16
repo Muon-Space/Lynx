@@ -71,13 +71,8 @@ defmodule LynxWeb.Router do
 
     get "/sso", SSOController, :initiate
     get "/sso/callback", SSOController, :callback_get
-    get "/sso/saml_callback", SSOController, :saml_callback
+    post "/sso/saml_callback", SSOController, :saml_callback
     get "/sso/metadata", SSOController, :metadata
-  end
-
-  # Samly SAML router (handles SAML protocol flow internally)
-  scope "/sso" do
-    forward "/", Samly.Router
   end
 
   # SCIM 2.0 routes
@@ -133,6 +128,7 @@ defmodule LynxWeb.Router do
     # Settings Endpoints
     put "/action/update_settings", SettingsController, :update
     put "/action/update_sso_settings", SettingsController, :update_sso
+    post "/action/saml_cert", SettingsController, :generate_saml_cert
     post "/action/scim_token", SettingsController, :generate_scim_token
     get "/action/scim_tokens", SettingsController, :list_scim_tokens
     delete "/action/scim_token/:uuid", SettingsController, :revoke_scim_token
