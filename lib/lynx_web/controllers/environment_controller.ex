@@ -199,6 +199,57 @@ defmodule LynxWeb.EnvironmentController do
     end
   end
 
+  @doc """
+  Force Lock Environment Endpoint
+  """
+  def force_lock(conn, %{"e_uuid" => e_uuid}) do
+    alias Lynx.Module.LockModule
+    alias Lynx.Context.EnvironmentContext
+
+    case EnvironmentContext.get_env_id_with_uuid(e_uuid) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> render("error.json", %{message: "Environment not found"})
+
+      env_id ->
+        case LockModule.force_lock(env_id, conn.assigns[:user_name] || "admin") do
+          {:success, msg} ->
+            conn |> put_status(:ok) |> json(%{successMessage: msg})
+
+          {:already_locked, msg} ->
+            conn |> put_status(:ok) |> json(%{successMessage: msg})
+
+          {:error, msg} ->
+            conn |> put_status(:bad_request) |> render("error.json", %{message: msg})
+        end
+    end
+  end
+
+  @doc """
+  Force Unlock Environment Endpoint
+  """
+  def force_unlock(conn, %{"e_uuid" => e_uuid}) do
+    alias Lynx.Module.LockModule
+    alias Lynx.Context.EnvironmentContext
+
+    case EnvironmentContext.get_env_id_with_uuid(e_uuid) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> render("error.json", %{message: "Environment not found"})
+
+      env_id ->
+        case LockModule.force_unlock(env_id) do
+          {:success, msg} ->
+            conn |> put_status(:ok) |> json(%{successMessage: msg})
+
+          {:error, msg} ->
+            conn |> put_status(:bad_request) |> render("error.json", %{message: msg})
+        end
+    end
+  end
+
   defp validate_create_request(params, project_uuid) do
     errs = %{
       name_required: "Environment name is required",

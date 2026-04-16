@@ -177,6 +177,8 @@ defmodule LynxWeb.Router do
     get "/project/:p_uuid/environment/:e_uuid", EnvironmentController, :index
     put "/project/:p_uuid/environment/:e_uuid", EnvironmentController, :update
     delete "/project/:p_uuid/environment/:e_uuid", EnvironmentController, :delete
+    post "/environment/:e_uuid/lock", EnvironmentController, :force_lock
+    post "/environment/:e_uuid/unlock", EnvironmentController, :force_unlock
   end
 
   scope "/client", LynxWeb do

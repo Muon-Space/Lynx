@@ -150,4 +150,59 @@ defmodule Lynx.Module.LockModule do
         end
     end
   end
+
+  @doc """
+  Force lock an environment by ID (from UI)
+  """
+  def force_lock(environment_id, who \\ "admin") do
+    :sleeplocks.new(1, name: :lynx_lock)
+
+    case LockContext.get_active_lock_by_environment_id(environment_id) do
+      nil ->
+        lock =
+          LockContext.new_lock(%{
+            environment_id: environment_id,
+            operation: "manual",
+            info: "Locked via UI",
+            who: who,
+            version: "",
+            path: "",
+            uuid: Ecto.UUID.generate(),
+            is_active: true
+          })
+
+        case :sleeplocks.attempt(:lynx_lock) do
+          :ok ->
+            result = LockContext.create_lock(lock)
+            :sleeplocks.release(:lynx_lock)
+
+            case result do
+              {:ok, _} -> {:success, "Environment locked"}
+              {:error, _} -> {:error, "Failed to lock environment"}
+            end
+
+          {:error, :unavailable} ->
+            {:error, "Unable to acquire lock"}
+        end
+
+      _lock ->
+        {:already_locked, "Environment is already locked"}
+    end
+  end
+
+  @doc """
+  Force unlock an environment by ID (from UI, overrides running operations)
+  """
+  def force_unlock(environment_id) do
+    case LockContext.get_active_lock_by_environment_id(environment_id) do
+      nil ->
+        {:success, "Environment is not locked"}
+
+      lock ->
+        case LockContext.update_lock(lock, %{is_active: false}) do
+          {:ok, _} -> {:success, "Environment unlocked"}
+          {:error, _} -> {:error, "Failed to unlock environment"}
+        end
+    end
+  end
 end
