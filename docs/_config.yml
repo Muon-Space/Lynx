@@ -1,8 +1,8 @@
 # Theme settings
 tok:
     baseurl:
-    title: Lynx - A Fast, Secure and Reliable Terraform Backend, Set up in Minutes.
-    theme_color: '#e74c3c'
+    title: Lynx - A Fast, Secure and Reliable Terraform Backend
+    theme_color: '#3b82f6'
     language: en-US
     header:
         logo:
@@ -17,9 +17,9 @@ tok:
         logo:
             text: Lynx
             image:
-        text: Copyright &copy; 2024 Clivern <br>All rights reserved.
+        text: Originally created by Clivern. Maintained by Muon Space.
     google_analytics:
-        tracking_code: G-V7G0HKSRRQ
+        tracking_code:
     comments:
         disqus_forum_shortname:
 
