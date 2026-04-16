@@ -18,6 +18,7 @@ defmodule Lynx.Model.Lock do
     field :who, :string
     field :version, :string
     field :path, :string
+    field :sub_path, :string, default: ""
     field :is_active, :boolean
 
     timestamps()
@@ -34,6 +35,7 @@ defmodule Lynx.Model.Lock do
       :who,
       :version,
       :path,
+      :sub_path,
       :is_active
     ])
     |> validate_required([

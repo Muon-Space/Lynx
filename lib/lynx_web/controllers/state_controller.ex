@@ -20,7 +20,6 @@ defmodule LynxWeb.StateController do
     with {user, secret} <- Plug.BasicAuth.parse_basic_auth(conn) do
       result =
         EnvironmentModule.is_access_allowed(%{
-          team_slug: conn.params["t_slug"],
           project_slug: conn.params["p_slug"],
           env_slug: conn.params["e_slug"],
           username: user,
@@ -38,7 +37,7 @@ defmodule LynxWeb.StateController do
           })
           |> halt
 
-        {:ok, _, _, _} ->
+        {:ok, _, _} ->
           conn
       end
     else

@@ -34,5 +34,6 @@ defmodule Lynx.Model.Project do
       :slug,
       :description
     ])
+    |> unique_constraint(:slug)
   end
 end

@@ -8,7 +8,6 @@ defmodule Lynx.Module.EnvironmentModule do
   """
 
   alias Lynx.Context.LockContext
-  alias Lynx.Context.TeamContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Module.ProjectModule
@@ -152,59 +151,57 @@ defmodule Lynx.Module.EnvironmentModule do
     alias Lynx.Module.PermissionModule
     alias Lynx.Context.UserContext
 
-    case TeamContext.get_team_by_slug(data[:team_slug]) do
+    case ProjectContext.get_project_by_slug(data[:project_slug]) do
       nil ->
-        {:error, "Invalid team slug"}
+        {:error, "Invalid project slug"}
 
-      team ->
-        case ProjectContext.get_project_by_slug_team_id(data[:project_slug], team.id) do
+      project ->
+        case EnvironmentContext.get_env_by_slug_project(project.id, data[:env_slug]) do
           nil ->
-            {:error, "Invalid project slug"}
+            {:error, "Invalid environment credentials"}
 
-          project ->
-            case EnvironmentContext.get_env_by_slug_project(project.id, data[:env_slug]) do
-              nil ->
-                {:error, "Invalid environment credentials"}
+          env ->
+            cond do
+              # OIDC provider auth
+              OIDCBackendModule.is_oidc_provider?(data[:username]) ->
+                case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
+                  :ok -> {:ok, project, env}
+                  {:error, _reason} -> {:error, "Invalid environment credentials"}
+                end
 
-              env ->
-                cond do
-                  # API key auth (lynx-user)
-                  data[:username] == "lynx-user" ->
-                    case UserContext.get_user_by_api_key(data[:secret]) do
-                      nil ->
+              # Email + API key auth
+              String.contains?(data[:username] || "", "@") ->
+                case UserContext.get_user_by_email(data[:username]) do
+                  nil ->
+                    {:error, "Invalid credentials"}
+
+                  user ->
+                    cond do
+                      not user.is_active ->
+                        {:error, "Account is deactivated"}
+
+                      user.api_key != data[:secret] ->
                         {:error, "Invalid API key"}
 
-                      user ->
-                        if not user.is_active do
-                          {:error, "Account is deactivated"}
-                        else
-                          if PermissionModule.can_access_project_id(
-                               :project,
-                               String.to_atom(user.role),
-                               project.id,
-                               user.id
-                             ) do
-                            {:ok, team, project, env}
-                          else
-                            {:error, "User does not have access to this environment"}
-                          end
-                        end
-                    end
+                      not PermissionModule.can_access_project_id(
+                        :project,
+                        String.to_atom(user.role),
+                        project.id,
+                        user.id
+                      ) ->
+                        {:error, "User does not have access to this environment"}
 
-                  # OIDC provider auth
-                  OIDCBackendModule.is_oidc_provider?(data[:username]) ->
-                    case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
-                      :ok -> {:ok, team, project, env}
-                      {:error, _reason} -> {:error, "Invalid environment credentials"}
+                      true ->
+                        {:ok, project, env}
                     end
+                end
 
-                  # Environment username/secret auth
-                  true ->
-                    if env.username == data[:username] and env.secret == data[:secret] do
-                      {:ok, team, project, env}
-                    else
-                      {:error, "Invalid environment credentials"}
-                    end
+              # Environment username/secret auth
+              true ->
+                if env.username == data[:username] and env.secret == data[:secret] do
+                  {:ok, project, env}
+                else
+                  {:error, "Invalid environment credentials"}
                 end
             end
         end

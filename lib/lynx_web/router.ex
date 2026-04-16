@@ -49,6 +49,7 @@ defmodule LynxWeb.Router do
     live "/admin/teams", TeamsLive
     live "/admin/projects", ProjectsLive
     live "/admin/projects/:uuid", ProjectLive
+    live "/admin/projects/:project_uuid/environments/:env_uuid", EnvironmentLive
     live "/admin/snapshots", SnapshotsLive
     live "/admin/settings", SettingsLive
 
@@ -186,16 +187,19 @@ defmodule LynxWeb.Router do
     get "/audit", AuditController, :list
   end
 
+  scope "/tf", LynxWeb do
+    pipe_through :client
+
+    get "/:p_slug/:e_slug/*rest", TfController, :handle_get
+    post "/:p_slug/:e_slug/*rest", TfController, :handle_post
+  end
+
+  # Legacy /client/ routes (team slug ignored, backward compat)
   scope "/client", LynxWeb do
     pipe_through :client
 
-    # Locking API Endpoints
-    post "/:t_slug/:p_slug/:e_slug/lock", LockController, :lock
-    post "/:t_slug/:p_slug/:e_slug/unlock", LockController, :unlock
-
-    # State API Endpoints
-    get "/:t_slug/:p_slug/:e_slug/state", StateController, :index
-    post "/:t_slug/:p_slug/:e_slug/state", StateController, :create
+    get "/:t_slug/:p_slug/:e_slug/*rest", TfController, :legacy_get
+    post "/:t_slug/:p_slug/:e_slug/*rest", TfController, :legacy_post
   end
 
   defp add_server_header(conn, _opts) do

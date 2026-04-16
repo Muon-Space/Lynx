@@ -139,15 +139,15 @@ defmodule LynxWeb.ProjectLive do
 
       <%!-- Environments Table --%>
       <.card>
-        <.table rows={@environments}>
-          <:col :let={env} label="Name">{env.name}</:col>
+        <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
+          <:col :let={env} label="Name"><span class="font-medium text-blue-600">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
             <span
               class="cursor-pointer"
               phx-click="confirm_action"
               phx-value-event={if env.is_locked, do: "force_unlock", else: "force_lock"}
               phx-value-uuid={env.uuid}
-              phx-value-message={if env.is_locked, do: "Force unlock? This will override running Terraform operations.", else: "Lock this environment?"}
+              phx-value-message={if env.is_locked, do: "Force unlock this environment?", else: "Lock this environment?"}
             >
               <.badge color={if env.is_locked, do: "red", else: "green"}>
                 {if env.is_locked, do: "Locked", else: "Not Locked"}
@@ -159,18 +159,11 @@ defmodule LynxWeb.ProjectLive do
             <span class="text-xs text-gray-500">{Calendar.strftime(env.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={env}>
-            <.button phx-click="show_backend_config" phx-value-uuid={env.uuid} variant="ghost" size="sm">View</.button>
-            <.button :if={env.state_version != "v0"} phx-click="download_state" phx-value-uuid={env.uuid} variant="ghost" size="sm">State</.button>
             <.button phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>
             <.button phx-click="edit_env" phx-value-uuid={env.uuid} variant="ghost" size="sm">Edit</.button>
             <.button phx-click="confirm_action" phx-value-event="delete_env" phx-value-message="Delete this environment?" phx-value-uuid={env.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
-
-        <%!-- Backend Config Display --%>
-        <div :if={assigns[:backend_config]} class="mt-6 bg-gray-900 text-gray-100 rounded-lg p-4">
-          <pre class="text-xs font-mono whitespace-pre-wrap">{@backend_config}</pre>
-        </div>
       </.card>
     </div>
     """
@@ -208,6 +201,13 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("hide_edit_env", _, socket), do: {:noreply, assign(socket, :editing_env, nil)}
 
+  def handle_event("view_env", %{"uuid" => uuid}, socket) do
+    {:noreply,
+     push_navigate(socket,
+       to: "/admin/projects/#{socket.assigns.project_uuid}/environments/#{uuid}"
+     )}
+  end
+
   def handle_event("create_env", params, socket) do
     case EnvironmentModule.create_environment(%{
            name: params["name"],
@@ -217,7 +217,13 @@ defmodule LynxWeb.ProjectLive do
            project_id: socket.assigns.project.uuid
          }) do
       {:ok, env} ->
-        AuditModule.log_system("created", "environment", env.uuid, env.name)
+        AuditModule.log_user(
+          socket.assigns.current_user,
+          "created",
+          "environment",
+          env.uuid,
+          env.name
+        )
 
         {:noreply,
          socket
@@ -274,7 +280,7 @@ defmodule LynxWeb.ProjectLive do
 
       env_id ->
         LockModule.force_lock(env_id, socket.assigns.current_user.name)
-        AuditModule.log_system("locked", "environment", uuid)
+        AuditModule.log_user(socket.assigns.current_user, "locked", "environment", uuid)
         {:noreply, socket |> put_flash(:info, "Environment locked") |> reload_envs()}
     end
   end
@@ -288,41 +294,9 @@ defmodule LynxWeb.ProjectLive do
 
       env_id ->
         LockModule.force_unlock(env_id)
-        AuditModule.log_system("unlocked", "environment", uuid)
+        AuditModule.log_user(socket.assigns.current_user, "unlocked", "environment", uuid)
         {:noreply, socket |> put_flash(:info, "Environment unlocked") |> reload_envs()}
     end
-  end
-
-  # -- Backend Config View --
-  def handle_event("show_backend_config", %{"uuid" => uuid}, socket) do
-    env = Enum.find(socket.assigns.environments, &(&1.uuid == uuid))
-    project = socket.assigns.project
-    teams = socket.assigns.teams
-    team_slug = if teams != [], do: hd(teams).slug, else: "team"
-
-    app_url =
-      Lynx.Module.SettingsModule.get_config("app_url", "http://localhost:4000")
-      |> String.trim_trailing("/")
-
-    config = """
-    terraform {
-      backend "http" {
-        username       = "#{env.username}"
-        password       = "#{env.secret}"
-        address        = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/state"
-        lock_address   = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/lock"
-        unlock_address = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/unlock"
-        lock_method    = "POST"
-        unlock_method  = "POST"
-      }
-    }
-    """
-
-    {:noreply, assign(socket, :backend_config, String.trim(config))}
-  end
-
-  def handle_event("download_state", %{"uuid" => uuid}, socket) do
-    {:noreply, redirect(socket, to: "/admin/environment/download/#{uuid}")}
   end
 
   # -- OIDC Rules --
@@ -364,7 +338,15 @@ defmodule LynxWeb.ProjectLive do
              provider_id: provider.id,
              environment_id: socket.assigns.show_oidc_rules.id
            }) do
-        {:ok, _} ->
+        {:ok, rule} ->
+          AuditModule.log_user(
+            socket.assigns.current_user,
+            "created",
+            "oidc_rule",
+            rule.uuid,
+            params["rule_name"]
+          )
+
           rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
 
           {:noreply,
@@ -383,6 +365,7 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("delete_rule", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+    AuditModule.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
     OIDCBackendModule.delete_rule(uuid)
     rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
     {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}

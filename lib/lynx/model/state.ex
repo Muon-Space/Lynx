@@ -14,6 +14,7 @@ defmodule Lynx.Model.State do
     field :uuid, Ecto.UUID
     field :name, :string
     field :value, :string
+    field :sub_path, :string, default: ""
     field :environment_id, :id
 
     timestamps()
@@ -26,6 +27,7 @@ defmodule Lynx.Model.State do
       :uuid,
       :name,
       :value,
+      :sub_path,
       :environment_id
     ])
     |> validate_required([

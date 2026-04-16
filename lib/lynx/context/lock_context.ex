@@ -23,6 +23,7 @@ defmodule Lynx.Context.LockContext do
       who: attrs.who,
       version: attrs.version,
       path: attrs.path,
+      sub_path: Map.get(attrs, :sub_path, ""),
       is_active: attrs.is_active,
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
@@ -74,6 +75,17 @@ defmodule Lynx.Context.LockContext do
     from(
       l in Lock,
       where: l.environment_id == ^environment_id,
+      where: l.is_active == true
+    )
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  def get_active_lock_by_environment_and_path(environment_id, sub_path) do
+    from(
+      l in Lock,
+      where: l.environment_id == ^environment_id,
+      where: l.sub_path == ^sub_path,
       where: l.is_active == true
     )
     |> limit(1)
