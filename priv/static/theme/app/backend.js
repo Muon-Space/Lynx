@@ -1942,6 +1942,14 @@ $(document).ready(() => {
         );
     }
 
+    if (document.getElementById("audit_log")) {
+        lynx_app.audit_log_screen(
+            Vue,
+            axios,
+            $
+        );
+    }
+
     if (document.getElementById("app_profile")) {
         lynx_app.profile_screen(
             Vue,
@@ -2087,3 +2095,68 @@ $(document).ready(() => {
         );
     }
 });
+
+// Audit Log Page
+lynx_app.audit_log_screen = (Vue, axios, $) => {
+
+    return new Vue({
+        delimiters: ['${', '}'],
+        el: '#audit_log',
+        data() {
+            return {
+                currentPage: 1,
+                limit: 50,
+                totalCount: 0,
+                events: [],
+                filterAction: '',
+                filterResource: ''
+            }
+        },
+        mounted() {
+            this.loadDataAction();
+        },
+        computed: {
+            totalPages() {
+                return Math.ceil(this.totalCount / this.limit);
+            }
+        },
+        methods: {
+            formatDatetime(datetime) {
+                return format_datetime(datetime);
+            },
+            loadDataAction() {
+                var offset = (this.currentPage - 1) * this.limit;
+
+                axios.get('/api/v1/audit', {
+                    params: {
+                        offset: offset,
+                        limit: this.limit,
+                        action: this.filterAction || undefined,
+                        resource_type: this.filterResource || undefined
+                    }
+                })
+                .then((response) => {
+                    this.events = response.data.events;
+                    this.totalCount = response.data._metadata.totalCount;
+                })
+                .catch((error) => {
+                    show_notification(error.response.data.errorMessage);
+                });
+            },
+            loadPreviousPageAction(event) {
+                event.preventDefault();
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    this.loadDataAction();
+                }
+            },
+            loadNextPageAction(event) {
+                event.preventDefault();
+                if (this.currentPage < this.totalPages) {
+                    this.currentPage++;
+                    this.loadDataAction();
+                }
+            }
+        }
+    });
+}

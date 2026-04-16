@@ -83,6 +83,10 @@ defmodule LynxWeb.MiscController do
       # Authenticate
       case AuthService.login(email, password) do
         {:success, session} ->
+          Lynx.Module.AuditModule.log_system("login", "user", nil, params["email"], %{
+            method: "password"
+          })
+
           conn = fetch_session(conn)
 
           conn

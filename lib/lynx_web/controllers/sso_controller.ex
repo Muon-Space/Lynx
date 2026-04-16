@@ -191,6 +191,14 @@ defmodule LynxWeb.SSOController do
       {:ok, user} ->
         case SSOModule.create_sso_session(user, auth_method) do
           {:success, session} ->
+            Lynx.Module.AuditModule.log_system(
+              "sso_login",
+              "user",
+              user.uuid,
+              user.name,
+              %{method: auth_method, email: user.email}
+            )
+
             payload =
               Phoenix.Token.sign(LynxWeb.Endpoint, "sso_payload", %{
                 token: session.value,

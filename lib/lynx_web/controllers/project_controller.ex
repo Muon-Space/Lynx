@@ -12,6 +12,7 @@ defmodule LynxWeb.ProjectController do
   require Logger
 
   alias Lynx.Module.ProjectModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
   alias Lynx.Module.PermissionModule
 
@@ -109,6 +110,8 @@ defmodule LynxWeb.ProjectController do
 
         case result do
           {:ok, project} ->
+            AuditModule.log(conn, "created", "project", project.uuid, project.name)
+
             conn
             |> put_status(:created)
             |> render("index.json", %{project: project})
@@ -160,6 +163,8 @@ defmodule LynxWeb.ProjectController do
 
         case result do
           {:ok, project} ->
+            AuditModule.log(conn, "updated", "project", project.uuid, project.name)
+
             conn
             |> put_status(:ok)
             |> render("index.json", %{project: project})
@@ -188,6 +193,8 @@ defmodule LynxWeb.ProjectController do
         |> render("error.json", %{message: msg})
 
       {:ok, _} ->
+        AuditModule.log(conn, "deleted", "project", uuid)
+
         conn
         |> send_resp(:no_content, "")
     end

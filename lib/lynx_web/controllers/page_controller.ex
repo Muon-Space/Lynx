@@ -300,6 +300,33 @@ defmodule LynxWeb.PageController do
   end
 
   @doc """
+  Audit Log Page
+  """
+  def audit(conn, _params) do
+    case conn.assigns[:is_super] do
+      false ->
+        conn
+        |> redirect(to: "/login")
+
+      true ->
+        conn
+        |> render("audit.html",
+          data: %{
+            is_logged: conn.assigns[:is_logged],
+            is_super: conn.assigns[:is_super],
+            user_id: conn.assigns[:user_id],
+            user_role: conn.assigns[:user_role],
+            user_name: conn.assigns[:user_name],
+            user_email: conn.assigns[:user_email],
+            avatar_url: get_gavatar(conn.assigns[:user_email]),
+            app_name: SettingsModule.get_config("app_name", ""),
+            app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url
+          }
+        )
+    end
+  end
+
+  @doc """
   Snapshots Page
   """
   def snapshots(conn, _params) do

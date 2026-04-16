@@ -10,6 +10,7 @@ defmodule LynxWeb.UserController do
   use LynxWeb, :controller
 
   alias Lynx.Module.UserModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.AuthService
 
@@ -98,6 +99,8 @@ defmodule LynxWeb.UserController do
             |> render("error.json", %{message: "Invalid Request"})
 
           {:ok, user} ->
+            AuditModule.log(conn, "created", "user", user.uuid, user.name)
+
             conn
             |> put_status(:created)
             |> render("index.json", %{user: user})
