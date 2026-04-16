@@ -10,6 +10,7 @@ defmodule LynxWeb.TeamController do
   use LynxWeb, :controller
 
   alias Lynx.Module.TeamModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
 
   require Logger
@@ -102,6 +103,7 @@ defmodule LynxWeb.TeamController do
         case result do
           {:ok, team} ->
             TeamModule.sync_team_members(team.id, params["members"])
+            AuditModule.log(conn, "created", "team", team.uuid, team.name)
 
             conn
             |> put_status(:created)

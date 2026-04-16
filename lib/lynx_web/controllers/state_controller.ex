@@ -70,6 +70,12 @@ defmodule LynxWeb.StateController do
         })
 
       {:success, _} ->
+        Lynx.Module.AuditModule.log_system(
+          "state_pushed",
+          "environment",
+          "#{params["t_slug"]}/#{params["p_slug"]}/#{params["e_slug"]}"
+        )
+
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(200, body)

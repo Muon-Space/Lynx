@@ -12,6 +12,7 @@ defmodule LynxWeb.EnvironmentController do
   require Logger
 
   alias Lynx.Module.EnvironmentModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
   alias Lynx.Module.PermissionModule
 
@@ -215,6 +216,8 @@ defmodule LynxWeb.EnvironmentController do
       env_id ->
         case LockModule.force_lock(env_id, conn.assigns[:user_name] || "admin") do
           {:success, msg} ->
+            AuditModule.log(conn, "locked", "environment", e_uuid)
+
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 
           {:already_locked, msg} ->
@@ -242,6 +245,8 @@ defmodule LynxWeb.EnvironmentController do
       env_id ->
         case LockModule.force_unlock(env_id) do
           {:success, msg} ->
+            AuditModule.log(conn, "unlocked", "environment", e_uuid)
+
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 
           {:error, msg} ->

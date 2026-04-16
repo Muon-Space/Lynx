@@ -12,6 +12,7 @@ defmodule LynxWeb.SnapshotController do
   require Logger
 
   alias Lynx.Module.SnapshotModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
   alias Lynx.Module.PermissionModule
 
@@ -119,6 +120,8 @@ defmodule LynxWeb.SnapshotController do
 
         case result do
           {:ok, snapshot} ->
+            AuditModule.log(conn, "created", "snapshot", snapshot.uuid, snapshot.title)
+
             conn
             |> put_status(:created)
             |> render("index.json", %{snapshot: snapshot})

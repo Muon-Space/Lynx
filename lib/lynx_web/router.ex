@@ -51,6 +51,7 @@ defmodule LynxWeb.Router do
     get "/admin/projects", PageController, :projects
     get "/admin/projects/:uuid", PageController, :project
     get "/admin/settings", PageController, :settings
+    get "/admin/audit", PageController, :audit
     get "/admin/state/download/:uuid", PageController, :state
     get "/admin/environment/download/:uuid", PageController, :environment
     get "/auth/sso/finalize", SSOController, :finalize
@@ -179,6 +180,9 @@ defmodule LynxWeb.Router do
     delete "/project/:p_uuid/environment/:e_uuid", EnvironmentController, :delete
     post "/environment/:e_uuid/lock", EnvironmentController, :force_lock
     post "/environment/:e_uuid/unlock", EnvironmentController, :force_unlock
+
+    # Audit Log
+    get "/audit", AuditController, :list
   end
 
   scope "/client", LynxWeb do
