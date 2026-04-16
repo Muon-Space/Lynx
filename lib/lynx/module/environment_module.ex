@@ -149,6 +149,8 @@ defmodule Lynx.Module.EnvironmentModule do
   """
   def is_access_allowed(data \\ %{}) do
     alias Lynx.Module.OIDCBackendModule
+    alias Lynx.Module.PermissionModule
+    alias Lynx.Context.UserContext
 
     case TeamContext.get_team_by_slug(data[:team_slug]) do
       nil ->
@@ -165,18 +167,44 @@ defmodule Lynx.Module.EnvironmentModule do
                 {:error, "Invalid environment credentials"}
 
               env ->
-                # Try OIDC provider auth first, then fall back to username/secret
-                if OIDCBackendModule.is_oidc_provider?(data[:username]) do
-                  case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
-                    :ok -> {:ok, team, project, env}
-                    {:error, _reason} -> {:error, "Invalid environment credentials"}
-                  end
-                else
-                  if env.username == data[:username] and env.secret == data[:secret] do
-                    {:ok, team, project, env}
-                  else
-                    {:error, "Invalid environment credentials"}
-                  end
+                cond do
+                  # API key auth (lynx-user)
+                  data[:username] == "lynx-user" ->
+                    case UserContext.get_user_by_api_key(data[:secret]) do
+                      nil ->
+                        {:error, "Invalid API key"}
+
+                      user ->
+                        if not user.is_active do
+                          {:error, "Account is deactivated"}
+                        else
+                          if PermissionModule.can_access_project_id(
+                               :project,
+                               String.to_atom(user.role),
+                               project.id,
+                               user.id
+                             ) do
+                            {:ok, team, project, env}
+                          else
+                            {:error, "User does not have access to this environment"}
+                          end
+                        end
+                    end
+
+                  # OIDC provider auth
+                  OIDCBackendModule.is_oidc_provider?(data[:username]) ->
+                    case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
+                      :ok -> {:ok, team, project, env}
+                      {:error, _reason} -> {:error, "Invalid environment credentials"}
+                    end
+
+                  # Environment username/secret auth
+                  true ->
+                    if env.username == data[:username] and env.secret == data[:secret] do
+                      {:ok, team, project, env}
+                    else
+                      {:error, "Invalid environment credentials"}
+                    end
                 end
             end
         end
