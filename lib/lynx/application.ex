@@ -11,23 +11,36 @@ defmodule Lynx.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      # Start the Ecto repository
-      Lynx.Repo,
-      # Start the Telemetry supervisor
-      LynxWeb.Telemetry,
-      # Start the PubSub system
-      {Phoenix.PubSub, name: Lynx.PubSub},
-      # Start the Endpoint (http/https)
-      LynxWeb.Endpoint
-      # Start a worker by calling: Lynx.Worker.start_link(arg)
-      # {Lynx.Workers, %{}}
-    ]
+    children =
+      [
+        # Start the Ecto repository
+        Lynx.Repo,
+        # Start the Telemetry supervisor
+        LynxWeb.Telemetry,
+        # Start the PubSub system
+        {Phoenix.PubSub, name: Lynx.PubSub},
+        # HTTP client for OIDC discovery/token exchange
+        {Finch, name: Lynx.Finch},
+        # Start the Endpoint (http/https)
+        LynxWeb.Endpoint
+        # Start a worker by calling: Lynx.Worker.start_link(arg)
+        # {Lynx.Workers, %{}}
+      ] ++ sso_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Lynx.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp sso_children do
+    if Application.get_env(:lynx, :auth_sso_enabled, false) and
+         Application.get_env(:lynx, :sso_protocol, "oidc") == "oidc" do
+      providers = Application.get_env(:lynx, :openid_connect_providers, [])
+      [{OpenIDConnect.Worker, providers}]
+    else
+      []
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

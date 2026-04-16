@@ -2,39 +2,37 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Model.Team do
+defmodule Lynx.Model.SCIMToken do
   @moduledoc """
-  Team Model
+  SCIMToken Model
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "teams" do
+  schema "scim_tokens" do
     field :uuid, Ecto.UUID
-    field :name, :string
-    field :slug, :string
+    field :token, :string
     field :description, :string
-    field :external_id, :string
+    field :is_active, :boolean, default: true
+    field :last_used_at, :utc_datetime
 
     timestamps()
   end
 
   @doc false
-  def changeset(state, attrs) do
-    state
+  def changeset(scim_token, attrs) do
+    scim_token
     |> cast(attrs, [
       :uuid,
-      :name,
-      :slug,
+      :token,
       :description,
-      :external_id
+      :is_active,
+      :last_used_at
     ])
     |> validate_required([
       :uuid,
-      :name,
-      :slug,
-      :description
+      :token
     ])
   end
 end

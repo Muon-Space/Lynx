@@ -41,27 +41,43 @@ defmodule Lynx.Service.AuthService do
   Login
   """
   def login(email, password) when not is_nil(email) and not is_nil(password) do
-    user = UserContext.get_user_by_email(email)
+    if not password_auth_enabled?() do
+      {:error, "Password authentication is disabled"}
+    else
+      user = UserContext.get_user_by_email(email)
 
-    case user do
-      nil ->
-        {:error, "Invalid email or password"}
+      case user do
+        nil ->
+          {:error, "Invalid email or password"}
 
-      user ->
-        case verify_password(password, user.password_hash) do
-          true ->
-            # Update last seen attr
-            UserContext.update_user(user, %{last_seen: DateTime.utc_now()})
-            authenticate(user.id)
+        user ->
+          if not user.is_active do
+            {:error, "Account is deactivated"}
+          else
+            case verify_password(password, user.password_hash) do
+              true ->
+                # Update last seen attr
+                UserContext.update_user(user, %{last_seen: DateTime.utc_now()})
+                authenticate(user.id)
 
-          false ->
-            {:error, "Invalid email or password"}
-        end
+              false ->
+                {:error, "Invalid email or password"}
+            end
+          end
+      end
     end
   end
 
   def login(email, password) when is_nil(email) or is_nil(password) do
     {:error, "Invalid email or password"}
+  end
+
+  @doc """
+  Login via SSO (no password verification)
+  """
+  def login_sso(user, auth_method \\ "oidc") do
+    UserContext.update_user(user, %{last_seen: DateTime.utc_now()})
+    authenticate_sso(user.id, auth_method)
   end
 
   @doc """
@@ -113,6 +129,45 @@ defmodule Lynx.Service.AuthService do
 
   def authenticate(user_id) when is_nil(user_id) do
     {:error, "Invalid User ID"}
+  end
+
+  @doc """
+  Authenticate via SSO (creates session with auth_method tracking)
+  """
+  def authenticate_sso(user_id, auth_method) when not is_nil(user_id) do
+    # Clear old sessions
+    UserContext.delete_user_sessions(user_id)
+
+    item =
+      UserContext.new_session(%{
+        value: get_random_salt(30),
+        expire_at: DateTime.utc_now() |> DateTime.add(600, :second),
+        user_id: user_id,
+        auth_method: auth_method
+      })
+
+    case UserContext.create_user_session(item) do
+      {:ok, session} ->
+        {:success, session}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors()
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  def authenticate_sso(user_id, _auth_method) when is_nil(user_id) do
+    {:error, "Invalid User ID"}
+  end
+
+  @doc """
+  Check if password authentication is enabled
+  """
+  def password_auth_enabled? do
+    Lynx.Module.SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
   end
 
   @doc """

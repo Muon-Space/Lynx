@@ -70,15 +70,27 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
               conn =
                 case UserModule.get_user_by_id(session.user_id) do
                   {:ok, user} ->
-                    conn
-                    |> assign(:is_logged, true)
-                    |> assign(:is_super, String.to_atom(user.role) == :super)
-                    |> assign(:user_role, String.to_atom(user.role))
-                    |> assign(:user_id, user.id)
-                    |> assign(:user_name, user.name)
-                    |> assign(:user_email, user.email)
-                    |> assign(:user_uuid, user.uuid)
-                    |> assign(:user_api_key, user.api_key)
+                    if user.is_active do
+                      conn
+                      |> assign(:is_logged, true)
+                      |> assign(:is_super, String.to_atom(user.role) == :super)
+                      |> assign(:user_role, String.to_atom(user.role))
+                      |> assign(:user_id, user.id)
+                      |> assign(:user_name, user.name)
+                      |> assign(:user_email, user.email)
+                      |> assign(:user_uuid, user.uuid)
+                      |> assign(:user_api_key, user.api_key)
+                    else
+                      conn
+                      |> assign(:is_logged, false)
+                      |> assign(:is_super, false)
+                      |> assign(:user_role, :anonymous)
+                      |> assign(:user_id, nil)
+                      |> assign(:user_name, nil)
+                      |> assign(:user_email, nil)
+                      |> assign(:user_uuid, nil)
+                      |> assign(:user_api_key, nil)
+                    end
 
                   {:not_found, _} ->
                     conn
@@ -103,15 +115,27 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
         conn =
           case result do
             {:ok, user} ->
-              conn
-              |> assign(:is_logged, true)
-              |> assign(:is_super, String.to_atom(user.role) == :super)
-              |> assign(:user_role, String.to_atom(user.role))
-              |> assign(:user_id, user.id)
-              |> assign(:user_name, user.name)
-              |> assign(:user_email, user.email)
-              |> assign(:user_uuid, user.uuid)
-              |> assign(:user_api_key, user.api_key)
+              if user.is_active do
+                conn
+                |> assign(:is_logged, true)
+                |> assign(:is_super, String.to_atom(user.role) == :super)
+                |> assign(:user_role, String.to_atom(user.role))
+                |> assign(:user_id, user.id)
+                |> assign(:user_name, user.name)
+                |> assign(:user_email, user.email)
+                |> assign(:user_uuid, user.uuid)
+                |> assign(:user_api_key, user.api_key)
+              else
+                conn
+                |> assign(:is_logged, false)
+                |> assign(:is_super, false)
+                |> assign(:user_role, :anonymous)
+                |> assign(:user_id, nil)
+                |> assign(:user_name, nil)
+                |> assign(:user_email, nil)
+                |> assign(:user_uuid, nil)
+                |> assign(:user_api_key, nil)
+              end
 
             _ ->
               conn

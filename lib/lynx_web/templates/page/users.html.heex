@@ -271,13 +271,14 @@
                                             <th style="text-align: center"><%= gettext "Name" %></th>
                                             <th style="text-align: center"><%= gettext "Email" %></th>
                                             <th style="text-align: center"><%= gettext "Role" %></th>
+                                            <th style="text-align: center"><%= gettext "Status" %></th>
                                             <th style="text-align: center"><%= gettext "Created at" %></th>
                                             <th></th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
-                                      <tr v-for="user in users">
+                                      <tr v-for="user in users" :class="{ 'opacity-50': !user.isActive }">
                                         <td>
                                           <a href="javascript:;">
                                             <div class="avatar-item avatar-lg d-flex align-items-center justify-content-center bg-primary-4 hp-bg-dark-primary text-primary hp-text-color-dark-0 rounded-circle">
@@ -288,6 +289,9 @@
                                         <td style="text-align: center">${user.name}</td>
                                         <td style="text-align: center">${user.email}</td>
                                         <td style="text-align: center">${user.role}</td>
+                                        <td style="text-align: center">
+                                          <span class="badge" :class="user.isActive ? 'bg-success' : 'bg-secondary'">${ user.isActive ? 'Active' : 'Inactive' }</span>
+                                        </td>
                                         <td style="text-align: center">${formatDatetime(user.createdAt)}</td>
                                         <td>
                                           <button @click="editUserAction(user.id)" class="btn btn-dashed btn-sm text-black-100 border-black-100 hp-hover-text-color-black-80 hp-hover-border-color-black-80" data-bs-toggle="modal" data-bs-target="#edit_user_modal"><%= gettext "Edit" %></button>
@@ -295,7 +299,7 @@
                                         </td>
                                       </tr>
                                       <tr v-if="users.length == 0">
-                                        <td colspan="6" style="text-align: center;"><%= gettext "No Records Found!" %></td>
+                                        <td colspan="7" style="text-align: center;"><%= gettext "No Records Found!" %></td>
                                       </tr>
                                     </tbody>
                                 </table>

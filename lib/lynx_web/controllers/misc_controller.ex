@@ -17,6 +17,7 @@ defmodule LynxWeb.MiscController do
   import Plug.Conn
 
   alias Lynx.Module.InstallModule
+  alias Lynx.Module.SSOModule
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.AuthService
 
@@ -63,6 +64,16 @@ defmodule LynxWeb.MiscController do
   Auth Action Endpoint
   """
   def auth(conn, params) do
+    if not SSOModule.is_password_enabled?() do
+      conn
+      |> put_status(:bad_request)
+      |> render("error.json", %{message: "Password authentication is disabled. Please use SSO."})
+    else
+      auth_with_password(conn, params)
+    end
+  end
+
+  defp auth_with_password(conn, params) do
     err = "Invalid email or password!"
 
     with {:ok, _} <- ValidatorService.is_string?(params["password"], err),

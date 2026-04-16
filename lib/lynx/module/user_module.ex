@@ -152,6 +152,37 @@ defmodule Lynx.Module.UserModule do
   end
 
   @doc """
+  Create SSO/SCIM User (no password required)
+  """
+  def create_sso_user(params \\ %{}) do
+    user =
+      UserContext.new_user(%{
+        email: params[:email],
+        name: params[:name],
+        password_hash: "__SSO_NO_PASSWORD__",
+        verified: true,
+        api_key: AuthService.get_uuid(),
+        role: params[:role] || "regular",
+        last_seen: DateTime.utc_now(),
+        auth_provider: params[:auth_provider],
+        external_id: params[:external_id],
+        is_active: Map.get(params, :is_active, true)
+      })
+
+    case UserContext.create_user(user) do
+      {:ok, user} ->
+        {:ok, user}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors()
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  @doc """
   Delete User by UUID
   """
   def delete_user_by_uuid(uuid) do

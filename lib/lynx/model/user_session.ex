@@ -14,6 +14,8 @@ defmodule Lynx.Model.UserSession do
     field :value, :string
     field :expire_at, :utc_datetime
     field :user_id, :id
+    field :auth_method, :string, default: "password"
+    field :idp_session_id, :string
 
     timestamps()
   end
@@ -24,12 +26,15 @@ defmodule Lynx.Model.UserSession do
     |> cast(attrs, [
       :value,
       :expire_at,
-      :user_id
+      :user_id,
+      :auth_method,
+      :idp_session_id
     ])
     |> validate_required([
       :value,
       :expire_at,
       :user_id
     ])
+    |> validate_inclusion(:auth_method, ["password", "oidc", "saml"])
   end
 end

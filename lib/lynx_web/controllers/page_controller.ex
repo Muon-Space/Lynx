@@ -13,6 +13,7 @@ defmodule LynxWeb.PageController do
   alias Lynx.Module.SettingsModule
   alias Lynx.Module.PermissionModule
   alias Lynx.Module.StateModule
+  alias Lynx.Module.SSOModule
 
   @doc """
   Login Page
@@ -40,7 +41,11 @@ defmodule LynxWeb.PageController do
             user_name: conn.assigns[:user_name],
             user_email: conn.assigns[:user_email],
             app_name: SettingsModule.get_config("app_name", ""),
-            app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url
+            app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url,
+            sso_enabled: SSOModule.is_sso_enabled?(),
+            password_enabled: SSOModule.is_password_enabled?(),
+            sso_login_url: "/auth/sso",
+            sso_login_label: SSOModule.get_sso_login_label()
           }
         )
     end
@@ -240,7 +245,24 @@ defmodule LynxWeb.PageController do
             avatar_url: get_gavatar(conn.assigns[:user_email]),
             app_name: SettingsModule.get_config("app_name", ""),
             app_url: SettingsModule.get_config("app_url", "") |> add_backslash_to_url,
-            app_email: SettingsModule.get_config("app_email", "")
+            app_email: SettingsModule.get_config("app_email", ""),
+            auth_password_enabled: SettingsModule.get_sso_config("auth_password_enabled", "true"),
+            auth_sso_enabled: SettingsModule.get_sso_config("auth_sso_enabled", "false"),
+            sso_jit_enabled: SettingsModule.get_sso_config("sso_jit_enabled", "true"),
+            sso_protocol: SettingsModule.get_sso_config("sso_protocol", "oidc"),
+            sso_login_label: SettingsModule.get_sso_config("sso_login_label", "SSO"),
+            sso_issuer: SettingsModule.get_sso_config("sso_issuer", ""),
+            sso_client_id: SettingsModule.get_sso_config("sso_client_id", ""),
+            sso_client_secret: SettingsModule.get_sso_config("sso_client_secret", ""),
+            sso_saml_idp_sso_url: SettingsModule.get_sso_config("sso_saml_idp_sso_url", ""),
+            sso_saml_idp_issuer: SettingsModule.get_sso_config("sso_saml_idp_issuer", ""),
+            sso_saml_idp_cert: SettingsModule.get_sso_config("sso_saml_idp_cert", ""),
+            sso_saml_idp_metadata_url: SettingsModule.get_sso_config("sso_saml_idp_metadata_url", ""),
+            sso_saml_sp_entity_id: SettingsModule.get_sso_config("sso_saml_sp_entity_id", ""),
+            sso_saml_sp_cert: SettingsModule.get_sso_config("sso_saml_sp_cert", ""),
+            sso_saml_sign_requests: SettingsModule.get_sso_config("sso_saml_sign_requests", "false"),
+            scim_enabled: SettingsModule.get_sso_config("scim_enabled", "false"),
+            computed_app_base_url: SettingsModule.get_config("app_url", "http://localhost:4000") |> add_backslash_to_url
           }
         )
     end

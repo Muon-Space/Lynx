@@ -24,6 +24,98 @@ if System.get_env("PHX_SERVER") do
   config :lynx, LynxWeb.Endpoint, server: true
 end
 
+# Auth configuration
+config :lynx,
+  auth_password_enabled: (System.get_env("AUTH_PASSWORD_ENABLED") || "true") == "true",
+  auth_sso_enabled: (System.get_env("AUTH_SSO_ENABLED") || "false") == "true",
+  sso_protocol: System.get_env("SSO_PROTOCOL") || "oidc",
+  sso_login_label: System.get_env("SSO_LOGIN_LABEL") || "SSO",
+  sso_issuer: System.get_env("SSO_ISSUER") || "",
+  sso_client_id: System.get_env("SSO_CLIENT_ID") || "",
+  sso_client_secret: System.get_env("SSO_CLIENT_SECRET") || "",
+  sso_saml_idp_sso_url: System.get_env("SSO_SAML_IDP_SSO_URL") || "",
+  sso_saml_idp_issuer: System.get_env("SSO_SAML_IDP_ISSUER") || "",
+  sso_saml_idp_cert: System.get_env("SSO_SAML_IDP_CERT") || "",
+  sso_saml_idp_metadata_url: System.get_env("SSO_SAML_IDP_METADATA_URL") || "",
+  sso_saml_sp_entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID") || "",
+  sso_jit_enabled: (System.get_env("SSO_JIT_ENABLED") || "true") == "true",
+  sso_saml_sign_requests: (System.get_env("SSO_SAML_SIGN_REQUESTS") || "false") == "true",
+  scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true"
+
+# OIDC configuration
+if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
+     (System.get_env("SSO_PROTOCOL") || "oidc") == "oidc" do
+  sso_app_scheme = System.get_env("APP_HTTP_SCHEMA") || "http"
+  sso_app_host = System.get_env("APP_HOST") || "localhost"
+  sso_app_port = System.get_env("APP_PORT") || "4000"
+  sso_redirect_uri = "#{sso_app_scheme}://#{sso_app_host}:#{sso_app_port}/auth/sso/callback"
+
+  config :lynx, :openid_connect_providers,
+    lynx: [
+      discovery_document_uri:
+        "#{System.get_env("SSO_ISSUER")}/.well-known/openid-configuration",
+      client_id: System.get_env("SSO_CLIENT_ID"),
+      client_secret: System.get_env("SSO_CLIENT_SECRET"),
+      redirect_uri: sso_redirect_uri,
+      response_type: "code",
+      scope: "openid email profile"
+    ]
+end
+
+# SAML configuration
+if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
+     (System.get_env("SSO_PROTOCOL") || "oidc") == "saml" do
+  # Resolve SP cert/key: base64 env vars take precedence over file paths.
+  # When base64 values are provided, decode them and write to temp files
+  # so they work in containerized deploys without volume mounts.
+  saml_certfile =
+    case System.get_env("SSO_SAML_SP_CERT_BASE64") do
+      nil ->
+        System.get_env("SSO_SAML_SP_CERTFILE") || ""
+
+      "" ->
+        System.get_env("SSO_SAML_SP_CERTFILE") || ""
+
+      base64_cert ->
+        path = Path.join(System.tmp_dir!(), "lynx_saml_sp_cert.pem")
+        File.write!(path, Base.decode64!(base64_cert))
+        path
+    end
+
+  saml_keyfile =
+    case System.get_env("SSO_SAML_SP_KEY_BASE64") do
+      nil ->
+        System.get_env("SSO_SAML_SP_KEYFILE") || ""
+
+      "" ->
+        System.get_env("SSO_SAML_SP_KEYFILE") || ""
+
+      base64_key ->
+        path = Path.join(System.tmp_dir!(), "lynx_saml_sp_key.pem")
+        File.write!(path, Base.decode64!(base64_key))
+        path
+    end
+
+  config :samly, Samly.Provider,
+    idp_id_from: :path_segment,
+    service_providers: [
+      %{
+        id: "lynx-sp",
+        entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID"),
+        certfile: saml_certfile,
+        keyfile: saml_keyfile
+      }
+    ],
+    identity_providers: [
+      %{
+        id: "default",
+        sp_id: "lynx-sp",
+        base_url: System.get_env("APP_HOST") || "localhost",
+        metadata_url: System.get_env("SSO_SAML_IDP_METADATA_URL")
+      }
+    ]
+end
+
 if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6"), do: [:inet6], else: []
 

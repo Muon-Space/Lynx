@@ -260,7 +260,7 @@
                         <div class="card-body">
                             <div class="row justify-content-between">
                                 <div class="col pe-md-32 pe-md-120">
-                                    <h4><%= gettext "Settings" %></h4>
+                                    <h4><%= gettext "General" %></h4>
                                 </div>
                                 <div class="col-12 mt-16">
                                     <form action={Routes.settings_path(@conn, :update)} method="post" v-on:submit.prevent="settingsAction">
@@ -280,6 +280,266 @@
                                         </div>
                                         <button type="submit" class="btn btn-primary"><%= gettext "Submit" %></button>
                                     </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="app_sso_settings"
+                     data-app-base-url={@data.computed_app_base_url}
+                     data-jit-enabled={@data.sso_jit_enabled}
+                     data-password-enabled={@data.auth_password_enabled}
+                     data-sso-enabled={@data.auth_sso_enabled}
+                     data-sso-protocol={@data.sso_protocol}
+                     data-sso-login-label={@data.sso_login_label}
+                     data-sso-issuer={@data.sso_issuer}
+                     data-sso-client-id={@data.sso_client_id}
+                     data-sso-client-secret={@data.sso_client_secret}
+                     data-saml-idp-sso-url={@data.sso_saml_idp_sso_url}
+                     data-saml-idp-issuer={@data.sso_saml_idp_issuer}
+                     data-saml-idp-cert={@data.sso_saml_idp_cert}
+                     data-saml-idp-metadata-url={@data.sso_saml_idp_metadata_url}
+                     data-saml-sp-entity-id={@data.sso_saml_sp_entity_id}
+                     data-saml-sp-cert={@data.sso_saml_sp_cert}
+                     data-saml-sign-requests={@data.sso_saml_sign_requests}
+                     data-scim-enabled={@data.scim_enabled}>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "Single Sign-On (SSO)" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <form v-on:submit.prevent="ssoSettingsAction">
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="auth_password_enabled" v-model="passwordEnabled">
+                                                <label class="form-check-label" for="auth_password_enabled"><%= gettext "Password Login Enabled" %></label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="auth_sso_enabled" v-model="ssoEnabled">
+                                                <label class="form-check-label" for="auth_sso_enabled"><%= gettext "SSO Login Enabled" %></label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="sso_jit_enabled" v-model="jitEnabled">
+                                                <label class="form-check-label" for="sso_jit_enabled"><%= gettext "JIT User Provisioning" %></label>
+                                            </div>
+                                            <small class="form-text text-muted"><%= gettext "Auto-create users on first SSO login. Disable if users should be provisioned via SCIM only." %></small>
+                                        </div>
+
+                                        <div v-if="ssoEnabled">
+                                            <div class="mb-24">
+                                                <label class="form-label"><%= gettext "Protocol" %></label>
+                                                <select class="form-select" v-model="ssoProtocol">
+                                                    <option value="oidc">OIDC</option>
+                                                    <option value="saml">SAML</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="mb-24">
+                                                <label class="form-label"><%= gettext "Login Button Label" %></label>
+                                                <input class="form-control" type="text" v-model="ssoLoginLabel" placeholder="SSO">
+                                            </div>
+
+                                            <div v-if="ssoProtocol === 'oidc'">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Sign-in redirect URI" %></td>
+                                                            <td><code>${ oidcRedirectUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Sign-out redirect URI" %></td>
+                                                            <td><code>${ oidcSignoutUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Grant type" %></td>
+                                                            <td><%= gettext "Authorization Code (no Refresh Token needed)" %></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Proof of possession" %></td>
+                                                            <td><%= gettext "Not required" %></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Issuer URL" %></label>
+                                                    <input class="form-control" type="url" v-model="ssoIssuer" placeholder="https://your-idp.com">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Client ID" %></label>
+                                                    <input class="form-control" type="text" v-model="ssoClientId">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Client Secret" %></label>
+                                                    <input class="form-control" type="password" v-model="ssoClientSecret">
+                                                </div>
+                                            </div>
+
+                                            <div v-if="ssoProtocol === 'saml'">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Single sign-on URL" %></td>
+                                                            <td><code>${ samlAcsUrl }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Audience URI (SP Entity ID)" %></td>
+                                                            <td><code>${ samlSpEntityId || 'Set below' }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Default RelayState" %></td>
+                                                            <td><code><%= gettext "(leave blank)" %></code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "SP Metadata URL" %></td>
+                                                            <td><code>${ samlMetadataUrl }</code></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "SP Entity ID" %></label>
+                                                    <input class="form-control" type="text" v-model="samlSpEntityId" placeholder="https://lynx.example.com/sso/sp">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Single Sign-On URL" %></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpSsoUrl">
+                                                    <small class="form-text text-muted"><%= gettext "The URL your IdP provides for SAML login" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Issuer" %></label>
+                                                    <input class="form-control" type="text" v-model="samlIdpIssuer">
+                                                    <small class="form-text text-muted"><%= gettext "The Identity Provider Issuer URI (Entity ID)" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Certificate (X.509 PEM)" %></label>
+                                                    <textarea class="form-control" v-model="samlIdpCert" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" style="font-family: monospace; font-size: 12px;"></textarea>
+                                                    <small class="form-text text-muted"><%= gettext "Paste the X.509 certificate from your IdP's SAML setup instructions" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %> <small class="text-muted">(<%= gettext "optional" %>)</small></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpMetadataUrl">
+                                                    <small class="form-text text-muted"><%= gettext "If provided, used to auto-discover IdP settings" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" id="saml_sign_requests" v-model="samlSignRequests">
+                                                        <label class="form-check-label" for="saml_sign_requests"><%= gettext "Sign SAML Requests" %></label>
+                                                    </div>
+                                                    <small class="form-text text-muted"><%= gettext "Optional. Enable if your IdP requires signed AuthnRequests." %></small>
+                                                </div>
+                                                <div v-if="samlSignRequests" class="mb-24">
+                                                    <div v-if="samlSpCert" class="alert alert-success">
+                                                        <strong><%= gettext "SP certificate is configured." %></strong>
+                                                        <div class="mt-8">
+                                                            <small><%= gettext "Upload this certificate to your IdP's Signature Certificate field." %></small>
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-primary mt-8" v-on:click="downloadSamlCertAction"><%= gettext "Download Certificate" %></button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary mt-8" v-on:click="regenerateSamlCertAction"><%= gettext "Regenerate Certificate" %></button>
+                                                    </div>
+                                                    <div v-else>
+                                                        <p class="hp-p1-body hp-text-color-black-60"><%= gettext "No SP certificate configured. Generate one to enable request signing." %></p>
+                                                        <button type="button" class="btn btn-sm btn-primary" v-on:click="generateSamlCertAction"><%= gettext "Generate SP Certificate" %></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary"><%= gettext "Save SSO Settings" %></button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="app_scim_settings" data-scim-enabled={@data.scim_enabled}>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "SCIM Provisioning" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <div class="mb-24">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="scim_enabled" v-model="scimEnabled" v-on:change="toggleScimAction">
+                                            <label class="form-check-label" for="scim_enabled"><%= gettext "SCIM Enabled" %></label>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="scimEnabled">
+                                        <div class="alert alert-info mb-24">
+                                            <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                            <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                <tr>
+                                                    <td class="fw-semibold" style="width: 240px;"><%= gettext "SCIM connector base URL" %></td>
+                                                    <td><code>${ scimBaseUrl }</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Unique identifier field for users" %></td>
+                                                    <td><code>userName</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Authentication Mode" %></td>
+                                                    <td><%= gettext "HTTP Header" %></td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="d-flex justify-content-between align-items-center mb-8">
+                                                <label class="form-label mb-0"><%= gettext "Bearer Tokens" %></label>
+                                                <button type="button" class="btn btn-sm btn-primary" v-on:click="generateTokenAction"><%= gettext "Generate Token" %></button>
+                                            </div>
+
+                                            <div v-if="newToken" class="alert alert-success mb-16">
+                                                <strong><%= gettext "New token (copy now, it won't be shown again):" %></strong>
+                                                <div class="mt-8">
+                                                    <code style="word-break: break-all;">${ newToken }</code>
+                                                </div>
+                                            </div>
+
+                                            <div class="table-responsive">
+                                                <table class="table" v-if="tokens.length > 0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th><%= gettext "Token" %></th>
+                                                            <th><%= gettext "Description" %></th>
+                                                            <th><%= gettext "Status" %></th>
+                                                            <th><%= gettext "Last Used" %></th>
+                                                            <th><%= gettext "Actions" %></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr v-for="token in tokens" :key="token.uuid">
+                                                            <td><code>${ token.token_prefix }</code></td>
+                                                            <td>${ token.description || '-' }</td>
+                                                            <td>
+                                                                <span class="badge" :class="token.is_active ? 'bg-success' : 'bg-secondary'">${ token.is_active ? 'Active' : 'Revoked' }</span>
+                                                            </td>
+                                                            <td>${ token.last_used_at ? formatDatetime(token.last_used_at) : 'Never' }</td>
+                                                            <td>
+                                                                <button v-if="token.is_active" type="button" class="btn btn-sm btn-danger" v-on:click="revokeTokenAction(token.uuid)"><%= gettext "Revoke" %></button>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                                <p v-else class="hp-p1-body hp-text-color-black-60"><%= gettext "No tokens generated yet." %></p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

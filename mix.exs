@@ -58,7 +58,9 @@ defmodule Lynx.MixProject do
       {:jason, "~> 1.4"},
       {:plug_cowboy, "~> 2.5"},
       {:bcrypt_elixir, "~> 3.0"},
-      {:sleeplocks, "~> 1.0"}
+      {:sleeplocks, "~> 1.0"},
+      {:openid_connect, "~> 1.0"},
+      {:samly, "~> 1.4"}
     ]
   end
 
