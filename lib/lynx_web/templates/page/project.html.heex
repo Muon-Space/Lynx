@@ -469,10 +469,45 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-16">
+                        <div v-if="showForm" class="border rounded p-16 mb-16">
+                            <h6 class="mb-16"><%= gettext "Add Access Rule" %></h6>
+                            <form v-on:submit.prevent="submitRuleAction">
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Provider" %></label>
+                                    <select class="form-select" v-model="formProviderId" required>
+                                        <option value="" disabled><%= gettext "Select a provider" %></option>
+                                        <option v-for="p in providers" :key="p.id" :value="p.id">${ p.name }</option>
+                                    </select>
+                                </div>
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Rule Name" %></label>
+                                    <input class="form-control" type="text" v-model="formRuleName" placeholder="prod-deploy" required>
+                                </div>
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Claim Rules" %></label>
+                                    <div v-for="(cr, index) in formClaimRules" :key="index" class="d-flex mb-8 gap-8">
+                                        <input class="form-control" type="text" v-model="cr.claim" placeholder="claim name (e.g. repository)" style="flex: 2;">
+                                        <select class="form-select" v-model="cr.operator" style="flex: 1;">
+                                            <option value="eq">equals</option>
+                                            <option value="contains">contains</option>
+                                            <option value="starts_with">starts with</option>
+                                            <option value="matches">regex</option>
+                                        </select>
+                                        <input class="form-control" type="text" v-model="cr.value" placeholder="expected value" style="flex: 2;">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" v-on:click="formClaimRules.splice(index, 1)" v-if="formClaimRules.length > 1">x</button>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" v-on:click="formClaimRules.push({claim: '', operator: 'eq', value: ''})"><%= gettext "+ Add Claim" %></button>
+                                    <small class="form-text text-muted d-block mt-8"><%= gettext "All claims must match (AND logic). Common claims: repository, repository_owner, ref, environment, actor" %></small>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary me-8"><%= gettext "Save Rule" %></button>
+                                <button type="button" class="btn btn-sm btn-secondary" v-on:click="showForm = false"><%= gettext "Cancel" %></button>
+                            </form>
+                        </div>
+
+                        <div v-if="!showForm" class="mb-16">
                             <div class="d-flex justify-content-between align-items-center mb-8">
                                 <small class="text-muted"><%= gettext "Rules that allow OIDC tokens to access this environment" %></small>
-                                <button type="button" class="btn btn-sm btn-primary" v-on:click="addRuleAction"><%= gettext "Add Rule" %></button>
+                                <button type="button" class="btn btn-sm btn-primary" v-on:click="showAddForm"><%= gettext "Add Rule" %></button>
                             </div>
                         </div>
 
@@ -490,7 +525,7 @@
                                         <td>${ rule.name }</td>
                                         <td>
                                             <div v-for="cr in rule.claimRules" :key="cr.claim">
-                                                <code>${ cr.claim } ${ cr.operator } ${ cr.value }</code>
+                                                <code>${ cr.claim } <span class="text-muted">${ cr.operator }</span> ${ cr.value }</code>
                                             </div>
                                         </td>
                                         <td>
@@ -500,7 +535,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <p v-else class="text-muted"><%= gettext "No OIDC access rules configured for this environment." %></p>
+                        <p v-else-if="!showForm" class="text-muted"><%= gettext "No OIDC access rules configured for this environment." %></p>
                     </div>
                 </div>
             </div>

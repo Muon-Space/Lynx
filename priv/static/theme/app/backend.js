@@ -374,7 +374,11 @@ lynx_app.oidc_providers_screen = (Vue, axios, $) => {
         el: '#app_oidc_providers',
         data() {
             return {
-                providers: []
+                providers: [],
+                showForm: false,
+                formName: '',
+                formDiscoveryUrl: '',
+                formAudience: ''
             }
         },
         mounted() {
@@ -390,22 +394,18 @@ lynx_app.oidc_providers_screen = (Vue, axios, $) => {
                         show_notification(error.response.data.errorMessage);
                     });
             },
-            addProviderAction() {
-                let name = prompt('Provider name (used as HTTP Basic Auth username, e.g. "github-actions"):');
-                if (!name) return;
-
-                let discoveryUrl = prompt('OIDC Discovery URL (e.g. "https://token.actions.githubusercontent.com"):');
-                if (!discoveryUrl) return;
-
-                let audience = prompt('Expected audience (optional, leave blank to skip):') || '';
-
+            submitProviderAction() {
                 axios.post('/api/v1/oidc_provider', {
-                    name: name,
-                    discovery_url: discoveryUrl,
-                    audience: audience || null
+                    name: this.formName,
+                    discovery_url: this.formDiscoveryUrl,
+                    audience: this.formAudience || null
                 })
                 .then((response) => {
                     show_notification(response.data.successMessage);
+                    this.showForm = false;
+                    this.formName = '';
+                    this.formDiscoveryUrl = '';
+                    this.formAudience = '';
                     this.loadProviders();
                 })
                 .catch((error) => {
@@ -1439,7 +1439,11 @@ lynx_app.oidc_rules_modal = (Vue, axios, $) => {
                 envId: null,
                 envName: '',
                 rules: [],
-                providers: []
+                providers: [],
+                showForm: false,
+                formProviderId: '',
+                formRuleName: '',
+                formClaimRules: [{claim: '', operator: 'eq', value: ''}]
             }
         },
         methods: {
@@ -1447,6 +1451,7 @@ lynx_app.oidc_rules_modal = (Vue, axios, $) => {
                 this.envId = envId;
                 this.envName = envName;
                 this.rules = [];
+                this.showForm = false;
 
                 axios.get('/api/v1/oidc_rule/' + envId)
                     .then((response) => {
@@ -1462,49 +1467,35 @@ lynx_app.oidc_rules_modal = (Vue, axios, $) => {
                     })
                     .catch(() => {});
             },
-            addRuleAction() {
+            showAddForm() {
                 if (this.providers.length === 0) {
                     show_notification('No OIDC providers configured. Add one in Settings first.');
                     return;
                 }
-
-                let providerNames = this.providers.map(p => p.name).join(', ');
-                let providerName = prompt('Provider name (' + providerNames + '):');
-                if (!providerName) return;
-
-                let provider = this.providers.find(p => p.name === providerName);
-                if (!provider) {
-                    show_notification('Provider "' + providerName + '" not found');
-                    return;
-                }
-
-                let ruleName = prompt('Rule name (e.g. "prod-deploy"):');
-                if (!ruleName) return;
-
-                let claimsInput = prompt('Claim rules (format: claim=value, one per line or comma-separated):\ne.g. repository=myorg/infra,environment=production');
-                if (!claimsInput) return;
-
-                let claimRules = claimsInput.split(/[,\n]/).map(function(pair) {
-                    let parts = pair.trim().split('=');
-                    if (parts.length >= 2) {
-                        return { claim: parts[0].trim(), operator: 'eq', value: parts.slice(1).join('=').trim() };
-                    }
-                    return null;
-                }).filter(function(r) { return r !== null; });
+                this.formProviderId = '';
+                this.formRuleName = '';
+                this.formClaimRules = [{claim: '', operator: 'eq', value: ''}];
+                this.showForm = true;
+            },
+            submitRuleAction() {
+                let claimRules = this.formClaimRules.filter(function(cr) {
+                    return cr.claim && cr.value;
+                });
 
                 if (claimRules.length === 0) {
-                    show_notification('No valid claim rules provided');
+                    show_notification('At least one claim rule is required');
                     return;
                 }
 
                 axios.post('/api/v1/oidc_rule', {
-                    name: ruleName,
-                    provider_id: provider.id,
+                    name: this.formRuleName,
+                    provider_id: this.formProviderId,
                     environment_id: this.envId,
                     claim_rules: claimRules
                 })
                 .then((response) => {
                     show_notification(response.data.successMessage);
+                    this.showForm = false;
                     this.loadRules(this.envId, this.envName);
                 })
                 .catch((error) => {
