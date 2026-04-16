@@ -107,6 +107,33 @@ defmodule Lynx.Module.SettingsModule do
   defp env_fallback("sso_login_label", default),
     do: Application.get_env(:lynx, :sso_login_label, default)
 
+  defp env_fallback("sso_issuer", default),
+    do: Application.get_env(:lynx, :sso_issuer, default)
+
+  defp env_fallback("sso_client_id", default),
+    do: Application.get_env(:lynx, :sso_client_id, default)
+
+  defp env_fallback("sso_client_secret", default),
+    do: Application.get_env(:lynx, :sso_client_secret, default)
+
+  defp env_fallback("sso_saml_idp_sso_url", default),
+    do: Application.get_env(:lynx, :sso_saml_idp_sso_url, default)
+
+  defp env_fallback("sso_saml_idp_issuer", default),
+    do: Application.get_env(:lynx, :sso_saml_idp_issuer, default)
+
+  defp env_fallback("sso_saml_idp_cert", default),
+    do: Application.get_env(:lynx, :sso_saml_idp_cert, default)
+
+  defp env_fallback("sso_saml_idp_metadata_url", default),
+    do: Application.get_env(:lynx, :sso_saml_idp_metadata_url, default)
+
+  defp env_fallback("sso_saml_sp_entity_id", default),
+    do: Application.get_env(:lynx, :sso_saml_sp_entity_id, default)
+
+  defp env_fallback("sso_saml_sign_requests", default),
+    do: to_string(Application.get_env(:lynx, :sso_saml_sign_requests, default))
+
   defp env_fallback("scim_enabled", default),
     do: to_string(Application.get_env(:lynx, :scim_enabled, default))
 

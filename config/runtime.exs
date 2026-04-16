@@ -30,8 +30,16 @@ config :lynx,
   auth_sso_enabled: (System.get_env("AUTH_SSO_ENABLED") || "false") == "true",
   sso_protocol: System.get_env("SSO_PROTOCOL") || "oidc",
   sso_login_label: System.get_env("SSO_LOGIN_LABEL") || "SSO",
-  scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true",
-  scim_bearer_token: System.get_env("SCIM_BEARER_TOKEN")
+  sso_issuer: System.get_env("SSO_ISSUER") || "",
+  sso_client_id: System.get_env("SSO_CLIENT_ID") || "",
+  sso_client_secret: System.get_env("SSO_CLIENT_SECRET") || "",
+  sso_saml_idp_sso_url: System.get_env("SSO_SAML_IDP_SSO_URL") || "",
+  sso_saml_idp_issuer: System.get_env("SSO_SAML_IDP_ISSUER") || "",
+  sso_saml_idp_cert: System.get_env("SSO_SAML_IDP_CERT") || "",
+  sso_saml_idp_metadata_url: System.get_env("SSO_SAML_IDP_METADATA_URL") || "",
+  sso_saml_sp_entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID") || "",
+  sso_saml_sign_requests: (System.get_env("SSO_SAML_SIGN_REQUESTS") || "false") == "true",
+  scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true"
 
 # OIDC configuration
 if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
