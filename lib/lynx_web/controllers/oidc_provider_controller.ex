@@ -12,6 +12,7 @@ defmodule LynxWeb.OIDCProviderController do
   require Logger
 
   alias Lynx.Module.OIDCBackendModule
+  alias Lynx.Module.AuditModule
 
   plug :super_user
 
@@ -54,6 +55,8 @@ defmodule LynxWeb.OIDCProviderController do
            audience: params["audience"]
          }) do
       {:ok, provider} ->
+        AuditModule.log(conn, "created", "oidc_provider", provider.uuid, provider.name)
+
         conn
         |> put_status(:created)
         |> json(%{
@@ -108,6 +111,7 @@ defmodule LynxWeb.OIDCProviderController do
   def delete_provider(conn, %{"uuid" => uuid}) do
     case OIDCBackendModule.delete_provider(uuid) do
       {:ok, _} ->
+        AuditModule.log(conn, "deleted", "oidc_provider", uuid)
         conn |> json(%{successMessage: "Provider deleted successfully"})
 
       {:not_found, _} ->

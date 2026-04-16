@@ -16,6 +16,7 @@ defmodule LynxWeb.SettingsController do
 
   alias Lynx.Module.SettingsModule
   alias Lynx.Module.SCIMTokenModule
+  alias Lynx.Module.AuditModule
   alias Lynx.Service.ValidatorService
 
   plug :super_user
@@ -56,6 +57,8 @@ defmodule LynxWeb.SettingsController do
           app_url: params["app_url"],
           app_email: params["app_email"]
         })
+
+        AuditModule.log(conn, "updated", "settings", nil, "general")
 
         conn
         |> put_status(:ok)
@@ -100,6 +103,8 @@ defmodule LynxWeb.SettingsController do
     # Write SAML cert/key to temp files if provided
     write_saml_temp_files(params["sso_saml_sp_cert"], params["sso_saml_sp_key"])
 
+    AuditModule.log(conn, "updated", "settings", nil, "sso_scim", configs)
+
     conn
     |> put_status(:ok)
     |> render("success.json", %{message: "SSO/SCIM settings updated successfully"})
@@ -126,6 +131,7 @@ defmodule LynxWeb.SettingsController do
         SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
         SettingsModule.upsert_config("sso_saml_sp_key", key_pem)
         SettingsModule.upsert_config("sso_saml_sign_requests", "true")
+        AuditModule.log(conn, "generated", "saml_certificate")
 
         conn
         |> put_status(:ok)
@@ -149,6 +155,8 @@ defmodule LynxWeb.SettingsController do
 
     case SCIMTokenModule.generate_token(description) do
       {:ok, result} ->
+        AuditModule.log(conn, "generated", "scim_token", result.uuid, description)
+
         conn
         |> put_status(:created)
         |> json(%{
@@ -181,6 +189,8 @@ defmodule LynxWeb.SettingsController do
   def revoke_scim_token(conn, %{"uuid" => uuid}) do
     case SCIMTokenModule.revoke_token(uuid) do
       {:ok, _} ->
+        AuditModule.log(conn, "revoked", "scim_token", uuid)
+
         conn
         |> put_status(:ok)
         |> render("success.json", %{message: "Token revoked"})
