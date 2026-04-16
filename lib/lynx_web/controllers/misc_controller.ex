@@ -89,16 +89,20 @@ defmodule LynxWeb.MiscController do
 
           conn = fetch_session(conn)
 
-          conn
-          |> put_status(:ok)
-          |> put_session(:token, session.value)
-          |> put_session(:uid, session.user_id)
-          |> render(
-            "token_success.json",
-            %{
-              message: "User logged in successfully!"
-            }
-          )
+          conn =
+            conn
+            |> put_session(:token, session.value)
+            |> put_session(:uid, session.user_id)
+
+          # If request came from a form (not AJAX), redirect
+          if get_req_header(conn, "x-requested-with") == ["XMLHttpRequest"] do
+            conn
+            |> put_status(:ok)
+            |> render(:token_success, %{message: "User logged in successfully!"})
+          else
+            conn
+            |> redirect(to: "/admin/projects")
+          end
 
         {:error, message} ->
           conn

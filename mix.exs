@@ -51,6 +51,8 @@ defmodule Lynx.MixProject do
       {:floki, "~> 0.38", only: :test},
       {:phoenix_live_dashboard, "~> 0.8"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      {:heroicons, "~> 0.5"},
       {:swoosh, "~> 1.25"},
       {:telemetry_metrics, "~> 1.1"},
       {:telemetry_poller, "~> 1.3"},

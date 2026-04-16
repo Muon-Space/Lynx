@@ -94,8 +94,8 @@ defmodule LynxWeb do
   defp html_helpers do
     quote do
       import Phoenix.HTML
+      import LynxWeb.CoreComponents
 
-      import LynxWeb.ErrorHelpers
       use Gettext, backend: LynxWeb.Gettext
 
       unquote(verified_routes())

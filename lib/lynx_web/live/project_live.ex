@@ -1,0 +1,351 @@
+defmodule LynxWeb.ProjectLive do
+  use LynxWeb, :live_view
+
+  alias Lynx.Module.ProjectModule
+  alias Lynx.Module.EnvironmentModule
+  alias Lynx.Module.StateModule
+  alias Lynx.Module.LockModule
+  alias Lynx.Module.OIDCBackendModule
+  alias Lynx.Module.AuditModule
+  alias Lynx.Context.EnvironmentContext
+
+  on_mount {LynxWeb.LiveAuth, :require_auth}
+
+  @impl true
+  def mount(%{"uuid" => uuid}, _session, socket) do
+    case ProjectModule.get_project_by_uuid(uuid) do
+      {:not_found, _} ->
+        {:ok, redirect(socket, to: "/admin/projects")}
+
+      {:ok, project} ->
+        teams = ProjectModule.get_project_teams(project.id)
+        environments = EnvironmentContext.get_project_envs(project.id, 0, 10000)
+
+        envs_with_info =
+          Enum.map(environments, fn env ->
+            state_count = StateModule.count_states(env.id)
+            is_locked = EnvironmentModule.is_environment_locked(env.id)
+
+            %{
+              id: env.id,
+              uuid: env.uuid,
+              name: env.name,
+              slug: env.slug,
+              username: env.username,
+              secret: env.secret,
+              state_version: if(state_count > 0, do: "v#{state_count}", else: "v0"),
+              is_locked: is_locked,
+              inserted_at: env.inserted_at
+            }
+          end)
+
+        socket =
+          socket
+          |> assign(:project, project)
+          |> assign(:project_uuid, uuid)
+          |> assign(:teams, teams)
+          |> assign(:environments, envs_with_info)
+          |> assign(:show_add_env, false)
+          |> assign(:editing_env, nil)
+          |> assign(:show_oidc_rules, nil)
+          |> assign(:oidc_rules, [])
+          |> assign(:oidc_providers, OIDCBackendModule.list_providers())
+          |> assign(:show_add_rule, false)
+
+        {:ok, socket}
+    end
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <.nav current_user={@current_user} active="projects" />
+    <div class="max-w-7xl mx-auto px-6">
+      <.page_header title={@project.name} subtitle={@project.description} />
+
+      <div class="flex justify-end mb-4">
+        <.button phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+      </div>
+
+      <%!-- Add Environment Modal --%>
+      <.modal :if={@show_add_env} id="add-env" show on_cancel={JS.push("hide_add_env")}>
+        <h3 class="text-lg font-semibold mb-4">Add Environment</h3>
+        <form phx-submit="create_env" class="space-y-4">
+          <.input name="name" label="Name" value="" required />
+          <.input name="slug" label="Slug" value="" required />
+          <.input name="username" label="Username" value={random_string(8)} required />
+          <.input name="secret" label="Secret" value={random_string(16)} required />
+          <div class="flex gap-3 pt-2">
+            <.button type="submit" variant="primary">Create</.button>
+            <.button phx-click="hide_add_env" variant="secondary">Cancel</.button>
+          </div>
+        </form>
+      </.modal>
+
+      <%!-- Edit Environment Modal --%>
+      <.modal :if={@editing_env} id="edit-env" show on_cancel={JS.push("hide_edit_env")}>
+        <h3 class="text-lg font-semibold mb-4">Edit Environment</h3>
+        <form phx-submit="update_env" class="space-y-4">
+          <.input name="name" label="Name" value={@editing_env.name} required />
+          <.input name="slug" label="Slug" value={@editing_env.slug} required />
+          <.input name="username" label="Username" value={@editing_env.username} required />
+          <.input name="secret" label="Secret" value={@editing_env.secret} required />
+          <div class="flex gap-3 pt-2">
+            <.button type="submit" variant="primary">Update</.button>
+            <.button phx-click="hide_edit_env" variant="secondary">Cancel</.button>
+          </div>
+        </form>
+      </.modal>
+
+      <%!-- OIDC Rules Modal --%>
+      <.modal :if={@show_oidc_rules} id="oidc-rules" show on_cancel={JS.push("hide_oidc_rules")}>
+        <h3 class="text-lg font-semibold mb-4">OIDC Access Rules — {@show_oidc_rules.name}</h3>
+
+        <div :if={@show_add_rule} class="border rounded-lg p-4 mb-4">
+          <form phx-submit="create_rule" class="space-y-3">
+            <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value="" required />
+            <.input name="rule_name" label="Rule Name" value="" required placeholder="prod-deploy" />
+            <.input name="claims" label="Claims (claim=value, comma separated)" value="" required placeholder="repository=myorg/infra,environment=production" hint="All claims must match (AND logic)" />
+            <div class="flex gap-3">
+              <.button type="submit" variant="primary" size="sm">Save Rule</.button>
+              <.button phx-click="hide_add_rule" variant="secondary" size="sm">Cancel</.button>
+            </div>
+          </form>
+        </div>
+
+        <div :if={!@show_add_rule} class="flex justify-end mb-3">
+          <.button phx-click="show_add_rule" variant="primary" size="sm">Add Rule</.button>
+        </div>
+
+        <.table rows={@oidc_rules} empty_message="No OIDC access rules for this environment.">
+          <:col :let={r} label="Name">{r.name}</:col>
+          <:col :let={r} label="Claims">
+            <div :for={cr <- Jason.decode!(r.claim_rules)}>
+              <code class="text-xs">{cr["claim"]} {cr["operator"]} {cr["value"]}</code>
+            </div>
+          </:col>
+          <:action :let={r}>
+            <.button phx-click="delete_rule" phx-value-uuid={r.uuid} variant="ghost" size="sm" data-confirm="Delete this rule?">Delete</.button>
+          </:action>
+        </.table>
+      </.modal>
+
+      <%!-- Environments Table --%>
+      <.card>
+        <.table rows={@environments}>
+          <:col :let={env} label="Name">{env.name}</:col>
+          <:col :let={env} label="Lock Status">
+            <span
+              class="cursor-pointer"
+              phx-click={if env.is_locked, do: "force_unlock", else: "force_lock"}
+              phx-value-uuid={env.uuid}
+              data-confirm={if env.is_locked, do: "Force unlock? This will override running Terraform operations.", else: "Lock this environment?"}
+            >
+              <.badge color={if env.is_locked, do: "red", else: "green"}>
+                {if env.is_locked, do: "Locked", else: "Not Locked"}
+              </.badge>
+            </span>
+          </:col>
+          <:col :let={env} label="State">{env.state_version}</:col>
+          <:col :let={env} label="Created">
+            <span class="text-xs text-gray-500">{Calendar.strftime(env.inserted_at, "%Y-%m-%d %H:%M")}</span>
+          </:col>
+          <:action :let={env}>
+            <.button phx-click="show_backend_config" phx-value-uuid={env.uuid} variant="ghost" size="sm">View</.button>
+            <.button :if={env.state_version != "v0"} phx-click="download_state" phx-value-uuid={env.uuid} variant="ghost" size="sm">State</.button>
+            <.button phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>
+            <.button phx-click="edit_env" phx-value-uuid={env.uuid} variant="ghost" size="sm">Edit</.button>
+            <.button phx-click="delete_env" phx-value-uuid={env.uuid} variant="ghost" size="sm" data-confirm="Delete this environment?">Delete</.button>
+          </:action>
+        </.table>
+
+        <%!-- Backend Config Display --%>
+        <div :if={assigns[:backend_config]} class="mt-6 bg-gray-900 text-gray-100 rounded-lg p-4">
+          <pre class="text-xs font-mono whitespace-pre-wrap">{@backend_config}</pre>
+        </div>
+      </.card>
+    </div>
+    """
+  end
+
+  # -- Environment CRUD --
+  @impl true
+  def handle_event("show_add_env", _, socket), do: {:noreply, assign(socket, :show_add_env, true)}
+  def handle_event("hide_add_env", _, socket), do: {:noreply, assign(socket, :show_add_env, false)}
+  def handle_event("hide_edit_env", _, socket), do: {:noreply, assign(socket, :editing_env, nil)}
+
+  def handle_event("create_env", params, socket) do
+    case EnvironmentModule.create_environment(%{
+           name: params["name"],
+           slug: params["slug"],
+           username: params["username"],
+           secret: params["secret"],
+           project_id: socket.assigns.project.uuid
+         }) do
+      {:ok, env} ->
+        AuditModule.log_system("created", "environment", env.uuid, env.name)
+        {:noreply, socket |> assign(:show_add_env, false) |> put_flash(:info, "Environment created") |> reload_envs()}
+      {:error, msg} ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("edit_env", %{"uuid" => uuid}, socket) do
+    env = Enum.find(socket.assigns.environments, &(&1.uuid == uuid))
+    {:noreply, assign(socket, :editing_env, env)}
+  end
+
+  def handle_event("update_env", params, socket) do
+    case EnvironmentModule.update_environment(%{
+           uuid: socket.assigns.editing_env.uuid,
+           name: params["name"],
+           slug: params["slug"],
+           username: params["username"],
+           secret: params["secret"]
+         }) do
+      {:ok, _} ->
+        {:noreply, socket |> assign(:editing_env, nil) |> put_flash(:info, "Environment updated") |> reload_envs()}
+      {:error, msg} ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("delete_env", %{"uuid" => uuid}, socket) do
+    case EnvironmentModule.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
+      {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
+      _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
+    end
+  end
+
+  # -- Lock/Unlock --
+  def handle_event("force_lock", %{"uuid" => uuid}, socket) do
+    case EnvironmentContext.get_env_id_with_uuid(uuid) do
+      nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
+      env_id ->
+        LockModule.force_lock(env_id, socket.assigns.current_user.name)
+        AuditModule.log_system("locked", "environment", uuid)
+        {:noreply, socket |> put_flash(:info, "Environment locked") |> reload_envs()}
+    end
+  end
+
+  def handle_event("force_unlock", %{"uuid" => uuid}, socket) do
+    case EnvironmentContext.get_env_id_with_uuid(uuid) do
+      nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
+      env_id ->
+        LockModule.force_unlock(env_id)
+        AuditModule.log_system("unlocked", "environment", uuid)
+        {:noreply, socket |> put_flash(:info, "Environment unlocked") |> reload_envs()}
+    end
+  end
+
+  # -- Backend Config View --
+  def handle_event("show_backend_config", %{"uuid" => uuid}, socket) do
+    env = Enum.find(socket.assigns.environments, &(&1.uuid == uuid))
+    project = socket.assigns.project
+    teams = socket.assigns.teams
+    team_slug = if teams != [], do: hd(teams).slug, else: "team"
+    app_url = Lynx.Module.SettingsModule.get_config("app_url", "http://localhost:4000") |> String.trim_trailing("/")
+
+    config = """
+    terraform {
+      backend "http" {
+        username       = "#{env.username}"
+        password       = "#{env.secret}"
+        address        = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/state"
+        lock_address   = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/lock"
+        unlock_address = "#{app_url}/client/#{team_slug}/#{project.slug}/#{env.slug}/unlock"
+        lock_method    = "POST"
+        unlock_method  = "POST"
+      }
+    }
+    """
+
+    {:noreply, assign(socket, :backend_config, String.trim(config))}
+  end
+
+  def handle_event("download_state", %{"uuid" => uuid}, socket) do
+    {:noreply, redirect(socket, to: "/admin/environment/download/#{uuid}")}
+  end
+
+  # -- OIDC Rules --
+  def handle_event("show_oidc_rules", %{"uuid" => uuid}, socket) do
+    env = Enum.find(socket.assigns.environments, &(&1.uuid == uuid))
+    rules = OIDCBackendModule.list_rules_by_environment(env.id)
+    {:noreply, assign(socket, show_oidc_rules: env, oidc_rules: rules, show_add_rule: false)}
+  end
+
+  def handle_event("hide_oidc_rules", _, socket) do
+    {:noreply, assign(socket, show_oidc_rules: nil, oidc_rules: [])}
+  end
+
+  def handle_event("show_add_rule", _, socket), do: {:noreply, assign(socket, :show_add_rule, true)}
+  def handle_event("hide_add_rule", _, socket), do: {:noreply, assign(socket, :show_add_rule, false)}
+
+  def handle_event("create_rule", params, socket) do
+    provider = Lynx.Context.OIDCProviderContext.get_provider_by_uuid(params["provider_id"])
+
+    claim_rules =
+      params["claims"]
+      |> String.split(",")
+      |> Enum.map(fn pair ->
+        case String.split(String.trim(pair), "=", parts: 2) do
+          [k, v] -> %{"claim" => String.trim(k), "operator" => "eq", "value" => String.trim(v)}
+          _ -> nil
+        end
+      end)
+      |> Enum.filter(& &1)
+      |> Jason.encode!()
+
+    if provider do
+      case OIDCBackendModule.create_rule(%{
+             name: params["rule_name"],
+             claim_rules: claim_rules,
+             provider_id: provider.id,
+             environment_id: socket.assigns.show_oidc_rules.id
+           }) do
+        {:ok, _} ->
+          rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+          {:noreply, socket |> assign(:oidc_rules, rules) |> assign(:show_add_rule, false) |> put_flash(:info, "Rule created")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to create rule")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Provider not found")}
+    end
+  end
+
+  def handle_event("delete_rule", %{"uuid" => uuid}, socket) do
+    OIDCBackendModule.delete_rule(uuid)
+    rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+    {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}
+  end
+
+  # -- Helpers --
+  defp reload_envs(socket) do
+    environments = EnvironmentContext.get_project_envs(socket.assigns.project.id, 0, 10000)
+
+    envs_with_info =
+      Enum.map(environments, fn env ->
+        state_count = StateModule.count_states(env.id)
+        is_locked = EnvironmentModule.is_environment_locked(env.id)
+
+        %{
+          id: env.id,
+          uuid: env.uuid,
+          name: env.name,
+          slug: env.slug,
+          username: env.username,
+          secret: env.secret,
+          state_version: if(state_count > 0, do: "v#{state_count}", else: "v0"),
+          is_locked: is_locked,
+          inserted_at: env.inserted_at
+        }
+      end)
+
+    assign(socket, :environments, envs_with_info)
+  end
+
+  defp random_string(length) do
+    :crypto.strong_rand_bytes(length) |> Base.url_encode64(padding: false) |> binary_part(0, length)
+  end
+end

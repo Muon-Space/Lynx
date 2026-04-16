@@ -39,19 +39,21 @@ defmodule LynxWeb.Router do
   scope "/", LynxWeb do
     pipe_through :browser
 
-    get "/404", PageController, :not_found
-    get "/install", PageController, :install
-    get "/", PageController, :home
-    get "/login", PageController, :login
+    # LiveView pages
+    live "/", HomeLive
+    live "/install", InstallLive
+    live "/login", LoginLive
+    live "/admin/profile", ProfileLive
+    live "/admin/audit", AuditLive
+    live "/admin/users", UsersLive
+    live "/admin/teams", TeamsLive
+    live "/admin/projects", ProjectsLive
+    live "/admin/projects/:uuid", ProjectLive
+    live "/admin/snapshots", SnapshotsLive
+    live "/admin/settings", SettingsLive
+
+    # Dead views (need session/redirect handling)
     get "/logout", PageController, :logout
-    get "/admin/profile", PageController, :profile
-    get "/admin/snapshots", PageController, :snapshots
-    get "/admin/teams", PageController, :teams
-    get "/admin/users", PageController, :users
-    get "/admin/projects", PageController, :projects
-    get "/admin/projects/:uuid", PageController, :project
-    get "/admin/settings", PageController, :settings
-    get "/admin/audit", PageController, :audit
     get "/admin/state/download/:uuid", PageController, :state
     get "/admin/environment/download/:uuid", PageController, :environment
     get "/auth/sso/finalize", SSOController, :finalize
