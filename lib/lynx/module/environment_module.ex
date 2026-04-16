@@ -148,6 +148,8 @@ defmodule Lynx.Module.EnvironmentModule do
   Validate Auth Data for environment
   """
   def is_access_allowed(data \\ %{}) do
+    alias Lynx.Module.OIDCBackendModule
+
     case TeamContext.get_team_by_slug(data[:team_slug]) do
       nil ->
         {:error, "Invalid team slug"}
@@ -163,10 +165,18 @@ defmodule Lynx.Module.EnvironmentModule do
                 {:error, "Invalid environment credentials"}
 
               env ->
-                if env.username == data[:username] and env.secret == data[:secret] do
-                  {:ok, team, project, env}
+                # Try OIDC provider auth first, then fall back to username/secret
+                if OIDCBackendModule.is_oidc_provider?(data[:username]) do
+                  case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
+                    :ok -> {:ok, team, project, env}
+                    {:error, _reason} -> {:error, "Invalid environment credentials"}
+                  end
                 else
-                  {:error, "Invalid environment credentials"}
+                  if env.username == data[:username] and env.secret == data[:secret] do
+                    {:ok, team, project, env}
+                  else
+                    {:error, "Invalid environment credentials"}
+                  end
                 end
             end
         end

@@ -366,6 +366,68 @@ lynx_app.scim_settings_screen = (Vue, axios, $) => {
     });
 }
 
+// OIDC Providers Settings
+lynx_app.oidc_providers_screen = (Vue, axios, $) => {
+
+    return new Vue({
+        delimiters: ['${', '}'],
+        el: '#app_oidc_providers',
+        data() {
+            return {
+                providers: []
+            }
+        },
+        mounted() {
+            this.loadProviders();
+        },
+        methods: {
+            loadProviders() {
+                axios.get('/api/v1/oidc_provider')
+                    .then((response) => {
+                        this.providers = response.data.providers;
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            },
+            addProviderAction() {
+                let name = prompt('Provider name (used as HTTP Basic Auth username, e.g. "github-actions"):');
+                if (!name) return;
+
+                let discoveryUrl = prompt('OIDC Discovery URL (e.g. "https://token.actions.githubusercontent.com"):');
+                if (!discoveryUrl) return;
+
+                let audience = prompt('Expected audience (optional, leave blank to skip):') || '';
+
+                axios.post('/api/v1/oidc_provider', {
+                    name: name,
+                    discovery_url: discoveryUrl,
+                    audience: audience || null
+                })
+                .then((response) => {
+                    show_notification(response.data.successMessage);
+                    this.loadProviders();
+                })
+                .catch((error) => {
+                    show_notification(error.response.data.errorMessage);
+                });
+            },
+            deleteProviderAction(uuid) {
+                if (!confirm('Delete this OIDC provider and all its access rules?')) return;
+
+                axios.delete('/api/v1/oidc_provider/' + uuid)
+                    .then((response) => {
+                        show_notification(response.data.successMessage);
+                        this.loadProviders();
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            }
+        }
+    });
+}
+
 // Profile Page
 lynx_app.profile_screen = (Vue, axios, $) => {
 
@@ -1340,6 +1402,12 @@ lynx_app.environments_list = (Vue, axios, $) => {
                     });
             },
 
+            oidcRulesAction(id, name) {
+                if (window.lynx_oidc_rules) {
+                    window.lynx_oidc_rules.loadRules(id, name);
+                }
+            },
+
             loadDataAction() {
                 axios.get($("#environments_list").attr("data-action"), {
                         params: {
@@ -1351,6 +1419,105 @@ lynx_app.environments_list = (Vue, axios, $) => {
                         if (response.status >= 200) {
                             this.environments = response.data.environments;
                         }
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            }
+        }
+    });
+}
+
+// OIDC Rules Modal
+lynx_app.oidc_rules_modal = (Vue, axios, $) => {
+
+    window.lynx_oidc_rules = new Vue({
+        delimiters: ['${', '}'],
+        el: '#oidc_rules_app',
+        data() {
+            return {
+                envId: null,
+                envName: '',
+                rules: [],
+                providers: []
+            }
+        },
+        methods: {
+            loadRules(envId, envName) {
+                this.envId = envId;
+                this.envName = envName;
+                this.rules = [];
+
+                axios.get('/api/v1/oidc_rule/' + envId)
+                    .then((response) => {
+                        this.rules = response.data.rules;
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+
+                axios.get('/api/v1/oidc_provider')
+                    .then((response) => {
+                        this.providers = response.data.providers;
+                    })
+                    .catch(() => {});
+            },
+            addRuleAction() {
+                if (this.providers.length === 0) {
+                    show_notification('No OIDC providers configured. Add one in Settings first.');
+                    return;
+                }
+
+                let providerNames = this.providers.map(p => p.name).join(', ');
+                let providerName = prompt('Provider name (' + providerNames + '):');
+                if (!providerName) return;
+
+                let provider = this.providers.find(p => p.name === providerName);
+                if (!provider) {
+                    show_notification('Provider "' + providerName + '" not found');
+                    return;
+                }
+
+                let ruleName = prompt('Rule name (e.g. "prod-deploy"):');
+                if (!ruleName) return;
+
+                let claimsInput = prompt('Claim rules (format: claim=value, one per line or comma-separated):\ne.g. repository=myorg/infra,environment=production');
+                if (!claimsInput) return;
+
+                let claimRules = claimsInput.split(/[,\n]/).map(function(pair) {
+                    let parts = pair.trim().split('=');
+                    if (parts.length >= 2) {
+                        return { claim: parts[0].trim(), operator: 'eq', value: parts.slice(1).join('=').trim() };
+                    }
+                    return null;
+                }).filter(function(r) { return r !== null; });
+
+                if (claimRules.length === 0) {
+                    show_notification('No valid claim rules provided');
+                    return;
+                }
+
+                axios.post('/api/v1/oidc_rule', {
+                    name: ruleName,
+                    provider_id: provider.id,
+                    environment_id: this.envId,
+                    claim_rules: claimRules
+                })
+                .then((response) => {
+                    show_notification(response.data.successMessage);
+                    this.loadRules(this.envId, this.envName);
+                })
+                .catch((error) => {
+                    show_notification(error.response.data.errorMessage);
+                });
+            },
+            deleteRuleAction(uuid) {
+                if (!confirm('Delete this access rule?')) return;
+
+                axios.delete('/api/v1/oidc_rule/' + uuid)
+                    .then((response) => {
+                        show_notification(response.data.successMessage);
+                        this.loadRules(this.envId, this.envName);
                     })
                     .catch((error) => {
                         show_notification(error.response.data.errorMessage);
@@ -1752,6 +1919,14 @@ $(document).ready(() => {
         );
     }
 
+    if (document.getElementById("app_oidc_providers")) {
+        lynx_app.oidc_providers_screen(
+            Vue,
+            axios,
+            $
+        );
+    }
+
     if (document.getElementById("app_profile")) {
         lynx_app.profile_screen(
             Vue,
@@ -1802,6 +1977,14 @@ $(document).ready(() => {
 
     if (document.getElementById("add_project_modal")) {
         lynx_app.add_project_modal(
+            Vue,
+            axios,
+            $
+        );
+    }
+
+    if (document.getElementById("oidc_rules_app")) {
+        lynx_app.oidc_rules_modal(
             Vue,
             axios,
             $

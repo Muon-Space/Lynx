@@ -306,6 +306,7 @@
                                             <template v-if="environment.stateVersion != 'v0'">
                                                 <a target="_blank" @click="downloadEnvironmentStateAction(environment.id)" class="btn btn-dashed btn-sm text-warning-100 border-warning-100 hp-hover-text-color-warning-80 hp-hover-border-color-warning-80"><%= gettext "Download State" %></a>
                                             </template>
+                                            <button @click="oidcRulesAction(environment.id, environment.name)" class="btn btn-dashed btn-sm text-info border-info hp-hover-text-color-info-2 hp-hover-border-color-info-2" data-bs-toggle="modal" data-bs-target="#oidc_rules_modal"><%= gettext "OIDC Rules" %></button>
                                             <button @click="editEnvironmentAction(environment.id)" class="btn btn-dashed btn-sm text-black-100 border-black-100 hp-hover-text-color-black-80 hp-hover-border-color-black-80"  data-bs-toggle="modal" data-bs-target="#edit_environment_modal"><%= gettext "Edit" %></button>
                                             <button @click="deleteEnvironmentAction(environment.id)" class="btn btn-dashed btn-sm text-danger border-danger hp-hover-text-color-danger-2 hp-hover-border-color-danger-2"><%= gettext "Delete" %></button>
                                         </td>
@@ -456,6 +457,51 @@
       // required_version = "1.3.7"
     }
                     </pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="oidc_rules_modal" tabindex="-1" aria-labelledby="oidcRulesLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content" id="oidc_rules_app">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="oidcRulesLabel"><%= gettext "OIDC Access Rules" %> — <span>${ envName }</span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-16">
+                            <div class="d-flex justify-content-between align-items-center mb-8">
+                                <small class="text-muted"><%= gettext "Rules that allow OIDC tokens to access this environment" %></small>
+                                <button type="button" class="btn btn-sm btn-primary" v-on:click="addRuleAction"><%= gettext "Add Rule" %></button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" v-if="rules.length > 0">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th><%= gettext "Name" %></th>
+                                        <th><%= gettext "Claims" %></th>
+                                        <th><%= gettext "Actions" %></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="rule in rules" :key="rule.id">
+                                        <td>${ rule.name }</td>
+                                        <td>
+                                            <div v-for="cr in rule.claimRules" :key="cr.claim">
+                                                <code>${ cr.claim } ${ cr.operator } ${ cr.value }</code>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-danger" v-on:click="deleteRuleAction(rule.id)"><%= gettext "Delete" %></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p v-else class="text-muted"><%= gettext "No OIDC access rules configured for this environment." %></p>
+                    </div>
                 </div>
             </div>
         </div>
