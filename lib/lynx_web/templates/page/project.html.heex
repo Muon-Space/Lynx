@@ -291,12 +291,12 @@
                                         <td style="text-align: center">${environment.name}</td>
                                         <template v-if="environment.isLocked">
                                             <td style="text-align: center">
-                                                <div class="badge bg-danger-4 hp-bg-dark-danger text-danger border-danger">Locked</div>
+                                                <div class="badge bg-danger-4 hp-bg-dark-danger text-danger border-danger" style="cursor: pointer;" @click="forceUnlockAction(environment.id)" title="Click to unlock">Locked</div>
                                             </td>
                                         </template>
                                         <template v-else>
                                             <td style="text-align: center">
-                                                <div class="badge bg-success-4 hp-bg-dark-success text-success border-success">Not Locked</div>
+                                                <div class="badge bg-success-4 hp-bg-dark-success text-success border-success" style="cursor: pointer;" @click="forceLockAction(environment.id)" title="Click to lock">Not Locked</div>
                                             </td>
                                         </template>
                                         <td style="text-align: center">${environment.stateVersion}</td>

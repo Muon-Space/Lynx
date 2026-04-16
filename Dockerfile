@@ -22,8 +22,10 @@ ARG RUNNER_IMAGE="ubuntu:noble"
 FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git \
-    && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update --allow-releaseinfo-change -y && \
+    apt-get install -y build-essential git && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # prepare build dir
 WORKDIR /app
@@ -68,8 +70,10 @@ RUN mix release
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE}
 
-RUN apt-get update -y && apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates curl \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
+RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update --allow-releaseinfo-change -y && \
+    apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen

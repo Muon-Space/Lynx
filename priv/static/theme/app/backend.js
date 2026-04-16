@@ -1413,6 +1413,19 @@ lynx_app.environments_list = (Vue, axios, $) => {
                     });
             },
 
+            forceLockAction(id) {
+                if (!confirm('Lock this environment? Running Terraform operations will be blocked.')) return;
+                axios.post('/api/v1/environment/' + id + '/lock')
+                    .then((response) => { show_notification(response.data.successMessage); this.loadDataAction(); })
+                    .catch((error) => { show_notification(error.response.data.errorMessage); });
+            },
+            forceUnlockAction(id) {
+                if (!confirm('Force unlock this environment? This will override any running Terraform operation.')) return;
+                axios.post('/api/v1/environment/' + id + '/unlock')
+                    .then((response) => { show_notification(response.data.successMessage); this.loadDataAction(); })
+                    .catch((error) => { show_notification(error.response.data.errorMessage); });
+            },
+
             oidcRulesAction(id, name) {
                 if (window.lynx_oidc_rules) {
                     window.lynx_oidc_rules.loadRules(id, name);
