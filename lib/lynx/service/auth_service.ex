@@ -167,7 +167,7 @@ defmodule Lynx.Service.AuthService do
   Check if password authentication is enabled
   """
   def password_auth_enabled? do
-    Application.get_env(:lynx, :auth_password_enabled, true)
+    Lynx.Module.SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
   end
 
   @doc """

@@ -51,14 +51,45 @@ end
 # SAML configuration
 if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
      (System.get_env("SSO_PROTOCOL") || "oidc") == "saml" do
+  # Resolve SP cert/key: base64 env vars take precedence over file paths.
+  # When base64 values are provided, decode them and write to temp files
+  # so they work in containerized deploys without volume mounts.
+  saml_certfile =
+    case System.get_env("SSO_SAML_SP_CERT_BASE64") do
+      nil ->
+        System.get_env("SSO_SAML_SP_CERTFILE") || ""
+
+      "" ->
+        System.get_env("SSO_SAML_SP_CERTFILE") || ""
+
+      base64_cert ->
+        path = Path.join(System.tmp_dir!(), "lynx_saml_sp_cert.pem")
+        File.write!(path, Base.decode64!(base64_cert))
+        path
+    end
+
+  saml_keyfile =
+    case System.get_env("SSO_SAML_SP_KEY_BASE64") do
+      nil ->
+        System.get_env("SSO_SAML_SP_KEYFILE") || ""
+
+      "" ->
+        System.get_env("SSO_SAML_SP_KEYFILE") || ""
+
+      base64_key ->
+        path = Path.join(System.tmp_dir!(), "lynx_saml_sp_key.pem")
+        File.write!(path, Base.decode64!(base64_key))
+        path
+    end
+
   config :samly, Samly.Provider,
     idp_id_from: :path_segment,
     service_providers: [
       %{
         id: "lynx-sp",
         entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID"),
-        certfile: System.get_env("SSO_SAML_SP_CERTFILE") || "",
-        keyfile: System.get_env("SSO_SAML_SP_KEYFILE") || ""
+        certfile: saml_certfile,
+        keyfile: saml_keyfile
       }
     ],
     identity_providers: [

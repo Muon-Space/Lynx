@@ -15,9 +15,10 @@ defmodule LynxWeb.SettingsController do
   @app_name_max_length 60
 
   alias Lynx.Module.SettingsModule
+  alias Lynx.Module.SCIMTokenModule
   alias Lynx.Service.ValidatorService
 
-  plug :super_user when action in [:update]
+  plug :super_user when action in [:update, :update_sso, :generate_scim_token, :revoke_scim_token, :list_scim_tokens]
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")
@@ -56,6 +57,80 @@ defmodule LynxWeb.SettingsController do
         conn
         |> put_status(:bad_request)
         |> render("error.json", %{message: reason})
+    end
+  end
+
+  @doc """
+  Update SSO/SCIM Settings Endpoint
+  """
+  def update_sso(conn, params) do
+    SettingsModule.update_sso_configs(%{
+      "auth_password_enabled" => params["auth_password_enabled"] || "true",
+      "auth_sso_enabled" => params["auth_sso_enabled"] || "false",
+      "sso_protocol" => params["sso_protocol"] || "oidc",
+      "sso_login_label" => params["sso_login_label"] || "SSO",
+      "sso_issuer" => params["sso_issuer"] || "",
+      "sso_client_id" => params["sso_client_id"] || "",
+      "sso_client_secret" => params["sso_client_secret"] || "",
+      "sso_redirect_uri" => params["sso_redirect_uri"] || "",
+      "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
+      "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
+      "scim_enabled" => params["scim_enabled"] || "false"
+    })
+
+    conn
+    |> put_status(:ok)
+    |> render("success.json", %{message: "SSO/SCIM settings updated successfully"})
+  end
+
+  @doc """
+  Generate SCIM Token Endpoint
+  """
+  def generate_scim_token(conn, params) do
+    description = params["description"] || ""
+
+    case SCIMTokenModule.generate_token(description) do
+      {:ok, result} ->
+        conn
+        |> put_status(:created)
+        |> json(%{
+          uuid: result.uuid,
+          token: result.token,
+          description: result.description
+        })
+
+      {:error, msg} ->
+        conn
+        |> put_status(:bad_request)
+        |> render("error.json", %{message: msg})
+    end
+  end
+
+  @doc """
+  List SCIM Tokens Endpoint
+  """
+  def list_scim_tokens(conn, _params) do
+    tokens = SCIMTokenModule.list_tokens()
+
+    conn
+    |> put_status(:ok)
+    |> json(%{tokens: tokens})
+  end
+
+  @doc """
+  Revoke SCIM Token Endpoint
+  """
+  def revoke_scim_token(conn, %{"uuid" => uuid}) do
+    case SCIMTokenModule.revoke_token(uuid) do
+      {:ok, _} ->
+        conn
+        |> put_status(:ok)
+        |> render("success.json", %{message: "Token revoked"})
+
+      {:not_found, _} ->
+        conn
+        |> put_status(:not_found)
+        |> render("error.json", %{message: "Token not found"})
     end
   end
 

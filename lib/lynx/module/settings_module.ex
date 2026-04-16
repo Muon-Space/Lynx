@@ -26,7 +26,32 @@ defmodule Lynx.Module.SettingsModule do
   end
 
   @doc """
-  Get Config
+  Update SSO/SCIM Configs
+  """
+  def update_sso_configs(configs \\ %{}) do
+    keys = [
+      "auth_password_enabled",
+      "auth_sso_enabled",
+      "sso_protocol",
+      "sso_login_label",
+      "sso_issuer",
+      "sso_client_id",
+      "sso_client_secret",
+      "sso_redirect_uri",
+      "sso_saml_idp_metadata_url",
+      "sso_saml_sp_entity_id",
+      "scim_enabled"
+    ]
+
+    for key <- keys do
+      if Map.has_key?(configs, key) do
+        upsert_config(key, configs[key])
+      end
+    end
+  end
+
+  @doc """
+  Get Config (DB first, then env var fallback via Application config)
   """
   def get_config(name, default \\ "") do
     case ConfigContext.get_config_by_name(name) do
@@ -37,4 +62,48 @@ defmodule Lynx.Module.SettingsModule do
         config.value
     end
   end
+
+  @doc """
+  Get SSO/SCIM config with env var fallback
+  """
+  def get_sso_config(name, default \\ "") do
+    case ConfigContext.get_config_by_name(name) do
+      nil ->
+        env_fallback(name, default)
+
+      config ->
+        config.value
+    end
+  end
+
+  @doc """
+  Upsert a config value (create if missing, update if exists)
+  """
+  def upsert_config(name, value) do
+    case ConfigContext.get_config_by_name(name) do
+      nil ->
+        item = ConfigContext.new_config(%{name: name, value: value})
+        ConfigContext.create_config(item)
+
+      config ->
+        ConfigContext.update_config(config, %{value: value})
+    end
+  end
+
+  defp env_fallback("auth_password_enabled", default),
+    do: to_string(Application.get_env(:lynx, :auth_password_enabled, default))
+
+  defp env_fallback("auth_sso_enabled", default),
+    do: to_string(Application.get_env(:lynx, :auth_sso_enabled, default))
+
+  defp env_fallback("sso_protocol", default),
+    do: Application.get_env(:lynx, :sso_protocol, default)
+
+  defp env_fallback("sso_login_label", default),
+    do: Application.get_env(:lynx, :sso_login_label, default)
+
+  defp env_fallback("scim_enabled", default),
+    do: to_string(Application.get_env(:lynx, :scim_enabled, default))
+
+  defp env_fallback(_, default), do: default
 end

@@ -9,27 +9,28 @@ defmodule Lynx.Module.SSOModule do
 
   alias Lynx.Context.UserContext
   alias Lynx.Module.UserModule
+  alias Lynx.Module.SettingsModule
   alias Lynx.Service.AuthService
 
   @doc """
   Check if SSO is enabled
   """
   def is_sso_enabled? do
-    Application.get_env(:lynx, :auth_sso_enabled, false)
+    SettingsModule.get_sso_config("auth_sso_enabled", "false") == "true"
   end
 
   @doc """
   Check if password auth is enabled
   """
   def is_password_enabled? do
-    Application.get_env(:lynx, :auth_password_enabled, true)
+    SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
   end
 
   @doc """
   Get SSO protocol (:oidc or :saml)
   """
   def get_sso_protocol do
-    case Application.get_env(:lynx, :sso_protocol, "oidc") do
+    case SettingsModule.get_sso_config("sso_protocol", "oidc") do
       "saml" -> :saml
       _ -> :oidc
     end
@@ -39,7 +40,7 @@ defmodule Lynx.Module.SSOModule do
   Get SSO login button label
   """
   def get_sso_login_label do
-    Application.get_env(:lynx, :sso_login_label, "SSO")
+    SettingsModule.get_sso_config("sso_login_label", "SSO")
   end
 
   @doc """

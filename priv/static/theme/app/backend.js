@@ -191,6 +191,134 @@ lynx_app.settings_screen = (Vue, axios, $) => {
 
 }
 
+// SSO Settings
+lynx_app.sso_settings_screen = (Vue, axios, $) => {
+
+    return new Vue({
+        delimiters: ['${', '}'],
+        el: '#app_sso_settings',
+        data() {
+            let el = document.getElementById('app_sso_settings');
+            return {
+                passwordEnabled: el.getAttribute('data-password-enabled') === 'true',
+                ssoEnabled: el.getAttribute('data-sso-enabled') === 'true',
+                ssoProtocol: el.getAttribute('data-sso-protocol') || 'oidc',
+                ssoLoginLabel: el.getAttribute('data-sso-login-label') || 'SSO',
+                ssoIssuer: el.getAttribute('data-sso-issuer') || '',
+                ssoClientId: el.getAttribute('data-sso-client-id') || '',
+                ssoClientSecret: el.getAttribute('data-sso-client-secret') || '',
+                ssoRedirectUri: el.getAttribute('data-sso-redirect-uri') || '',
+                samlIdpMetadataUrl: el.getAttribute('data-saml-idp-metadata-url') || '',
+                samlSpEntityId: el.getAttribute('data-saml-sp-entity-id') || '',
+            }
+        },
+        methods: {
+            ssoSettingsAction(event) {
+                event.preventDefault();
+
+                let data = {
+                    auth_password_enabled: this.passwordEnabled ? 'true' : 'false',
+                    auth_sso_enabled: this.ssoEnabled ? 'true' : 'false',
+                    sso_protocol: this.ssoProtocol,
+                    sso_login_label: this.ssoLoginLabel,
+                    sso_issuer: this.ssoIssuer,
+                    sso_client_id: this.ssoClientId,
+                    sso_client_secret: this.ssoClientSecret,
+                    sso_redirect_uri: this.ssoRedirectUri,
+                    sso_saml_idp_metadata_url: this.samlIdpMetadataUrl,
+                    sso_saml_sp_entity_id: this.samlSpEntityId,
+                };
+
+                axios.put('/api/v1/action/update_sso_settings', data)
+                    .then((response) => {
+                        show_notification(response.data.successMessage);
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            }
+        }
+    });
+}
+
+// SCIM Settings
+lynx_app.scim_settings_screen = (Vue, axios, $) => {
+
+    return new Vue({
+        delimiters: ['${', '}'],
+        el: '#app_scim_settings',
+        data() {
+            let el = document.getElementById('app_scim_settings');
+            return {
+                scimEnabled: el.getAttribute('data-scim-enabled') === 'true',
+                tokens: [],
+                newToken: null,
+                scimBaseUrl: window.location.origin + '/scim/v2'
+            }
+        },
+        mounted() {
+            if (this.scimEnabled) {
+                this.loadTokens();
+            }
+        },
+        methods: {
+            formatDatetime(datetime) {
+                return format_datetime(datetime);
+            },
+            toggleScimAction() {
+                axios.put('/api/v1/action/update_sso_settings', {
+                    scim_enabled: this.scimEnabled ? 'true' : 'false'
+                })
+                .then((response) => {
+                    show_notification(response.data.successMessage);
+                    if (this.scimEnabled) {
+                        this.loadTokens();
+                    }
+                })
+                .catch((error) => {
+                    show_notification(error.response.data.errorMessage);
+                });
+            },
+            loadTokens() {
+                axios.get('/api/v1/action/scim_tokens')
+                    .then((response) => {
+                        this.tokens = response.data.tokens;
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            },
+            generateTokenAction() {
+                let description = prompt('Token description (optional):') || '';
+
+                axios.post('/api/v1/action/scim_token', { description: description })
+                    .then((response) => {
+                        this.newToken = response.data.token;
+                        this.loadTokens();
+                        show_notification('Token generated successfully');
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            },
+            revokeTokenAction(uuid) {
+                if (!confirm('Are you sure you want to revoke this token?')) {
+                    return;
+                }
+
+                axios.delete('/api/v1/action/scim_token/' + uuid)
+                    .then((response) => {
+                        show_notification(response.data.successMessage);
+                        this.loadTokens();
+                    })
+                    .catch((error) => {
+                        show_notification(error.response.data.errorMessage);
+                    });
+            }
+        }
+    });
+}
+
 // Profile Page
 lynx_app.profile_screen = (Vue, axios, $) => {
 
@@ -1555,6 +1683,22 @@ $(document).ready(() => {
 
     if (document.getElementById("app_settings")) {
         lynx_app.settings_screen(
+            Vue,
+            axios,
+            $
+        );
+    }
+
+    if (document.getElementById("app_sso_settings")) {
+        lynx_app.sso_settings_screen(
+            Vue,
+            axios,
+            $
+        );
+    }
+
+    if (document.getElementById("app_scim_settings")) {
+        lynx_app.scim_settings_screen(
             Vue,
             axios,
             $

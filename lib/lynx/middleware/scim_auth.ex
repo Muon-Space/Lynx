@@ -11,10 +11,14 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
 
   require Logger
 
+  alias Lynx.Module.SCIMTokenModule
+  alias Lynx.Module.SettingsModule
+
   def init(_opts), do: nil
 
   @doc """
-  Validate SCIM bearer token from Authorization header
+  Validate SCIM bearer token from Authorization header.
+  Checks against tokens stored in the database.
   """
   def call(conn, _opts) do
     if not scim_enabled?() do
@@ -39,9 +43,7 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
           |> halt()
 
         token ->
-          expected = Application.get_env(:lynx, :scim_bearer_token)
-
-          if expected != nil and Plug.Crypto.secure_compare(token, expected) do
+          if SCIMTokenModule.validate_token(token) do
             conn
             |> assign(:scim_authenticated, true)
           else
@@ -68,6 +70,6 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
   end
 
   defp scim_enabled? do
-    Application.get_env(:lynx, :scim_enabled, false)
+    SettingsModule.get_sso_config("scim_enabled", "false") == "true"
   end
 end

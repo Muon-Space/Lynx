@@ -5,18 +5,19 @@
 defmodule Lynx.Middleware.SCIMAuthMiddlewareTest do
   use LynxWeb.ConnCase
 
-  @scim_token "test-scim-token-middleware"
+  alias Lynx.Module.SCIMTokenModule
+  alias Lynx.Module.SettingsModule
 
   setup do
-    Application.put_env(:lynx, :scim_enabled, true)
-    Application.put_env(:lynx, :scim_bearer_token, @scim_token)
+    SettingsModule.upsert_config("scim_enabled", "true")
+
+    {:ok, token_result} = SCIMTokenModule.generate_token("test token")
 
     on_exit(fn ->
-      Application.put_env(:lynx, :scim_enabled, false)
-      Application.put_env(:lynx, :scim_bearer_token, nil)
+      SettingsModule.upsert_config("scim_enabled", "false")
     end)
 
-    :ok
+    {:ok, token: token_result.token}
   end
 
   test "halts with 401 when no Authorization header", %{conn: conn} do
@@ -35,22 +36,22 @@ defmodule Lynx.Middleware.SCIMAuthMiddlewareTest do
     assert conn.status == 401
   end
 
-  test "passes through with valid token", %{conn: conn} do
+  test "passes through with valid token", %{conn: conn, token: token} do
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{@scim_token}")
+      |> put_req_header("authorization", "Bearer #{token}")
       |> Lynx.Middleware.SCIMAuthMiddleware.call(nil)
 
     refute conn.halted
     assert conn.assigns[:scim_authenticated] == true
   end
 
-  test "halts with 404 when SCIM is disabled", %{conn: conn} do
-    Application.put_env(:lynx, :scim_enabled, false)
+  test "halts with 404 when SCIM is disabled", %{conn: conn, token: token} do
+    SettingsModule.upsert_config("scim_enabled", "false")
 
     conn =
       conn
-      |> put_req_header("authorization", "Bearer #{@scim_token}")
+      |> put_req_header("authorization", "Bearer #{token}")
       |> Lynx.Middleware.SCIMAuthMiddleware.call(nil)
 
     assert conn.halted

@@ -131,6 +131,10 @@ defmodule LynxWeb.Router do
 
     # Settings Endpoints
     put "/action/update_settings", SettingsController, :update
+    put "/action/update_sso_settings", SettingsController, :update_sso
+    post "/action/scim_token", SettingsController, :generate_scim_token
+    get "/action/scim_tokens", SettingsController, :list_scim_tokens
+    delete "/action/scim_token/:uuid", SettingsController, :revoke_scim_token
 
     # Profile Endpoints
     post "/action/update_profile", ProfileController, :update
