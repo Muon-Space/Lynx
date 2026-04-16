@@ -1,29 +1,14 @@
-# Copyright 2023 Clivern. All rights reserved.
-# Use of this source code is governed by the MIT
-# license that can be found in the LICENSE file.
-
-defmodule LynxWeb.MiscController do
-  @moduledoc """
-  Misc Controller
-  """
-
+defmodule LynxWeb.InstallController do
   use LynxWeb, :controller
+
+  alias Lynx.Module.InstallModule
+  alias Lynx.Service.ValidatorService
 
   @admin_name_min_length 2
   @admin_name_max_length 60
   @app_name_min_length 2
   @app_name_max_length 60
 
-  import Plug.Conn
-
-  alias Lynx.Module.InstallModule
-  alias Lynx.Module.SSOModule
-  alias Lynx.Service.ValidatorService
-  alias Lynx.Service.AuthService
-
-  @doc """
-  Install Action Endpoint
-  """
   def install(conn, params) do
     if not InstallModule.is_installed() do
       case validate_install_request(params) do
@@ -46,74 +31,20 @@ defmodule LynxWeb.MiscController do
 
           conn
           |> put_status(:ok)
+          |> put_view(LynxWeb.MiscJSON)
           |> render(:success, %{message: "Application installed successfully"})
 
         {:error, reason} ->
           conn
           |> put_status(:bad_request)
+          |> put_view(LynxWeb.MiscJSON)
           |> render(:error, %{message: reason})
       end
     else
       conn
       |> put_status(:bad_request)
+      |> put_view(LynxWeb.MiscJSON)
       |> render(:error, %{message: "Application is installed"})
-    end
-  end
-
-  @doc """
-  Auth Action Endpoint
-  """
-  def auth(conn, params) do
-    if not SSOModule.is_password_enabled?() do
-      conn
-      |> put_status(:bad_request)
-      |> render(:error, %{message: "Password authentication is disabled. Please use SSO."})
-    else
-      auth_with_password(conn, params)
-    end
-  end
-
-  defp auth_with_password(conn, params) do
-    err = "Invalid email or password!"
-
-    with {:ok, _} <- ValidatorService.is_string?(params["password"], err),
-         {:ok, password} <- ValidatorService.is_password?(params["password"], err),
-         {:ok, _} <- ValidatorService.is_string?(params["email"], err),
-         {:ok, email} <- ValidatorService.is_email?(params["email"], err) do
-      # Authenticate
-      case AuthService.login(email, password) do
-        {:success, session} ->
-          Lynx.Module.AuditModule.log_system("login", "user", nil, params["email"], %{
-            method: "password"
-          })
-
-          conn = fetch_session(conn)
-
-          conn =
-            conn
-            |> put_session(:token, session.value)
-            |> put_session(:uid, session.user_id)
-
-          # If request came from a form (not AJAX), redirect
-          if get_req_header(conn, "x-requested-with") == ["XMLHttpRequest"] do
-            conn
-            |> put_status(:ok)
-            |> render(:token_success, %{message: "User logged in successfully!"})
-          else
-            conn
-            |> redirect(to: "/admin/projects")
-          end
-
-        {:error, message} ->
-          conn
-          |> put_status(:bad_request)
-          |> render(:error, %{message: message})
-      end
-    else
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> render(:error, %{message: reason})
     end
   end
 
@@ -145,11 +76,9 @@ defmodule LynxWeb.MiscController do
              errs.app_name_invalid
            ),
          {:ok, _} <- ValidatorService.is_url?(params["app_url"], errs.app_url_invalid),
-         {:ok, _} <-
-           ValidatorService.is_email?(params["app_email"], errs.app_email_invalid),
+         {:ok, _} <- ValidatorService.is_email?(params["app_email"], errs.app_email_invalid),
          {:ok, _} <- ValidatorService.is_string?(params["admin_name"], errs.admin_name_required),
-         {:ok, _} <-
-           ValidatorService.is_string?(params["admin_email"], errs.admin_email_required),
+         {:ok, _} <- ValidatorService.is_string?(params["admin_email"], errs.admin_email_required),
          {:ok, _} <-
            ValidatorService.is_string?(params["admin_password"], errs.admin_password_required),
          {:ok, _} <-

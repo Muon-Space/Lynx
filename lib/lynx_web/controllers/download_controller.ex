@@ -1,17 +1,8 @@
-defmodule LynxWeb.PageController do
+defmodule LynxWeb.DownloadController do
   use LynxWeb, :controller
 
-  alias Lynx.Service.AuthService
   alias Lynx.Module.PermissionModule
   alias Lynx.Module.StateModule
-
-  def logout(conn, _params) do
-    AuthService.logout(conn.assigns[:user_id])
-
-    conn
-    |> clear_session()
-    |> redirect(to: "/")
-  end
 
   def state(conn, %{"uuid" => uuid}) do
     case conn.assigns[:is_logged] do
@@ -34,7 +25,10 @@ defmodule LynxWeb.PageController do
             state ->
               conn
               |> put_resp_content_type("application/octet-stream")
-              |> put_resp_header("content-disposition", "attachment; filename=\"state.#{uuid}.json\"")
+              |> put_resp_header(
+                "content-disposition",
+                "attachment; filename=\"state.#{uuid}.json\""
+              )
               |> send_resp(200, state.value)
           end
         end
@@ -62,7 +56,10 @@ defmodule LynxWeb.PageController do
             state ->
               conn
               |> put_resp_content_type("application/octet-stream")
-              |> put_resp_header("content-disposition", "attachment; filename=\"state.#{state.uuid}.json\"")
+              |> put_resp_header(
+                "content-disposition",
+                "attachment; filename=\"state.#{state.uuid}.json\""
+              )
               |> send_resp(200, state.value)
           end
         end

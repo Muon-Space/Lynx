@@ -52,10 +52,9 @@ defmodule LynxWeb.Router do
     live "/admin/snapshots", SnapshotsLive
     live "/admin/settings", SettingsLive
 
-    # Dead views (need session/redirect handling)
-    get "/logout", PageController, :logout
-    get "/admin/state/download/:uuid", PageController, :state
-    get "/admin/environment/download/:uuid", PageController, :environment
+    get "/logout", SessionController, :logout
+    get "/admin/state/download/:uuid", DownloadController, :state
+    get "/admin/environment/download/:uuid", DownloadController, :environment
     get "/auth/sso/finalize", SSOController, :finalize
   end
 
@@ -64,8 +63,8 @@ defmodule LynxWeb.Router do
 
     get "/_health", HealthController, :health
     get "/_ready", ReadyController, :ready
-    post "/action/install", MiscController, :install
-    post "/action/auth", MiscController, :auth
+    post "/action/install", InstallController, :install
+    post "/action/auth", SessionController, :auth
   end
 
   # SSO routes (public - no auth middleware, handled by controller)
