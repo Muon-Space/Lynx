@@ -1,0 +1,68 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/muon-space/lynx
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+annotations: {}
+podAnnotations: {}
+
+volumes: []
+volumeMounts: []
+
+service:
+  type: ClusterIP
+  port: 4000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  #  - host: lynx.example.com
+  #    paths:
+  #      - path: /
+  #        pathType: Prefix
+  tls: []
+  #  - secretName: lynx-tls
+  #    hosts:
+  #      - lynx.example.com
+
+# PostgreSQL connection - expects a pre-existing secret with individual keys
+database:
+  existingSecret: "lynx-db-secret"
+  keys:
+    username: "DB_USERNAME"
+    password: "DB_PASSWORD"
+    hostname: "DB_HOSTNAME"
+    database: "DB_DATABASE"
+    port: "DB_PORT"
+    ssl: "DB_SSL"
+
+# Mount all keys from a secret or configmap as env vars
+extraEnvFrom: []
+#  - secretRef:
+#      name: lynx-extra-env
+
+env:
+  APP_NAME: "Lynx"
+  APP_PORT: "4000"
+  APP_HOST: "localhost"
+  APP_HTTP_SCHEMA: "https"
+  MIX_ENV: "prod"
+
+# Secret containing APP_SECRET (Phoenix secret key base)
+appSecret:
+  existingSecret: "lynx-app-secret"
+  key: "APP_SECRET"
+
+resources: {}
+#  limits:
+#    cpu: 500m
+#    memory: 512Mi
+#  requests:
+#    cpu: 100m
+#    memory: 256Mi

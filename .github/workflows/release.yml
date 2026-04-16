@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release conventional-changelog-conventionalcommits
+
+      - name: Get latest release before
+        id: before
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BEFORE_TAG=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "none")
+          echo "tag=$BEFORE_TAG" >> $GITHUB_OUTPUT
+          echo "Latest release before: $BEFORE_TAG"
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+      - name: Check for new release
+        id: semantic
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          AFTER_TAG=$(gh release view --json tagName -q '.tagName' 2>/dev/null || echo "none")
+          BEFORE_TAG="${{ steps.before.outputs.tag }}"
+
+          if [[ "$BEFORE_TAG" != "$AFTER_TAG" && "$AFTER_TAG" != "none" ]]; then
+            echo "new_release_published=true" >> $GITHUB_OUTPUT
+            echo "new_release_version=$AFTER_TAG" >> $GITHUB_OUTPUT
+            echo "New release published: $AFTER_TAG"
+          else
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "No new release published"
+          fi
+
+  trigger-docker:
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Trigger Docker Image Build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run docker.yml \
+            --repo ${{ github.repository }} \
+            --ref refs/tags/${{ needs.release.outputs.new_release_version }}
+
+  trigger-helm:
+    needs: release
+    if: needs.release.outputs.new_release_published == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Trigger Helm Chart Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run helm-publish.yml \
+            --repo ${{ github.repository }} \
+            --ref refs/tags/${{ needs.release.outputs.new_release_version }}
