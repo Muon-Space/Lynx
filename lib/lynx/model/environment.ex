@@ -40,5 +40,6 @@ defmodule Lynx.Model.Environment do
       :secret,
       :project_id
     ])
+    |> unique_constraint([:project_id, :slug])
   end
 end

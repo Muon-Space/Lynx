@@ -36,5 +36,6 @@ defmodule Lynx.Model.Team do
       :slug,
       :description
     ])
+    |> unique_constraint(:slug)
   end
 end
