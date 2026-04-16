@@ -38,6 +38,7 @@ config :lynx,
   sso_saml_idp_cert: System.get_env("SSO_SAML_IDP_CERT") || "",
   sso_saml_idp_metadata_url: System.get_env("SSO_SAML_IDP_METADATA_URL") || "",
   sso_saml_sp_entity_id: System.get_env("SSO_SAML_SP_ENTITY_ID") || "",
+  sso_jit_enabled: (System.get_env("SSO_JIT_ENABLED") || "true") == "true",
   sso_saml_sign_requests: (System.get_env("SSO_SAML_SIGN_REQUESTS") || "false") == "true",
   scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true"
 

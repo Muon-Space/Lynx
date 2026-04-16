@@ -202,6 +202,7 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
             return {
                 passwordEnabled: el.getAttribute('data-password-enabled') === 'true',
                 ssoEnabled: el.getAttribute('data-sso-enabled') === 'true',
+                jitEnabled: el.getAttribute('data-jit-enabled') !== 'false',
                 ssoProtocol: el.getAttribute('data-sso-protocol') || 'oidc',
                 ssoLoginLabel: el.getAttribute('data-sso-login-label') || 'SSO',
                 ssoIssuer: el.getAttribute('data-sso-issuer') || '',
@@ -238,6 +239,7 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                 let data = {
                     auth_password_enabled: this.passwordEnabled ? 'true' : 'false',
                     auth_sso_enabled: this.ssoEnabled ? 'true' : 'false',
+                    sso_jit_enabled: this.jitEnabled ? 'true' : 'false',
                     sso_protocol: this.ssoProtocol,
                     sso_login_label: this.ssoLoginLabel,
                     sso_issuer: this.ssoIssuer,

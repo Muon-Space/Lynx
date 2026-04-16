@@ -248,6 +248,7 @@ defmodule LynxWeb.PageController do
             app_email: SettingsModule.get_config("app_email", ""),
             auth_password_enabled: SettingsModule.get_sso_config("auth_password_enabled", "true"),
             auth_sso_enabled: SettingsModule.get_sso_config("auth_sso_enabled", "false"),
+            sso_jit_enabled: SettingsModule.get_sso_config("sso_jit_enabled", "true"),
             sso_protocol: SettingsModule.get_sso_config("sso_protocol", "oidc"),
             sso_login_label: SettingsModule.get_sso_config("sso_login_label", "SSO"),
             sso_issuer: SettingsModule.get_sso_config("sso_issuer", ""),

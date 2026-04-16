@@ -44,12 +44,19 @@ defmodule Lynx.Module.SSOModule do
   end
 
   @doc """
+  Check if JIT provisioning is enabled
+  """
+  def is_jit_enabled? do
+    SettingsModule.get_sso_config("sso_jit_enabled", "true") == "true"
+  end
+
+  @doc """
   Find or create a user from SSO claims.
 
   Lookup order:
   1. By external_id (repeat SSO login)
-  2. By email (local user's first SSO login - links the account)
-  3. Not found - creates new user
+  2. By email (local/SCIM user's first SSO login - links the account)
+  3. Not found - creates new user (only if JIT provisioning is enabled)
   """
   def find_or_create_sso_user(attrs, provider) when provider in ["oidc", "saml"] do
     external_id = attrs[:external_id]
@@ -60,12 +67,16 @@ defmodule Lynx.Module.SSOModule do
       nil ->
         case UserContext.get_user_by_email(email) do
           nil ->
-            UserModule.create_sso_user(%{
-              email: email,
-              name: name,
-              auth_provider: provider,
-              external_id: external_id
-            })
+            if is_jit_enabled?() do
+              UserModule.create_sso_user(%{
+                email: email,
+                name: name,
+                auth_provider: provider,
+                external_id: external_id
+              })
+            else
+              {:error, "User not found. JIT provisioning is disabled -- users must be provisioned via SCIM before they can log in."}
+            end
 
           existing_user ->
             if existing_user.is_active do

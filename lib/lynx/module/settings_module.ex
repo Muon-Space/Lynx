@@ -44,6 +44,7 @@ defmodule Lynx.Module.SettingsModule do
       "sso_saml_sp_entity_id",
       "sso_saml_sp_cert",
       "sso_saml_sp_key",
+      "sso_jit_enabled",
       "sso_saml_sign_requests",
       "scim_enabled"
     ]
@@ -130,6 +131,9 @@ defmodule Lynx.Module.SettingsModule do
 
   defp env_fallback("sso_saml_sp_entity_id", default),
     do: Application.get_env(:lynx, :sso_saml_sp_entity_id, default)
+
+  defp env_fallback("sso_jit_enabled", default),
+    do: to_string(Application.get_env(:lynx, :sso_jit_enabled, default))
 
   defp env_fallback("sso_saml_sign_requests", default),
     do: to_string(Application.get_env(:lynx, :sso_saml_sign_requests, default))

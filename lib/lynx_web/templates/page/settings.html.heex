@@ -288,6 +288,7 @@
 
                 <div class="col-12" id="app_sso_settings"
                      data-app-base-url={@data.computed_app_base_url}
+                     data-jit-enabled={@data.sso_jit_enabled}
                      data-password-enabled={@data.auth_password_enabled}
                      data-sso-enabled={@data.auth_sso_enabled}
                      data-sso-protocol={@data.sso_protocol}
@@ -323,6 +324,14 @@
                                                 <input class="form-check-input" type="checkbox" id="auth_sso_enabled" v-model="ssoEnabled">
                                                 <label class="form-check-label" for="auth_sso_enabled"><%= gettext "SSO Login Enabled" %></label>
                                             </div>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="sso_jit_enabled" v-model="jitEnabled">
+                                                <label class="form-check-label" for="sso_jit_enabled"><%= gettext "JIT User Provisioning" %></label>
+                                            </div>
+                                            <small class="form-text text-muted"><%= gettext "Auto-create users on first SSO login. Disable if users should be provisioned via SCIM only." %></small>
                                         </div>
 
                                         <div v-if="ssoEnabled">
