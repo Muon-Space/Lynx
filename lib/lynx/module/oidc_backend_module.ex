@@ -47,15 +47,17 @@ defmodule Lynx.Module.OIDCBackendModule do
   end
 
   defp evaluate_access(provider_id, environment_id, claims) do
-    rules = OIDCAccessRuleContext.list_rules_by_provider_and_environment(provider_id, environment_id)
+    rules =
+      OIDCAccessRuleContext.list_rules_by_provider_and_environment(provider_id, environment_id)
 
     if rules == [] do
       {:error, "No access rules configured for this environment"}
     else
-      matching_rule = Enum.find(rules, fn rule ->
-        claim_rules = Jason.decode!(rule.claim_rules)
-        all_claims_match?(claim_rules, claims)
-      end)
+      matching_rule =
+        Enum.find(rules, fn rule ->
+          claim_rules = Jason.decode!(rule.claim_rules)
+          all_claims_match?(claim_rules, claims)
+        end)
 
       if matching_rule do
         :ok
@@ -105,18 +107,21 @@ defmodule Lynx.Module.OIDCBackendModule do
   # -- Provider CRUD --
 
   def create_provider(attrs) do
-    provider = OIDCProviderContext.new_provider(%{
-      name: attrs[:name],
-      discovery_url: attrs[:discovery_url],
-      audience: attrs[:audience]
-    })
+    provider =
+      OIDCProviderContext.new_provider(%{
+        name: attrs[:name],
+        discovery_url: attrs[:discovery_url],
+        audience: attrs[:audience]
+      })
 
     OIDCProviderContext.create_provider(provider)
   end
 
   def update_provider(uuid, attrs) do
     case OIDCProviderContext.get_provider_by_uuid(uuid) do
-      nil -> {:not_found, "Provider not found"}
+      nil ->
+        {:not_found, "Provider not found"}
+
       provider ->
         new_attrs = %{
           name: attrs[:name] || provider.name,
@@ -124,6 +129,7 @@ defmodule Lynx.Module.OIDCBackendModule do
           audience: Map.get(attrs, :audience, provider.audience),
           is_active: Map.get(attrs, :is_active, provider.is_active)
         }
+
         OIDCProviderContext.update_provider(provider, new_attrs)
     end
   end
@@ -147,25 +153,29 @@ defmodule Lynx.Module.OIDCBackendModule do
   # -- Access Rule CRUD --
 
   def create_rule(attrs) do
-    rule = OIDCAccessRuleContext.new_rule(%{
-      name: attrs[:name],
-      claim_rules: attrs[:claim_rules],
-      provider_id: attrs[:provider_id],
-      environment_id: attrs[:environment_id]
-    })
+    rule =
+      OIDCAccessRuleContext.new_rule(%{
+        name: attrs[:name],
+        claim_rules: attrs[:claim_rules],
+        provider_id: attrs[:provider_id],
+        environment_id: attrs[:environment_id]
+      })
 
     OIDCAccessRuleContext.create_rule(rule)
   end
 
   def update_rule(uuid, attrs) do
     case OIDCAccessRuleContext.get_rule_by_uuid(uuid) do
-      nil -> {:not_found, "Rule not found"}
+      nil ->
+        {:not_found, "Rule not found"}
+
       rule ->
         new_attrs = %{
           name: attrs[:name] || rule.name,
           claim_rules: attrs[:claim_rules] || rule.claim_rules,
           is_active: Map.get(attrs, :is_active, rule.is_active)
         }
+
         OIDCAccessRuleContext.update_rule(rule, new_attrs)
     end
   end
