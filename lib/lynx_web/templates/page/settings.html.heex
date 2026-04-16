@@ -287,6 +287,7 @@
                 </div>
 
                 <div class="col-12" id="app_sso_settings"
+                     data-app-base-url={@data.computed_app_base_url}
                      data-password-enabled={@data.auth_password_enabled}
                      data-sso-enabled={@data.auth_sso_enabled}
                      data-sso-protocol={@data.sso_protocol}
@@ -294,9 +295,10 @@
                      data-sso-issuer={@data.sso_issuer}
                      data-sso-client-id={@data.sso_client_id}
                      data-sso-client-secret={@data.sso_client_secret}
-                     data-sso-redirect-uri={@data.sso_redirect_uri}
                      data-saml-idp-metadata-url={@data.sso_saml_idp_metadata_url}
                      data-saml-sp-entity-id={@data.sso_saml_sp_entity_id}
+                     data-saml-sp-cert={@data.sso_saml_sp_cert}
+                     data-saml-sp-key={@data.sso_saml_sp_key}
                      data-scim-enabled={@data.scim_enabled}>
                     <div class="card">
                         <div class="card-body">
@@ -335,6 +337,28 @@
                                             </div>
 
                                             <div v-if="ssoProtocol === 'oidc'">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Sign-in redirect URI" %></td>
+                                                            <td><code>${ oidcRedirectUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Sign-out redirect URI" %></td>
+                                                            <td><code>${ oidcSignoutUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Grant type" %></td>
+                                                            <td><%= gettext "Authorization Code (no Refresh Token needed)" %></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Proof of possession" %></td>
+                                                            <td><%= gettext "Not required" %></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
                                                 <div class="mb-24">
                                                     <label class="form-label"><%= gettext "Issuer URL" %></label>
                                                     <input class="form-control" type="url" v-model="ssoIssuer" placeholder="https://your-idp.com">
@@ -347,20 +371,49 @@
                                                     <label class="form-label"><%= gettext "Client Secret" %></label>
                                                     <input class="form-control" type="password" v-model="ssoClientSecret">
                                                 </div>
-                                                <div class="mb-24">
-                                                    <label class="form-label"><%= gettext "Redirect URI" %></label>
-                                                    <input class="form-control" type="url" v-model="ssoRedirectUri" placeholder="https://lynx.example.com/auth/sso/callback">
-                                                </div>
                                             </div>
 
                                             <div v-if="ssoProtocol === 'saml'">
-                                                <div class="mb-24">
-                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %></label>
-                                                    <input class="form-control" type="url" v-model="samlIdpMetadataUrl">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Single sign-on URL" %></td>
+                                                            <td><code>${ samlAcsUrl }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Audience URI (SP Entity ID)" %></td>
+                                                            <td><code>${ samlSpEntityId || 'Set below' }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Default RelayState" %></td>
+                                                            <td><code><%= gettext "(leave blank)" %></code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "SP Metadata URL" %></td>
+                                                            <td><code>${ samlMetadataUrl }</code></td>
+                                                        </tr>
+                                                    </table>
                                                 </div>
+
                                                 <div class="mb-24">
                                                     <label class="form-label"><%= gettext "SP Entity ID" %></label>
                                                     <input class="form-control" type="text" v-model="samlSpEntityId" placeholder="https://lynx.example.com/sso/sp">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpMetadataUrl">
+                                                    <small class="form-text text-muted"><%= gettext "From your Identity Provider's SAML app configuration" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "SP Certificate (PEM)" %></label>
+                                                    <textarea class="form-control" v-model="samlSpCert" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" style="font-family: monospace; font-size: 12px;"></textarea>
+                                                    <small class="form-text text-muted"><%= gettext "Paste the full PEM-encoded X.509 certificate for request signing" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "SP Private Key (PEM)" %></label>
+                                                    <textarea class="form-control" v-model="samlSpKey" rows="6" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="font-family: monospace; font-size: 12px;"></textarea>
+                                                    <small class="form-text text-muted"><%= gettext "Paste the full PEM-encoded private key for request signing" %></small>
                                                 </div>
                                             </div>
                                         </div>

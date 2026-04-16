@@ -19,6 +19,8 @@ defmodule Lynx.Application do
         LynxWeb.Telemetry,
         # Start the PubSub system
         {Phoenix.PubSub, name: Lynx.PubSub},
+        # HTTP client for OIDC discovery/token exchange
+        {Finch, name: Lynx.Finch},
         # Start the Endpoint (http/https)
         LynxWeb.Endpoint
         # Start a worker by calling: Lynx.Worker.start_link(arg)

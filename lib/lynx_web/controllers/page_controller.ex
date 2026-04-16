@@ -253,10 +253,12 @@ defmodule LynxWeb.PageController do
             sso_issuer: SettingsModule.get_sso_config("sso_issuer", ""),
             sso_client_id: SettingsModule.get_sso_config("sso_client_id", ""),
             sso_client_secret: SettingsModule.get_sso_config("sso_client_secret", ""),
-            sso_redirect_uri: SettingsModule.get_sso_config("sso_redirect_uri", ""),
             sso_saml_idp_metadata_url: SettingsModule.get_sso_config("sso_saml_idp_metadata_url", ""),
             sso_saml_sp_entity_id: SettingsModule.get_sso_config("sso_saml_sp_entity_id", ""),
-            scim_enabled: SettingsModule.get_sso_config("scim_enabled", "false")
+            sso_saml_sp_cert: SettingsModule.get_sso_config("sso_saml_sp_cert", ""),
+            sso_saml_sp_key: SettingsModule.get_sso_config("sso_saml_sp_key", ""),
+            scim_enabled: SettingsModule.get_sso_config("scim_enabled", "false"),
+            computed_app_base_url: SettingsModule.get_config("app_url", "http://localhost:4000") |> add_backslash_to_url
           }
         )
     end

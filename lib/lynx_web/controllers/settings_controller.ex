@@ -72,15 +72,31 @@ defmodule LynxWeb.SettingsController do
       "sso_issuer" => params["sso_issuer"] || "",
       "sso_client_id" => params["sso_client_id"] || "",
       "sso_client_secret" => params["sso_client_secret"] || "",
-      "sso_redirect_uri" => params["sso_redirect_uri"] || "",
       "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
       "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
+      "sso_saml_sp_cert" => params["sso_saml_sp_cert"] || "",
+      "sso_saml_sp_key" => params["sso_saml_sp_key"] || "",
       "scim_enabled" => params["scim_enabled"] || "false"
     })
+
+    # Write SAML cert/key to temp files if provided
+    write_saml_temp_files(params["sso_saml_sp_cert"], params["sso_saml_sp_key"])
 
     conn
     |> put_status(:ok)
     |> render("success.json", %{message: "SSO/SCIM settings updated successfully"})
+  end
+
+  defp write_saml_temp_files(cert, key) do
+    if cert != nil and cert != "" do
+      path = Path.join(System.tmp_dir!(), "lynx_saml_sp_cert.pem")
+      File.write!(path, cert)
+    end
+
+    if key != nil and key != "" do
+      path = Path.join(System.tmp_dir!(), "lynx_saml_sp_key.pem")
+      File.write!(path, key)
+    end
   end
 
   @doc """

@@ -41,17 +41,16 @@ defmodule LynxWeb.SSOController do
   Handle OIDC callback (GET)
   """
   def callback_get(conn, %{"code" => code, "state" => state} = _params) do
-    conn = fetch_session(conn)
-    stored_state = get_session(conn, :sso_state)
+    stored_state = conn.cookies["_lynx_sso_state"]
 
     if stored_state == nil or state != stored_state do
-      Logger.warning("OIDC callback: state mismatch")
+      Logger.warning("OIDC callback: state mismatch (stored=#{inspect(stored_state)}, got=#{inspect(state)})")
 
       conn
       |> put_status(:bad_request)
       |> json(%{errorMessage: "Invalid state parameter"})
     else
-      conn = delete_session(conn, :sso_state)
+      conn = delete_resp_cookie(conn, "_lynx_sso_state")
 
       case SSOService.oidc_callback(code) do
         {:ok, claims} ->
@@ -124,12 +123,15 @@ defmodule LynxWeb.SSOController do
 
   defp initiate_oidc(conn) do
     state = Lynx.Service.AuthService.get_random_salt(16)
-    conn = fetch_session(conn)
 
     case SSOService.oidc_authorize_url(state) do
       {:ok, url} ->
         conn
-        |> put_session(:sso_state, state)
+        |> put_resp_cookie("_lynx_sso_state", state,
+          http_only: true,
+          max_age: 600,
+          same_site: "Lax"
+        )
         |> redirect(external: url)
 
       {:error, reason} ->
@@ -148,16 +150,64 @@ defmodule LynxWeb.SSOController do
     )
   end
 
+  @doc """
+  Finalize SSO login - reads the signed SSO cookie (set during the cross-site
+  callback) and creates the actual session. This is a same-site request so the
+  SameSite=Strict session cookie will be accepted by the browser.
+  """
+  def finalize(conn, _params) do
+    case conn.cookies["_lynx_sso_payload"] do
+      nil ->
+        conn
+        |> redirect(to: "/login")
+
+      signed_payload ->
+        case Phoenix.Token.verify(LynxWeb.Endpoint, "sso_payload", signed_payload, max_age: 60) do
+          {:ok, %{token: token, uid: uid}} ->
+            conn
+            |> put_session(:token, token)
+            |> put_session(:uid, uid)
+            |> delete_resp_cookie("_lynx_sso_payload")
+            |> put_resp_content_type("text/html")
+            |> send_resp(200, """
+            <!DOCTYPE html>
+            <html>
+            <head><meta http-equiv="refresh" content="0;url=/admin/projects"></head>
+            <body><p>Signing in...</p></body>
+            </html>
+            """)
+
+          {:error, _} ->
+            conn
+            |> delete_resp_cookie("_lynx_sso_payload")
+            |> redirect(to: "/login")
+        end
+    end
+  end
+
   defp complete_sso_login(conn, claims, auth_method) do
     case SSOModule.find_or_create_sso_user(claims, auth_method) do
       {:ok, user} ->
         case SSOModule.create_sso_session(user, auth_method) do
           {:success, session} ->
+            # Store session data in a signed, short-lived Lax cookie.
+            # The browser won't accept the SameSite=Strict session cookie
+            # on a cross-site redirect from the IdP, so we bounce through
+            # a same-site /auth/sso/finalize endpoint that reads this cookie
+            # and sets the real session.
+            payload =
+              Phoenix.Token.sign(LynxWeb.Endpoint, "sso_payload", %{
+                token: session.value,
+                uid: session.user_id
+              })
+
             conn
-            |> fetch_session()
-            |> put_session(:token, session.value)
-            |> put_session(:uid, session.user_id)
-            |> redirect(to: "/admin/projects")
+            |> put_resp_cookie("_lynx_sso_payload", payload,
+              http_only: true,
+              max_age: 60,
+              same_site: "Lax"
+            )
+            |> redirect(to: "/auth/sso/finalize")
 
           {:error, reason} ->
             Logger.error("SSO session creation failed: #{reason}")

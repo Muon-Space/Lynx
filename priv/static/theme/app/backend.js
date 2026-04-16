@@ -207,9 +207,25 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                 ssoIssuer: el.getAttribute('data-sso-issuer') || '',
                 ssoClientId: el.getAttribute('data-sso-client-id') || '',
                 ssoClientSecret: el.getAttribute('data-sso-client-secret') || '',
-                ssoRedirectUri: el.getAttribute('data-sso-redirect-uri') || '',
                 samlIdpMetadataUrl: el.getAttribute('data-saml-idp-metadata-url') || '',
                 samlSpEntityId: el.getAttribute('data-saml-sp-entity-id') || '',
+                samlSpCert: el.getAttribute('data-saml-sp-cert') || '',
+                samlSpKey: el.getAttribute('data-saml-sp-key') || '',
+                appBaseUrl: el.getAttribute('data-app-base-url') || window.location.origin,
+            }
+        },
+        computed: {
+            oidcRedirectUri() {
+                return this.appBaseUrl + '/auth/sso/callback';
+            },
+            oidcSignoutUri() {
+                return this.appBaseUrl + '/logout';
+            },
+            samlAcsUrl() {
+                return this.appBaseUrl + '/sso/sp/consume/default';
+            },
+            samlMetadataUrl() {
+                return this.appBaseUrl + '/auth/sso/metadata';
             }
         },
         methods: {
@@ -224,9 +240,10 @@ lynx_app.sso_settings_screen = (Vue, axios, $) => {
                     sso_issuer: this.ssoIssuer,
                     sso_client_id: this.ssoClientId,
                     sso_client_secret: this.ssoClientSecret,
-                    sso_redirect_uri: this.ssoRedirectUri,
                     sso_saml_idp_metadata_url: this.samlIdpMetadataUrl,
                     sso_saml_sp_entity_id: this.samlSpEntityId,
+                    sso_saml_sp_cert: this.samlSpCert,
+                    sso_saml_sp_key: this.samlSpKey,
                 };
 
                 axios.put('/api/v1/action/update_sso_settings', data)

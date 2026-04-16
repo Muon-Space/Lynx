@@ -53,6 +53,7 @@ defmodule LynxWeb.Router do
     get "/admin/settings", PageController, :settings
     get "/admin/state/download/:uuid", PageController, :state
     get "/admin/environment/download/:uuid", PageController, :environment
+    get "/auth/sso/finalize", SSOController, :finalize
   end
 
   scope "/", LynxWeb do

@@ -36,13 +36,18 @@ config :lynx,
 # OIDC configuration
 if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
      (System.get_env("SSO_PROTOCOL") || "oidc") == "oidc" do
+  sso_app_scheme = System.get_env("APP_HTTP_SCHEMA") || "http"
+  sso_app_host = System.get_env("APP_HOST") || "localhost"
+  sso_app_port = System.get_env("APP_PORT") || "4000"
+  sso_redirect_uri = "#{sso_app_scheme}://#{sso_app_host}:#{sso_app_port}/auth/sso/callback"
+
   config :lynx, :openid_connect_providers,
     lynx: [
       discovery_document_uri:
         "#{System.get_env("SSO_ISSUER")}/.well-known/openid-configuration",
       client_id: System.get_env("SSO_CLIENT_ID"),
       client_secret: System.get_env("SSO_CLIENT_SECRET"),
-      redirect_uri: System.get_env("SSO_REDIRECT_URI"),
+      redirect_uri: sso_redirect_uri,
       response_type: "code",
       scope: "openid email profile"
     ]
