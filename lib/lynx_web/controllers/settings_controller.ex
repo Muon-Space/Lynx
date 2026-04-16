@@ -37,7 +37,7 @@ defmodule LynxWeb.SettingsController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -62,12 +62,12 @@ defmodule LynxWeb.SettingsController do
 
         conn
         |> put_status(:ok)
-        |> render("success.json", %{message: "Settings updated successfully"})
+        |> render(:success, %{message: "Settings updated successfully"})
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -107,7 +107,7 @@ defmodule LynxWeb.SettingsController do
 
     conn
     |> put_status(:ok)
-    |> render("success.json", %{message: "SSO/SCIM settings updated successfully"})
+    |> render(:success, %{message: "SSO/SCIM settings updated successfully"})
   end
 
   defp write_saml_temp_files(cert, key) do
@@ -143,7 +143,7 @@ defmodule LynxWeb.SettingsController do
       {:error, msg} ->
         conn
         |> put_status(:internal_server_error)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
     end
   end
 
@@ -168,7 +168,7 @@ defmodule LynxWeb.SettingsController do
       {:error, msg} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
     end
   end
 
@@ -193,12 +193,12 @@ defmodule LynxWeb.SettingsController do
 
         conn
         |> put_status(:ok)
-        |> render("success.json", %{message: "Token revoked"})
+        |> render(:success, %{message: "Token revoked"})
 
       {:not_found, _} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: "Token not found"})
+        |> render(:error, %{message: "Token not found"})
     end
   end
 

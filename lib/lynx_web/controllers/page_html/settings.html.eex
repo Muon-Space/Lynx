@@ -1,0 +1,651 @@
+<main class="hp-bg-color-dark-90 d-flex min-vh-100">
+    <div class="hp-main-layout hp-main-layout-horizontal">
+        <header>
+            <div class="row w-100 m-0">
+                <div class="col ps-18 pe-16 px-sm-24">
+                    <div class="row w-100 align-items-center justify-content-between position-relative">
+                        <div class="col w-auto hp-flex-none hp-mobile-sidebar-button me-24 px-0" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu" aria-controls="mobileMenu">
+                            <button type="button" class="btn btn-text btn-icon-only">
+                                <i class="ri-menu-fill hp-text-color-black-80 hp-text-color-dark-30 lh-1" style="font-size: 24px;"></i>
+                            </button>
+                        </div>
+
+                        <div class="col hp-flex-none w-auto hp-horizontal-block">
+                            <div class="hp-header-logo d-flex align-items-end">
+                                <a href="<%= ~p"/admin/settings" %>">
+                                    <img class="hp-logo hp-sidebar-visible" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                    <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                    <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                    <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                    <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="col hp-flex-none w-auto hp-horizontal-block hp-horizontal-menu ps-24">
+                            <ul class="d-flex flex-wrap align-items-center">
+                                <li class="px-6">
+                                    <a href="<%= ~p"/admin/projects" %>" class="px-12 py-4">
+                                        <span><%= gettext "Projects" %></span>
+                                    </a>
+                                </li>
+
+                                <li class="px-6">
+                                    <a href="<%= ~p"/admin/snapshots" %>" class="px-12 py-4">
+                                        <span><%= gettext "Snapshots" %></span>
+                                    </a>
+                                </li>
+
+                                <%= if @data.is_super do %>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/teams" %>" class="px-12 py-4">
+                                            <span><%= gettext "Teams" %></span>
+                                        </a>
+                                    </li>
+
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/users" %>" class="px-12 py-4">
+                                            <span><%= gettext "Users" %></span>
+                                        </a>
+                                    </li>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/settings" %>" class="px-12 py-4">
+                                            <span><%= gettext "Settings" %></span>
+                                        </a>
+                                    </li>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/audit" %>" class="px-12 py-4">
+                                            <span><%= gettext "Audit Log" %></span>
+                                        </a>
+                                    </li>
+                                <% end %>
+                            </ul>
+                        </div>
+
+                        <div class="col hp-flex-none w-auto pe-0">
+                            <div class="row align-items-center justify-content-end">
+                                <div class="hover-dropdown-fade w-auto px-0 ms-6 position-relative hp-cursor-pointer">
+                                    <div class="avatar-item d-flex align-items-center justify-content-center rounded-circle" style="width: 40px; height: 40px;">
+                                        <img src=<%= @data.avatar_url %>>
+                                    </div>
+
+                                    <div class="hp-header-profile-menu dropdown-fade position-absolute pt-18" style="top: 100%; width: 260px;">
+                                        <div class="rounded border hp-border-color-black-40 hp-bg-black-0 hp-bg-dark-100 hp-border-color-dark-80 p-24">
+                                            <span class="d-block h5 hp-text-color-black-100 hp-text-color-dark-0 mb-6"><%= gettext "Profile Settings" %></span>
+
+                                            <a href="<%= ~p"/admin/profile" %>" class="hp-p1-body hp-text-color-primary-1 hp-text-color-dark-primary-2 hp-hover-text-color-primary-2"><%= gettext "Profile" %></a>
+
+                                            <div class="divider my-12"></div>
+
+                                            <div class="row">
+                                                <div class="col-12">
+                                                    <a href="https://github.com/clivern/lynx/issues" class="d-flex align-items-center hp-p1-body py-4 px-10 hp-transition hp-hover-bg-primary-4 hp-hover-bg-dark-primary hp-hover-bg-dark-80 rounded" style="margin-left: -10px; margin-right: -10px;">
+                                                        <i class="iconly-Curved-Game me-8" style="font-size: 16px;"></i>
+
+                                                        <span class="hp-ml-8"><%= gettext "Support" %></span>
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            <div class="divider my-12"></div>
+
+                                            <a class="hp-p1-body" href="<%= ~p"/logout" %>"><%= gettext "Logout" %></a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="offcanvas offcanvas-start hp-mobile-sidebar" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenuLabel" style="width: 256px;">
+            <div class="offcanvas-header justify-content-between align-items-end me-16 ms-24 mt-16 p-0">
+                <div class="w-auto px-0">
+                    <div class="hp-header-logo d-flex align-items-end">
+                        <a href="<%= ~p"/admin/settings" %>">
+                            <img class="hp-logo hp-sidebar-visible" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                            <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                            <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                            <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                            <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                        </a>
+                    </div>
+                </div>
+
+                <div class="w-auto px-0 hp-sidebar-collapse-button hp-sidebar-hidden" data-bs-dismiss="offcanvas" aria-label="Close">
+                    <button type="button" class="btn btn-text btn-icon-only">
+                        <i class="ri-close-fill lh-1 hp-text-color-black-80" style="font-size: 24px;"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="hp-sidebar hp-bg-color-black-0 hp-bg-color-dark-100">
+                <div class="hp-sidebar-container">
+                    <div class="hp-sidebar-header-menu">
+                        <div class="row justify-content-between align-items-end me-12 ms-24 mt-24">
+                            <div class="w-auto px-0 hp-sidebar-collapse-button hp-sidebar-visible">
+                                <button type="button" class="btn btn-text btn-icon-only">
+                                    <i class="ri-menu-unfold-line" style="font-size: 16px;"></i>
+                                </button>
+                            </div>
+
+                            <div class="w-auto px-0">
+                                <div class="hp-header-logo d-flex align-items-end">
+                                    <a href="<%= ~p"/admin/settings" %>">
+                                        <img class="hp-logo hp-sidebar-visible" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                        <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                        <img class="hp-logo hp-sidebar-hidden hp-dir-none hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                        <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-none" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                        <img class="hp-logo hp-sidebar-hidden hp-dir-block hp-dark-block" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="w-auto px-0 hp-sidebar-collapse-button hp-sidebar-hidden">
+                                <button type="button" class="btn btn-text btn-icon-only">
+                                    <i class="ri-menu-fold-line" style="font-size: 16px;"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <ul>
+                            <li>
+                                <div class="menu-title"><%= gettext "PAGES" %></div>
+                                <ul>
+                                    <li>
+                                        <a href="<%= ~p"/admin/projects" %>">
+                                            <span>
+                                                <i class="iconly-Curved-PaperPlus"></i>
+                                                <span><%= gettext "Projects" %></span>
+                                            </span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="<%= ~p"/admin/snapshots" %>">
+                                            <span>
+                                                <i class="iconly-Curved-PaperPlus"></i>
+                                                <span><%= gettext "Snapshots" %></span>
+                                            </span>
+                                        </a>
+                                    </li>
+                                    <%= if @data.is_super do %>
+                                        <li>
+                                            <a href="<%= ~p"/admin/teams" %>">
+                                                <span>
+                                                    <i class="iconly-Curved-PaperPlus"></i>
+                                                    <span><%= gettext "Teams" %></span>
+                                                </span>
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="<%= ~p"/admin/users" %>">
+                                                <span>
+                                                    <i class="iconly-Curved-PaperPlus"></i>
+                                                    <span><%= gettext "Users" %></span>
+                                                </span>
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="<%= ~p"/admin/settings" %>">
+                                                <span>
+                                                    <i class="iconly-Curved-PaperPlus"></i>
+                                                    <span><%= gettext "Settings" %></span>
+                                                </span>
+                                            </a>
+                                        </li>
+                                    <% end %>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="row justify-content-between align-items-center hp-sidebar-footer pb-24 px-24 mx-0 hp-bg-color-dark-100">
+                        <div class="divider border-black-20 hp-border-color-dark-70 hp-sidebar-hidden px-0"></div>
+
+                        <div class="col">
+                            <div class="row align-items-center">
+                                <div class="me-8 w-auto px-0">
+                                    <div class="avatar-item d-flex align-items-center justify-content-center rounded-circle" style="width: 36px; height: 36px;">
+                                        <img src=<%= @data.avatar_url %>>
+                                    </div>
+                                </div>
+
+                                <div class="w-auto px-0 hp-sidebar-hidden">
+                                    <span class="d-block hp-text-color-black-100 hp-text-color-dark-0 hp-p1-body lh-1"><%= @data.user_name %></span>
+                                    <a href="<%= ~p"/admin/profile" %>" class="hp-badge-text hp-text-color-dark-30"><%= gettext "Profile" %></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hp-main-layout-content">
+            <div class="row g-32">
+               <div class="col-12">
+                    <div class="hp-bg-black-bg py-32 py-sm-64 px-24 px-sm-48 px-md-80 position-relative overflow-hidden hp-page-content" style="border-radius: 32px;">
+                        <svg width="358" height="336" fill="none" xmlns="http://www.w3.org/2000/svg" class="position-absolute hp-rtl-scale-x-n1" style="bottom: 0px; right: 0px;">
+                            <path d="M730.404 135.471 369.675-6.641l88.802 164.001-243.179-98.8 246.364 263.281-329.128-126.619 114.698 166.726-241.68-62.446" stroke="url(#a)" stroke-width="40" stroke-linejoin="bevel"></path>
+                            <defs>
+                                <linearGradient id="a" x1="315.467" y1="6.875" x2="397.957" y2="337.724" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#fff"></stop>
+                                    <stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+
+                        <div class="row">
+                            <div class="col-sm-6 col-12">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h1 class="mb-0 hp-text-color-black-0"> <%= gettext "Settings" %> </h1>
+                                    </div>
+                                    <div class="col-12">
+                                        <ol class="breadcrumb mt-24">
+                                            <li class="breadcrumb-item breadcrumb-link">
+                                                <a href="javascript:;"> <%= gettext "Dashboard" %> </a>
+                                            </li>
+
+                                            <li class="breadcrumb-item active">
+                                                <%= gettext "Settings" %>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="app_settings">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "General" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <form action="<%= ~p"/api/v1/action/update_settings" %>" method="post" v-on:submit.prevent="settingsAction">
+                                        <div class="mb-24">
+                                            <label class="form-label"><%= gettext "Application Name" %></label>
+                                            <input class="form-control" name="app_name" type="text" value=<%= @data.app_name %> required="required" minlength="2" maxlength="60">
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <label class="form-label"><%= gettext "Application URL" %></label>
+                                            <input class="form-control" name="app_url" type="url" value=<%= @data.app_url %> required="required">
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <label class="form-label"><%= gettext "Application Email" %></label>
+                                            <input class="form-control" name="app_email" type="email" value=<%= @data.app_email %> required="required">
+                                        </div>
+                                        <button type="submit" class="btn btn-primary"><%= gettext "Submit" %></button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="app_sso_settings"
+                     data-app-base-url="<%= @data.computed_app_base_url %>"
+                     data-jit-enabled="<%= @data.sso_jit_enabled %>"
+                     data-password-enabled="<%= @data.auth_password_enabled %>"
+                     data-sso-enabled="<%= @data.auth_sso_enabled %>"
+                     data-sso-protocol="<%= @data.sso_protocol %>"
+                     data-sso-login-label="<%= @data.sso_login_label %>"
+                     data-sso-issuer="<%= @data.sso_issuer %>"
+                     data-sso-client-id="<%= @data.sso_client_id %>"
+                     data-sso-client-secret="<%= @data.sso_client_secret %>"
+                     data-saml-idp-sso-url="<%= @data.sso_saml_idp_sso_url %>"
+                     data-saml-idp-issuer="<%= @data.sso_saml_idp_issuer %>"
+                     data-saml-idp-cert="<%= @data.sso_saml_idp_cert %>"
+                     data-saml-idp-metadata-url="<%= @data.sso_saml_idp_metadata_url %>"
+                     data-saml-sp-entity-id="<%= @data.sso_saml_sp_entity_id %>"
+                     data-saml-sp-cert="<%= @data.sso_saml_sp_cert %>"
+                     data-saml-sign-requests="<%= @data.sso_saml_sign_requests %>"
+                     data-scim-enabled="<%= @data.scim_enabled %>">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "Single Sign-On (SSO)" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <form v-on:submit.prevent="ssoSettingsAction">
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="auth_password_enabled" v-model="passwordEnabled">
+                                                <label class="form-check-label" for="auth_password_enabled"><%= gettext "Password Login Enabled" %></label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="auth_sso_enabled" v-model="ssoEnabled">
+                                                <label class="form-check-label" for="auth_sso_enabled"><%= gettext "SSO Login Enabled" %></label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="sso_jit_enabled" v-model="jitEnabled">
+                                                <label class="form-check-label" for="sso_jit_enabled"><%= gettext "JIT User Provisioning" %></label>
+                                            </div>
+                                            <small class="form-text text-muted"><%= gettext "Auto-create users on first SSO login. Disable if users should be provisioned via SCIM only." %></small>
+                                        </div>
+
+                                        <div v-if="ssoEnabled">
+                                            <div class="mb-24">
+                                                <label class="form-label"><%= gettext "Protocol" %></label>
+                                                <select class="form-select" v-model="ssoProtocol">
+                                                    <option value="oidc">OIDC</option>
+                                                    <option value="saml">SAML</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="mb-24">
+                                                <label class="form-label"><%= gettext "Login Button Label" %></label>
+                                                <input class="form-control" type="text" v-model="ssoLoginLabel" placeholder="SSO">
+                                            </div>
+
+                                            <div v-if="ssoProtocol === 'oidc'">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Sign-in redirect URI" %></td>
+                                                            <td><code>${ oidcRedirectUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Sign-out redirect URI" %></td>
+                                                            <td><code>${ oidcSignoutUri }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Grant type" %></td>
+                                                            <td><%= gettext "Authorization Code (no Refresh Token needed)" %></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Proof of possession" %></td>
+                                                            <td><%= gettext "Not required" %></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Issuer URL" %></label>
+                                                    <input class="form-control" type="url" v-model="ssoIssuer" placeholder="https://your-idp.com">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Client ID" %></label>
+                                                    <input class="form-control" type="text" v-model="ssoClientId">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "Client Secret" %></label>
+                                                    <input class="form-control" type="password" v-model="ssoClientSecret">
+                                                </div>
+                                            </div>
+
+                                            <div v-if="ssoProtocol === 'saml'">
+                                                <div class="alert alert-info mb-24">
+                                                    <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                                    <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                        <tr>
+                                                            <td class="fw-semibold" style="width: 200px;"><%= gettext "Single sign-on URL" %></td>
+                                                            <td><code>${ samlAcsUrl }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Audience URI (SP Entity ID)" %></td>
+                                                            <td><code>${ samlSpEntityId || 'Set below' }</code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "Default RelayState" %></td>
+                                                            <td><code><%= gettext "(leave blank)" %></code></td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="fw-semibold"><%= gettext "SP Metadata URL" %></td>
+                                                            <td><code>${ samlMetadataUrl }</code></td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "SP Entity ID" %></label>
+                                                    <input class="form-control" type="text" v-model="samlSpEntityId" placeholder="https://lynx.example.com/sso/sp">
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Single Sign-On URL" %></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpSsoUrl">
+                                                    <small class="form-text text-muted"><%= gettext "The URL your IdP provides for SAML login" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Issuer" %></label>
+                                                    <input class="form-control" type="text" v-model="samlIdpIssuer">
+                                                    <small class="form-text text-muted"><%= gettext "The Identity Provider Issuer URI (Entity ID)" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Certificate (X.509 PEM)" %></label>
+                                                    <textarea class="form-control" v-model="samlIdpCert" rows="6" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" style="font-family: monospace; font-size: 12px;"></textarea>
+                                                    <small class="form-text text-muted"><%= gettext "Paste the X.509 certificate from your IdP's SAML setup instructions" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <label class="form-label"><%= gettext "IdP Metadata URL" %> <small class="text-muted">(<%= gettext "optional" %>)</small></label>
+                                                    <input class="form-control" type="url" v-model="samlIdpMetadataUrl">
+                                                    <small class="form-text text-muted"><%= gettext "If provided, used to auto-discover IdP settings" %></small>
+                                                </div>
+                                                <div class="mb-24">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" id="saml_sign_requests" v-model="samlSignRequests">
+                                                        <label class="form-check-label" for="saml_sign_requests"><%= gettext "Sign SAML Requests" %></label>
+                                                    </div>
+                                                    <small class="form-text text-muted"><%= gettext "Optional. Enable if your IdP requires signed AuthnRequests." %></small>
+                                                </div>
+                                                <div v-if="samlSignRequests" class="mb-24">
+                                                    <div v-if="samlSpCert" class="alert alert-success">
+                                                        <strong><%= gettext "SP certificate is configured." %></strong>
+                                                        <div class="mt-8">
+                                                            <small><%= gettext "Upload this certificate to your IdP's Signature Certificate field." %></small>
+                                                        </div>
+                                                        <button type="button" class="btn btn-sm btn-primary mt-8" v-on:click="downloadSamlCertAction"><%= gettext "Download Certificate" %></button>
+                                                        <button type="button" class="btn btn-sm btn-outline-primary mt-8" v-on:click="regenerateSamlCertAction"><%= gettext "Regenerate Certificate" %></button>
+                                                    </div>
+                                                    <div v-else>
+                                                        <p class="hp-p1-body hp-text-color-black-60"><%= gettext "No SP certificate configured. Generate one to enable request signing." %></p>
+                                                        <button type="button" class="btn btn-sm btn-primary" v-on:click="generateSamlCertAction"><%= gettext "Generate SP Certificate" %></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary"><%= gettext "Save SSO Settings" %></button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="app_scim_settings" data-scim-enabled="<%= @data.scim_enabled %>">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "SCIM Provisioning" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <div class="mb-24">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="scim_enabled" v-model="scimEnabled" v-on:change="toggleScimAction">
+                                            <label class="form-check-label" for="scim_enabled"><%= gettext "SCIM Enabled" %></label>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="scimEnabled">
+                                        <div class="alert alert-info mb-24">
+                                            <strong><%= gettext "Use these values in your Identity Provider:" %></strong>
+                                            <table class="table table-sm table-borderless mt-8 mb-0" style="background: transparent;">
+                                                <tr>
+                                                    <td class="fw-semibold" style="width: 240px;"><%= gettext "SCIM connector base URL" %></td>
+                                                    <td><code>${ scimBaseUrl }</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Unique identifier field for users" %></td>
+                                                    <td><code>userName</code></td>
+                                                </tr>
+                                                <tr>
+                                                    <td class="fw-semibold"><%= gettext "Authentication Mode" %></td>
+                                                    <td><%= gettext "HTTP Header" %></td>
+                                                </tr>
+                                            </table>
+                                        </div>
+
+                                        <div class="mb-24">
+                                            <div class="d-flex justify-content-between align-items-center mb-8">
+                                                <label class="form-label mb-0"><%= gettext "Bearer Tokens" %></label>
+                                                <button type="button" class="btn btn-sm btn-primary" v-on:click="generateTokenAction"><%= gettext "Generate Token" %></button>
+                                            </div>
+
+                                            <div v-if="newToken" class="alert alert-success mb-16">
+                                                <strong><%= gettext "New token (copy now, it won't be shown again):" %></strong>
+                                                <div class="mt-8">
+                                                    <code style="word-break: break-all;">${ newToken }</code>
+                                                </div>
+                                            </div>
+
+                                            <div class="table-responsive">
+                                                <table class="table" v-if="tokens.length > 0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th><%= gettext "Token" %></th>
+                                                            <th><%= gettext "Description" %></th>
+                                                            <th><%= gettext "Status" %></th>
+                                                            <th><%= gettext "Last Used" %></th>
+                                                            <th><%= gettext "Actions" %></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr v-for="token in tokens" :key="token.uuid">
+                                                            <td><code>${ token.token_prefix }</code></td>
+                                                            <td>${ token.description || '-' }</td>
+                                                            <td>
+                                                                <span class="badge" :class="token.is_active ? 'bg-success' : 'bg-secondary'">${ token.is_active ? 'Active' : 'Revoked' }</span>
+                                                            </td>
+                                                            <td>${ token.last_used_at ? formatDatetime(token.last_used_at) : 'Never' }</td>
+                                                            <td>
+                                                                <button v-if="token.is_active" type="button" class="btn btn-sm btn-danger" v-on:click="revokeTokenAction(token.uuid)"><%= gettext "Revoke" %></button>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                                <p v-else class="hp-p1-body hp-text-color-black-60"><%= gettext "No tokens generated yet." %></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12" id="app_oidc_providers">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "OIDC Providers (Terraform Backend Auth)" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <div class="alert alert-info mb-24">
+                                        <small><%= gettext "Configure OIDC providers for CI/CD token-based authentication to Terraform backends. The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password." %></small>
+                                    </div>
+
+                                    <div v-if="showForm" class="border rounded p-16 mb-24">
+                                        <h6 class="mb-16"><%= gettext "Add OIDC Provider" %></h6>
+                                        <form v-on:submit.prevent="submitProviderAction">
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Provider Name" %></label>
+                                                <input class="form-control" type="text" v-model="formName" placeholder="github-actions" required>
+                                                <small class="form-text text-muted"><%= gettext "Used as the HTTP Basic Auth username in Terraform" %></small>
+                                            </div>
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Discovery URL" %></label>
+                                                <input class="form-control" type="url" v-model="formDiscoveryUrl" placeholder="https://token.actions.githubusercontent.com" required>
+                                            </div>
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Audience" %> <small class="text-muted">(<%= gettext "optional" %>)</small></label>
+                                                <input class="form-control" type="text" v-model="formAudience" placeholder="lynx">
+                                                <small class="form-text text-muted"><%= gettext "If set, the token's aud claim must match this value" %></small>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-primary me-8"><%= gettext "Save" %></button>
+                                            <button type="button" class="btn btn-sm btn-secondary" v-on:click="showForm = false"><%= gettext "Cancel" %></button>
+                                        </form>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center mb-16" v-if="!showForm">
+                                        <label class="form-label mb-0"><%= gettext "Providers" %></label>
+                                        <button type="button" class="btn btn-sm btn-primary" v-on:click="showForm = true"><%= gettext "Add Provider" %></button>
+                                    </div>
+
+                                    <div class="table-responsive" v-if="providers.length > 0">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th><%= gettext "Name (username)" %></th>
+                                                    <th><%= gettext "Discovery URL" %></th>
+                                                    <th><%= gettext "Audience" %></th>
+                                                    <th><%= gettext "Actions" %></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="provider in providers" :key="provider.id">
+                                                    <td><code>${ provider.name }</code></td>
+                                                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${ provider.discoveryUrl }</td>
+                                                    <td>${ provider.audience || '-' }</td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-danger" v-on:click="deleteProviderAction(provider.id)"><%= gettext "Delete" %></button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p v-else-if="!showForm" class="hp-p1-body hp-text-color-black-60"><%= gettext "No OIDC providers configured." %></p>
+
+                                    <div class="mt-16">
+                                        <small class="form-text text-muted">
+                                            <%= gettext "Access rules are configured per-environment in the project view. Common discovery URLs:" %><br>
+                                            <code>GitHub Actions: https://token.actions.githubusercontent.com</code><br>
+                                            <code>GitLab CI: https://gitlab.com</code>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="w-100 py-18 px-16 py-sm-24 px-sm-32 hp-bg-color-black-20 hp-bg-color-dark-90">
+            <div class="row">
+                <div class="col-12">
+                    <p class="hp-badge-text fw-semibold mb-0 text-center text-sm-start hp-text-color-dark-30"><%= gettext "Copyright © 2025 Clivern. All rights Reserved" %></p>
+                </div>
+            </div>
+        </footer>
+    </div>
+</main>
+
+<div class="position-fixed top-0 end-0 p-16" style="z-index: 99">
+    <div class="toast fade hide" id="toast_notification" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <img class="me-8" src="<%= ~p"/images/ico.png" %>" width="20">
+            <strong class="me-auto"><%= @data.app_name %></strong>
+            <small><%= gettext "Just Now" %></small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
+</div>

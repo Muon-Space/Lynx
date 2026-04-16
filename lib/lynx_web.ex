@@ -5,53 +5,41 @@
 defmodule LynxWeb do
   @moduledoc """
   The entrypoint for defining your web interface, such
-  as controllers, views, channels and so on.
-
-  This can be used in your application as:
-
-      use LynxWeb, :controller
-      use LynxWeb, :view
-
-  The definitions below will be executed for every view,
-  controller, etc, so keep them short and clean, focused
-  on imports, uses and aliases.
-
-  Do NOT define functions inside the quoted expressions
-  below. Instead, define any helper function in modules
-  and import those modules here.
+  as controllers, components, and so on.
   """
+
+  def static_paths, do: ~w(assets theme fonts images favicon.ico robots.txt)
 
   def controller do
     quote do
-      use Phoenix.Controller, namespace: LynxWeb
+      use Phoenix.Controller,
+        formats: [:html, :json],
+        layouts: [html: LynxWeb.Layouts]
 
       import Plug.Conn
-      import LynxWeb.Gettext
-      alias LynxWeb.Router.Helpers, as: Routes
+      use Gettext, backend: LynxWeb.Gettext
+
+      unquote(verified_routes())
     end
   end
 
-  def view do
+  def html do
     quote do
-      use Phoenix.View,
-        root: "lib/lynx_web/templates",
-        namespace: LynxWeb
+      use Phoenix.Component
 
-      # Import convenience functions from controllers
       import Phoenix.Controller,
-        only: [get_flash: 1, get_flash: 2, view_module: 1, view_template: 1]
+        only: [get_csrf_token: 0, get_flash: 1, get_flash: 2, view_module: 1, view_template: 1]
 
-      # Include shared imports and aliases for views
-      unquote(view_helpers())
+      unquote(html_helpers())
     end
   end
 
   def live_view do
     quote do
       use Phoenix.LiveView,
-        layout: {LynxWeb.LayoutView, "live.html"}
+        layout: {LynxWeb.Layouts, :app}
 
-      unquote(view_helpers())
+      unquote(html_helpers())
     end
   end
 
@@ -59,7 +47,7 @@ defmodule LynxWeb do
     quote do
       use Phoenix.LiveComponent
 
-      unquote(view_helpers())
+      unquote(html_helpers())
     end
   end
 
@@ -67,7 +55,7 @@ defmodule LynxWeb do
     quote do
       use Phoenix.Component
 
-      unquote(view_helpers())
+      unquote(html_helpers())
     end
   end
 
@@ -84,24 +72,42 @@ defmodule LynxWeb do
   def channel do
     quote do
       use Phoenix.Channel
-      import LynxWeb.Gettext
+      use Gettext, backend: LynxWeb.Gettext
     end
   end
 
-  defp view_helpers do
+  # Keep backward compat for existing views during migration
+  def view do
     quote do
-      # Use all HTML functionality (forms, tags, etc)
-      use Phoenix.HTML
+      use Phoenix.Component
 
-      # Import LiveView and .heex helpers (live_render, live_patch, <.form>, etc)
-      import Phoenix.LiveView.Helpers
-
-      # Import basic rendering functionality (render, render_layout, etc)
-      import Phoenix.View
+      import Phoenix.Controller,
+        only: [get_flash: 1, get_flash: 2, view_module: 1, view_template: 1]
 
       import LynxWeb.ErrorHelpers
-      import LynxWeb.Gettext
-      alias LynxWeb.Router.Helpers, as: Routes
+      use Gettext, backend: LynxWeb.Gettext
+
+      unquote(verified_routes())
+    end
+  end
+
+  defp html_helpers do
+    quote do
+      import Phoenix.HTML
+
+      import LynxWeb.ErrorHelpers
+      use Gettext, backend: LynxWeb.Gettext
+
+      unquote(verified_routes())
+    end
+  end
+
+  def verified_routes do
+    quote do
+      use Phoenix.VerifiedRoutes,
+        endpoint: LynxWeb.Endpoint,
+        router: LynxWeb.Router,
+        statics: LynxWeb.static_paths()
     end
   end
 

@@ -33,7 +33,7 @@ defmodule LynxWeb.LockController do
 
           conn
           |> put_status(:forbidden)
-          |> render("error.json", %{
+          |> render(:error, %{
             message: "Access is forbidden"
           })
           |> halt
@@ -61,14 +61,14 @@ defmodule LynxWeb.LockController do
       {:locked, lock} ->
         conn
         |> put_status(:locked)
-        |> render("lock_data.json", %{
+        |> render(:lock_data, %{
           lock: lock
         })
 
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: msg
         })
 
@@ -90,19 +90,19 @@ defmodule LynxWeb.LockController do
           {:success, ""} ->
             conn
             |> put_status(:ok)
-            |> render("lock.json", %{})
+            |> render(:lock, %{})
 
           {:not_found, msg} ->
             conn
             |> put_status(:not_found)
-            |> render("error.json", %{
+            |> render(:error, %{
               message: msg
             })
 
           {:error, msg} ->
             conn
             |> put_status(:internal_server_error)
-            |> render("error.json", %{
+            |> render(:error, %{
               message: msg
             })
         end
@@ -124,19 +124,19 @@ defmodule LynxWeb.LockController do
       {:success, ""} ->
         conn
         |> put_status(:ok)
-        |> render("unlock.json", %{})
+        |> render(:unlock, %{})
 
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: msg
         })
 
       {:error, msg} ->
         conn
         |> put_status(:internal_server_error)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: msg
         })
     end

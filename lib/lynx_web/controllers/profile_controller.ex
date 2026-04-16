@@ -28,7 +28,7 @@ defmodule LynxWeb.ProfileController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -55,23 +55,23 @@ defmodule LynxWeb.ProfileController do
           {:not_found, _} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: "Invalid Request"})
+            |> render(:error, %{message: "Invalid Request"})
 
           {:ok, _} ->
             conn
             |> put_status(:ok)
-            |> render("success.json", %{message: "Profile updated successfully"})
+            |> render(:success, %{message: "Profile updated successfully"})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -85,12 +85,12 @@ defmodule LynxWeb.ProfileController do
 
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: "Profile not found"})
+        |> render(:error, %{message: "Profile not found"})
 
       {:ok, user} ->
         conn
         |> put_status(:ok)
-        |> render("user.json", %{api_key: user.api_key})
+        |> render(:user, %{api_key: user.api_key})
     end
   end
 
@@ -106,19 +106,19 @@ defmodule LynxWeb.ProfileController do
 
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: "Profile not found"})
+        |> render(:error, %{message: "Profile not found"})
 
       {:error, msg} ->
         Logger.error(msg)
 
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: "Failed to rotate the API Key"})
+        |> render(:error, %{message: "Failed to rotate the API Key"})
 
       {:ok, _} ->
         conn
         |> put_status(:ok)
-        |> render("user.json", %{api_key: api_key})
+        |> render(:user, %{api_key: api_key})
     end
   end
 

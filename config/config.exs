@@ -13,7 +13,10 @@ config :lynx,
 # Configures the endpoint
 config :lynx, LynxWeb.Endpoint,
   url: [host: System.get_env("APP_HOST") || "localhost"],
-  render_errors: [view: LynxWeb.ErrorView, accepts: ~w(html json), layout: false],
+  render_errors: [
+    formats: [html: LynxWeb.ErrorHTML, json: LynxWeb.ErrorJSON],
+    layout: false
+  ],
   pubsub_server: Lynx.PubSub,
   live_view: [signing_salt: "/FQ30bq7"]
 

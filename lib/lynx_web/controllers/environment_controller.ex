@@ -39,7 +39,7 @@ defmodule LynxWeb.EnvironmentController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -61,7 +61,7 @@ defmodule LynxWeb.EnvironmentController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User can access the project")
@@ -84,7 +84,7 @@ defmodule LynxWeb.EnvironmentController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, environments} ->
         render(conn, "list.json", %{
@@ -117,18 +117,18 @@ defmodule LynxWeb.EnvironmentController do
           {:ok, environment} ->
             conn
             |> put_status(:created)
-            |> render("index.json", %{environment: environment})
+            |> render(:index, %{environment: environment})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -140,12 +140,12 @@ defmodule LynxWeb.EnvironmentController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, environment} ->
         conn
         |> put_status(:ok)
-        |> render("index.json", %{environment: environment})
+        |> render(:index, %{environment: environment})
     end
   end
 
@@ -169,18 +169,18 @@ defmodule LynxWeb.EnvironmentController do
           {:ok, environment} ->
             conn
             |> put_status(:ok)
-            |> render("index.json", %{environment: environment})
+            |> render(:index, %{environment: environment})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -192,7 +192,7 @@ defmodule LynxWeb.EnvironmentController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, _} ->
         conn
@@ -211,7 +211,7 @@ defmodule LynxWeb.EnvironmentController do
       nil ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: "Environment not found"})
+        |> render(:error, %{message: "Environment not found"})
 
       env_id ->
         case LockModule.force_lock(env_id, conn.assigns[:user_name] || "admin") do
@@ -224,7 +224,7 @@ defmodule LynxWeb.EnvironmentController do
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 
           {:error, msg} ->
-            conn |> put_status(:bad_request) |> render("error.json", %{message: msg})
+            conn |> put_status(:bad_request) |> render(:error, %{message: msg})
         end
     end
   end
@@ -240,7 +240,7 @@ defmodule LynxWeb.EnvironmentController do
       nil ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: "Environment not found"})
+        |> render(:error, %{message: "Environment not found"})
 
       env_id ->
         case LockModule.force_unlock(env_id) do
@@ -250,7 +250,7 @@ defmodule LynxWeb.EnvironmentController do
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 
           {:error, msg} ->
-            conn |> put_status(:bad_request) |> render("error.json", %{message: msg})
+            conn |> put_status(:bad_request) |> render(:error, %{message: msg})
         end
     end
   end
