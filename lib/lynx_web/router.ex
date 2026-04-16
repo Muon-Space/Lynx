@@ -133,6 +133,17 @@ defmodule LynxWeb.Router do
     get "/action/scim_tokens", SettingsController, :list_scim_tokens
     delete "/action/scim_token/:uuid", SettingsController, :revoke_scim_token
 
+    # OIDC Provider Endpoints
+    get "/oidc_provider", OIDCProviderController, :list_providers
+    post "/oidc_provider", OIDCProviderController, :create_provider
+    put "/oidc_provider/:uuid", OIDCProviderController, :update_provider
+    delete "/oidc_provider/:uuid", OIDCProviderController, :delete_provider
+
+    # OIDC Access Rule Endpoints
+    get "/oidc_rule/:environment_id", OIDCProviderController, :list_rules
+    post "/oidc_rule", OIDCProviderController, :create_rule
+    delete "/oidc_rule/:uuid", OIDCProviderController, :delete_rule
+
     # Profile Endpoints
     post "/action/update_profile", ProfileController, :update
 

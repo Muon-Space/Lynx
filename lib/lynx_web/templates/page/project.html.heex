@@ -306,6 +306,7 @@
                                             <template v-if="environment.stateVersion != 'v0'">
                                                 <a target="_blank" @click="downloadEnvironmentStateAction(environment.id)" class="btn btn-dashed btn-sm text-warning-100 border-warning-100 hp-hover-text-color-warning-80 hp-hover-border-color-warning-80"><%= gettext "Download State" %></a>
                                             </template>
+                                            <button @click="oidcRulesAction(environment.id, environment.name)" class="btn btn-dashed btn-sm text-info border-info hp-hover-text-color-info-2 hp-hover-border-color-info-2" data-bs-toggle="modal" data-bs-target="#oidc_rules_modal"><%= gettext "OIDC Rules" %></button>
                                             <button @click="editEnvironmentAction(environment.id)" class="btn btn-dashed btn-sm text-black-100 border-black-100 hp-hover-text-color-black-80 hp-hover-border-color-black-80"  data-bs-toggle="modal" data-bs-target="#edit_environment_modal"><%= gettext "Edit" %></button>
                                             <button @click="deleteEnvironmentAction(environment.id)" class="btn btn-dashed btn-sm text-danger border-danger hp-hover-text-color-danger-2 hp-hover-border-color-danger-2"><%= gettext "Delete" %></button>
                                         </td>
@@ -456,6 +457,86 @@
       // required_version = "1.3.7"
     }
                     </pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="oidc_rules_modal" tabindex="-1" aria-labelledby="oidcRulesLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content" id="oidc_rules_app">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="oidcRulesLabel"><%= gettext "OIDC Access Rules" %> — <span>${ envName }</span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="showForm" class="border rounded p-16 mb-16">
+                            <h6 class="mb-16"><%= gettext "Add Access Rule" %></h6>
+                            <form v-on:submit.prevent="submitRuleAction">
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Provider" %></label>
+                                    <select class="form-select" v-model="formProviderId" required>
+                                        <option value="" disabled><%= gettext "Select a provider" %></option>
+                                        <option v-for="p in providers" :key="p.id" :value="p.id">${ p.name }</option>
+                                    </select>
+                                </div>
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Rule Name" %></label>
+                                    <input class="form-control" type="text" v-model="formRuleName" placeholder="prod-deploy" required>
+                                </div>
+                                <div class="mb-16">
+                                    <label class="form-label"><%= gettext "Claim Rules" %></label>
+                                    <div v-for="(cr, index) in formClaimRules" :key="index" class="d-flex mb-8 gap-8">
+                                        <input class="form-control" type="text" v-model="cr.claim" placeholder="claim name (e.g. repository)" style="flex: 2;">
+                                        <select class="form-select" v-model="cr.operator" style="flex: 1;">
+                                            <option value="eq">equals</option>
+                                            <option value="contains">contains</option>
+                                            <option value="starts_with">starts with</option>
+                                            <option value="matches">regex</option>
+                                        </select>
+                                        <input class="form-control" type="text" v-model="cr.value" placeholder="expected value" style="flex: 2;">
+                                        <button type="button" class="btn btn-sm btn-outline-danger" v-on:click="formClaimRules.splice(index, 1)" v-if="formClaimRules.length > 1">x</button>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" v-on:click="formClaimRules.push({claim: '', operator: 'eq', value: ''})"><%= gettext "+ Add Claim" %></button>
+                                    <small class="form-text text-muted d-block mt-8"><%= gettext "All claims must match (AND logic). Common claims: repository, repository_owner, ref, environment, actor" %></small>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-primary me-8"><%= gettext "Save Rule" %></button>
+                                <button type="button" class="btn btn-sm btn-secondary" v-on:click="showForm = false"><%= gettext "Cancel" %></button>
+                            </form>
+                        </div>
+
+                        <div v-if="!showForm" class="mb-16">
+                            <div class="d-flex justify-content-between align-items-center mb-8">
+                                <small class="text-muted"><%= gettext "Rules that allow OIDC tokens to access this environment" %></small>
+                                <button type="button" class="btn btn-sm btn-primary" v-on:click="showAddForm"><%= gettext "Add Rule" %></button>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive" v-if="rules.length > 0">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th><%= gettext "Name" %></th>
+                                        <th><%= gettext "Claims" %></th>
+                                        <th><%= gettext "Actions" %></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="rule in rules" :key="rule.id">
+                                        <td>${ rule.name }</td>
+                                        <td>
+                                            <div v-for="cr in rule.claimRules" :key="cr.claim">
+                                                <code>${ cr.claim } <span class="text-muted">${ cr.operator }</span> ${ cr.value }</code>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn btn-sm btn-danger" v-on:click="deleteRuleAction(rule.id)"><%= gettext "Delete" %></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p v-else-if="!showForm" class="text-muted"><%= gettext "No OIDC access rules configured for this environment." %></p>
+                    </div>
                 </div>
             </div>
         </div>

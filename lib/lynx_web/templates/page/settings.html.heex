@@ -545,6 +545,81 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12" id="app_oidc_providers">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row justify-content-between">
+                                <div class="col pe-md-32 pe-md-120">
+                                    <h4><%= gettext "OIDC Providers (Terraform Backend Auth)" %></h4>
+                                </div>
+                                <div class="col-12 mt-16">
+                                    <div class="alert alert-info mb-24">
+                                        <small><%= gettext "Configure OIDC providers for CI/CD token-based authentication to Terraform backends. The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password." %></small>
+                                    </div>
+
+                                    <div v-if="showForm" class="border rounded p-16 mb-24">
+                                        <h6 class="mb-16"><%= gettext "Add OIDC Provider" %></h6>
+                                        <form v-on:submit.prevent="submitProviderAction">
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Provider Name" %></label>
+                                                <input class="form-control" type="text" v-model="formName" placeholder="github-actions" required>
+                                                <small class="form-text text-muted"><%= gettext "Used as the HTTP Basic Auth username in Terraform" %></small>
+                                            </div>
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Discovery URL" %></label>
+                                                <input class="form-control" type="url" v-model="formDiscoveryUrl" placeholder="https://token.actions.githubusercontent.com" required>
+                                            </div>
+                                            <div class="mb-16">
+                                                <label class="form-label"><%= gettext "Audience" %> <small class="text-muted">(<%= gettext "optional" %>)</small></label>
+                                                <input class="form-control" type="text" v-model="formAudience" placeholder="lynx">
+                                                <small class="form-text text-muted"><%= gettext "If set, the token's aud claim must match this value" %></small>
+                                            </div>
+                                            <button type="submit" class="btn btn-sm btn-primary me-8"><%= gettext "Save" %></button>
+                                            <button type="button" class="btn btn-sm btn-secondary" v-on:click="showForm = false"><%= gettext "Cancel" %></button>
+                                        </form>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center mb-16" v-if="!showForm">
+                                        <label class="form-label mb-0"><%= gettext "Providers" %></label>
+                                        <button type="button" class="btn btn-sm btn-primary" v-on:click="showForm = true"><%= gettext "Add Provider" %></button>
+                                    </div>
+
+                                    <div class="table-responsive" v-if="providers.length > 0">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th><%= gettext "Name (username)" %></th>
+                                                    <th><%= gettext "Discovery URL" %></th>
+                                                    <th><%= gettext "Audience" %></th>
+                                                    <th><%= gettext "Actions" %></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="provider in providers" :key="provider.id">
+                                                    <td><code>${ provider.name }</code></td>
+                                                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${ provider.discoveryUrl }</td>
+                                                    <td>${ provider.audience || '-' }</td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-sm btn-danger" v-on:click="deleteProviderAction(provider.id)"><%= gettext "Delete" %></button>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p v-else-if="!showForm" class="hp-p1-body hp-text-color-black-60"><%= gettext "No OIDC providers configured." %></p>
+
+                                    <div class="mt-16">
+                                        <small class="form-text text-muted">
+                                            <%= gettext "Access rules are configured per-environment in the project view. Common discovery URLs:" %><br>
+                                            <code>GitHub Actions: https://token.actions.githubusercontent.com</code><br>
+                                            <code>GitLab CI: https://gitlab.com</code>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
