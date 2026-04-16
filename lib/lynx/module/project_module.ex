@@ -15,11 +15,8 @@ defmodule Lynx.Module.ProjectModule do
   """
   def get_project_by_id(id) do
     case ProjectContext.get_project_by_id(id) do
-      nil ->
-        {:not_found, "Project with ID #{id} not found"}
-
-      project ->
-        {:ok, project}
+      nil -> {:not_found, "Project with ID #{id} not found"}
+      project -> {:ok, project}
     end
   end
 
@@ -28,11 +25,8 @@ defmodule Lynx.Module.ProjectModule do
   """
   def get_project_by_uuid(uuid) do
     case ProjectContext.get_project_by_uuid(uuid) do
-      nil ->
-        {:not_found, "Project with UUID #{uuid} not found"}
-
-      project ->
-        {:ok, project}
+      nil -> {:not_found, "Project with UUID #{uuid} not found"}
+      project -> {:ok, project}
     end
   end
 
@@ -56,11 +50,9 @@ defmodule Lynx.Module.ProjectModule do
   def get_projects(user_id, offset, limit) do
     user_teams = TeamModule.get_user_teams(user_id)
 
-    teams_ids = []
-
     teams_ids =
       for user_team <- user_teams do
-        teams_ids ++ user_team.id
+        user_team.id
       end
 
     ProjectContext.get_projects_by_teams(teams_ids, offset, limit)
@@ -72,11 +64,9 @@ defmodule Lynx.Module.ProjectModule do
   def count_projects(user_id) do
     user_teams = TeamModule.get_user_teams(user_id)
 
-    teams_ids = []
-
     teams_ids =
       for user_team <- user_teams do
-        teams_ids ++ user_team.id
+        user_team.id
       end
 
     ProjectContext.count_projects_by_teams(teams_ids)
@@ -91,22 +81,19 @@ defmodule Lynx.Module.ProjectModule do
         {:not_found, "Project with ID #{data[:uuid]} not found"}
 
       project ->
-        team_id =
-          if data[:team_id] == nil or data[:team_id] == "" do
-            project.team_id
-          else
-            TeamModule.get_team_id_with_uuid(data[:team_id])
-          end
-
         new_project = %{
           name: data[:name] || project.name,
           description: data[:description] || project.description,
-          team_id: team_id,
           slug: data[:slug] || project.slug
         }
 
         case ProjectContext.update_project(project, new_project) do
           {:ok, project} ->
+            # Sync team memberships if team_ids provided
+            if data[:team_ids] do
+              sync_project_teams(project.id, data[:team_ids])
+            end
+
             {:ok, project}
 
           {:error, changeset} ->
@@ -127,12 +114,26 @@ defmodule Lynx.Module.ProjectModule do
       ProjectContext.new_project(%{
         name: data[:name],
         description: data[:description],
-        slug: data[:slug],
-        team_id: TeamModule.get_team_id_with_uuid(data[:team_id])
+        slug: data[:slug]
       })
 
     case ProjectContext.create_project(project) do
       {:ok, project} ->
+        # Add team memberships
+        team_ids = data[:team_ids] || []
+
+        # Support single team_id for backward compatibility
+        team_ids =
+          if team_ids == [] and data[:team_id] do
+            [TeamModule.get_team_id_with_uuid(data[:team_id])]
+          else
+            Enum.map(team_ids, &TeamModule.get_team_id_with_uuid/1)
+          end
+
+        for team_id <- team_ids, team_id != nil do
+          ProjectContext.add_project_to_team(project.id, team_id)
+        end
+
         {:ok, project}
 
       {:error, changeset} ->
@@ -149,9 +150,7 @@ defmodule Lynx.Module.ProjectModule do
   """
   def delete_project_by_uuid(uuid) do
     case ProjectContext.get_project_by_uuid(uuid) do
-      nil ->
-        {:not_found, "Project with UUID #{uuid} not found"}
-
+      nil -> {:not_found, "Project with UUID #{uuid} not found"}
       project ->
         ProjectContext.delete_project(project)
         {:ok, "Project with UUID #{uuid} deleted successfully"}
@@ -170,15 +169,47 @@ defmodule Lynx.Module.ProjectModule do
   """
   def is_slug_used_in_team(slug, team_id) do
     case ProjectContext.get_project_by_slug_team_id(slug, team_id) do
-      nil ->
-        false
-
-      _ ->
-        true
+      nil -> false
+      _ -> true
     end
   end
 
   def get_project_id_with_uuid(uuid) do
     ProjectContext.get_project_id_with_uuid(uuid)
+  end
+
+  @doc """
+  Get teams for a project
+  """
+  def get_project_teams(project_id) do
+    ProjectContext.get_project_teams(project_id)
+  end
+
+  @doc """
+  Get project team UUIDs
+  """
+  def get_project_team_uuids(project_id) do
+    ProjectContext.get_project_teams(project_id)
+    |> Enum.map(fn t -> t.uuid end)
+  end
+
+  @doc """
+  Sync project team memberships
+  """
+  def sync_project_teams(project_id, team_uuids) do
+    current_team_ids = ProjectContext.get_project_team_ids(project_id)
+
+    future_team_ids =
+      team_uuids
+      |> Enum.map(&TeamModule.get_team_id_with_uuid/1)
+      |> Enum.filter(&(&1 != nil))
+
+    for id <- current_team_ids, id not in future_team_ids do
+      ProjectContext.remove_project_from_team(project_id, id)
+    end
+
+    for id <- future_team_ids, id not in current_team_ids do
+      ProjectContext.add_project_to_team(project_id, id)
+    end
   end
 end
