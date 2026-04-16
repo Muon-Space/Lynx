@@ -8,7 +8,7 @@ defmodule LynxWeb.ProfileLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_user
+    _user = socket.assigns.current_user
 
     socket =
       socket
@@ -25,7 +25,7 @@ defmodule LynxWeb.ProfileLive do
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="profile" />
     <div class="max-w-3xl mx-auto px-6">
-      <.page_header title="Profile" />
+      <.page_header title="Profile" subtitle="Manage your account and API access" />
 
       <.card class="mb-6">
         <h3 class="text-lg font-semibold mb-4">Update Profile</h3>

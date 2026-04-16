@@ -64,14 +64,13 @@ defmodule LynxWeb.ProjectLive do
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="projects" />
     <div class="max-w-7xl mx-auto px-6">
-      <nav class="flex items-center gap-2 text-sm text-gray-500 mb-4">
-        <a href="/admin/projects" class="hover:text-gray-700">Projects</a>
-        <span>/</span>
-        <span class="text-gray-900 font-medium">{@project.name}</span>
-      </nav>
       <.page_header title={@project.name} subtitle={@project.description} />
-
-      <div class="flex justify-end mb-4">
+      <div class="flex items-center justify-between mb-4">
+        <nav class="flex items-center gap-2 text-sm text-gray-500">
+          <a href="/admin/projects" class="hover:text-gray-700">Projects</a>
+          <span>/</span>
+          <span class="text-gray-900 font-medium">{@project.name}</span>
+        </nav>
         <.button phx-click="show_add_env" variant="primary">+ Add Environment</.button>
       </div>
 

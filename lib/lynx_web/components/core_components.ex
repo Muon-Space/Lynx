@@ -333,19 +333,50 @@ defmodule LynxWeb.CoreComponents do
   end
 
   def input(%{type: "select"} = assigns) do
+    assigns = assign(assigns, :display_label, select_display_label(assigns))
+
     ~H"""
     <div>
-      <label :if={@label} for={@id} class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
-      <select
-        id={@id}
-        name={@name}
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        multiple={@multiple}
-        {@rest}
+      <label :if={@label} class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <div
+        id={@id || @name}
+        phx-hook="CustomSelect"
+        phx-update="ignore"
+        data-name={@name}
+        data-multiple={to_string(@multiple)}
+        class="relative"
       >
-        <option :if={@prompt} value="">{@prompt}</option>
-        {Phoenix.HTML.Form.options_for_select(@options, @value)}
-      </select>
+        <div data-inputs>
+          <%= if @multiple do %>
+            <input :for={v <- Enum.reject(List.wrap(@value), &(&1 in [nil, ""]))} type="hidden" name={@name <> "[]"} value={v} />
+          <% else %>
+            <input type="hidden" name={@name} value={@value} />
+          <% end %>
+        </div>
+        <button
+          type="button"
+          data-trigger
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-left flex items-center justify-between hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+        >
+          <span data-label class="truncate">{@display_label}</span>
+          <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <div data-dropdown class="hidden absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+          <div :if={@prompt} data-value="" data-label={@prompt} class="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer">{@prompt}</div>
+          <div
+            :for={{label, value} <- @options}
+            data-value={value}
+            data-label={label}
+            data-selected={to_string(select_option_active?(value, assigns))}
+            class={["px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-blue-50 text-blue-700"]}
+          >
+            <span :if={@multiple} data-check class="text-blue-500 w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
+            {label}
+          </div>
+        </div>
+      </div>
       <p :if={@hint} class="mt-1 text-xs text-gray-500">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -474,6 +505,27 @@ defmodule LynxWeb.CoreComponents do
   end
 
   # -- Helpers --
+
+  defp select_display_label(%{multiple: true, options: options, value: value}) do
+    values = List.wrap(value) |> Enum.map(&to_string/1) |> Enum.reject(&(&1 == ""))
+    labels = for {label, v} <- options, to_string(v) in values, do: label
+    if labels == [], do: "Select...", else: Enum.join(labels, ", ")
+  end
+
+  defp select_display_label(%{options: options, value: value, prompt: prompt}) do
+    case Enum.find(options, fn {_label, v} -> to_string(v) == to_string(value) end) do
+      {label, _} -> label
+      nil -> prompt || "Select..."
+    end
+  end
+
+  defp select_option_active?(opt_value, %{multiple: true, value: value}) do
+    to_string(opt_value) in Enum.map(List.wrap(value), &to_string/1)
+  end
+
+  defp select_option_active?(opt_value, %{value: value}) do
+    to_string(opt_value) == to_string(value)
+  end
 
   defp translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->

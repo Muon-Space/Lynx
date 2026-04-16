@@ -30,30 +30,20 @@ defmodule LynxWeb.AuditLive do
       <.card>
         <div class="flex gap-4 mb-6">
           <form phx-change="filter" class="flex gap-4">
-            <select name="action" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={@filter_action}>
-              <option value="">All Actions</option>
-              <option value="created">Created</option>
-              <option value="updated">Updated</option>
-              <option value="deleted">Deleted</option>
-              <option value="locked">Locked</option>
-              <option value="unlocked">Unlocked</option>
-              <option value="state_pushed">State Pushed</option>
-              <option value="login">Login</option>
-              <option value="sso_login">SSO Login</option>
-              <option value="generated">Generated</option>
-              <option value="revoked">Revoked</option>
-            </select>
-            <select name="resource_type" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={@filter_resource}>
-              <option value="">All Resources</option>
-              <option value="project">Project</option>
-              <option value="environment">Environment</option>
-              <option value="team">Team</option>
-              <option value="user">User</option>
-              <option value="snapshot">Snapshot</option>
-              <option value="settings">Settings</option>
-              <option value="scim_token">SCIM Token</option>
-              <option value="oidc_provider">OIDC Provider</option>
-            </select>
+            <div class="w-48">
+              <.input name="action" type="select" value={@filter_action} prompt="All Actions" options={[
+                {"Created", "created"}, {"Updated", "updated"}, {"Deleted", "deleted"},
+                {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"},
+                {"Login", "login"}, {"SSO Login", "sso_login"}, {"Generated", "generated"}, {"Revoked", "revoked"}
+              ]} />
+            </div>
+            <div class="w-48">
+              <.input name="resource_type" type="select" value={@filter_resource} prompt="All Resources" options={[
+                {"Project", "project"}, {"Environment", "environment"}, {"Team", "team"},
+                {"User", "user"}, {"Snapshot", "snapshot"}, {"Settings", "settings"},
+                {"SCIM Token", "scim_token"}, {"OIDC Provider", "oidc_provider"}
+              ]} />
+            </div>
           </form>
         </div>
 

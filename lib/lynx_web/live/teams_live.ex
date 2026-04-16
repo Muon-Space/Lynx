@@ -31,7 +31,7 @@ defmodule LynxWeb.TeamsLive do
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="teams" />
     <div class="max-w-7xl mx-auto px-6">
-      <.page_header title="Teams" />
+      <.page_header title="Teams" subtitle="Organize users into teams for project access control" />
 
       <div class="flex justify-end mb-4">
         <.button phx-click="show_add" variant="primary">+ Add Team</.button>
@@ -43,7 +43,7 @@ defmodule LynxWeb.TeamsLive do
           <.input name="name" label="Name" value="" required />
           <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={[]} hint="Hold Ctrl/Cmd to select multiple" />
+          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={[]} hint="Click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -57,7 +57,7 @@ defmodule LynxWeb.TeamsLive do
           <.input name="name" label="Name" value={@editing_team.name} required />
           <.input name="slug" label="Slug" value={@editing_team.slug} required />
           <.input name="description" label="Description" type="textarea" value={@editing_team.description} required />
-          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={@editing_members} hint="Hold Ctrl/Cmd to select multiple" />
+          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={@editing_members} hint="Click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Update</.button>
             <.button phx-click="hide_edit" variant="secondary">Cancel</.button>

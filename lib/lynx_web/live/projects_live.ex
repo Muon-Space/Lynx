@@ -37,9 +37,11 @@ defmodule LynxWeb.ProjectsLive do
     ~H"""
     <.nav current_user={@current_user} active="projects" />
     <div class="max-w-7xl mx-auto px-6">
-      <.page_header title="Projects" />
-
-      <div class="flex justify-end mb-4">
+      <.page_header title="Projects" subtitle="Manage your Terraform projects and environments" />
+      <div class="flex items-center justify-between mb-4">
+        <nav class="flex items-center gap-2 text-sm text-gray-500">
+          <span class="text-gray-900 font-medium">Projects</span>
+        </nav>
         <.button phx-click="show_add" variant="primary">+ Add Project</.button>
       </div>
 
@@ -49,7 +51,7 @@ defmodule LynxWeb.ProjectsLive do
           <.input name="name" label="Name" value="" required />
           <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={[]} hint="Hold Ctrl/Cmd to select multiple" />
+          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={[]} hint="Click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -63,7 +65,7 @@ defmodule LynxWeb.ProjectsLive do
           <.input name="name" label="Name" value={@editing_project.name} required />
           <.input name="slug" label="Slug" value={@editing_project.slug} required />
           <.input name="description" label="Description" type="textarea" value={@editing_project.description} required />
-          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={@editing_teams} hint="Hold Ctrl/Cmd to select multiple" />
+          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={@editing_teams} hint="Click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Update</.button>
             <.button phx-click="hide_edit" variant="secondary">Cancel</.button>

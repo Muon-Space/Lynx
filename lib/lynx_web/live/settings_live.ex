@@ -2,7 +2,6 @@ defmodule LynxWeb.SettingsLive do
   use LynxWeb, :live_view
 
   alias Lynx.Module.SettingsModule
-  alias Lynx.Module.SSOModule
   alias Lynx.Module.SCIMTokenModule
   alias Lynx.Module.OIDCBackendModule
   alias Lynx.Module.AuditModule
@@ -68,8 +67,8 @@ defmodule LynxWeb.SettingsLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="settings" />
-    <div class="max-w-4xl mx-auto px-6">
-      <.page_header title="Settings" />
+    <div class="max-w-7xl mx-auto px-6">
+      <.page_header title="Settings" subtitle="Configure authentication, SSO, and system preferences" />
 
       <%!-- General Settings --%>
       <.card class="mb-6">
