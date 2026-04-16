@@ -87,26 +87,47 @@ defmodule LynxWeb.TeamsLive do
 
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+  def handle_event("show_add", _, socket),
+    do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
 
   def handle_event("form_change", %{"name" => name}, socket) do
-    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]/, "-")
+      |> String.replace(~r/-+/, "-")
+      |> String.trim("-")
+
     {:noreply, assign(socket, :add_slug, slug)}
   end
+
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_team, nil)}
 
   def handle_event("create_team", params, socket) do
-    case TeamModule.create_team(%{name: params["name"], slug: params["slug"], description: params["description"]}) do
+    case TeamModule.create_team(%{
+           name: params["name"],
+           slug: params["slug"],
+           description: params["description"]
+         }) do
       {:ok, team} ->
         TeamModule.sync_team_members(team.id, List.wrap(params["members"]))
         AuditModule.log_system("created", "team", team.uuid, team.name)
-        {:noreply, socket |> assign(:show_add, false) |> put_flash(:info, "Team created") |> load_teams()}
+
+        {:noreply,
+         socket |> assign(:show_add, false) |> put_flash(:info, "Team created") |> load_teams()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -117,15 +138,25 @@ defmodule LynxWeb.TeamsLive do
       {:ok, team} ->
         members = TeamModule.get_team_members(team.id)
         {:noreply, assign(socket, editing_team: team, editing_members: members)}
-      _ -> {:noreply, put_flash(socket, :error, "Team not found")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Team not found")}
     end
   end
 
   def handle_event("update_team", params, socket) do
-    case TeamModule.update_team(%{uuid: socket.assigns.editing_team.uuid, name: params["name"], slug: params["slug"], description: params["description"]}) do
+    case TeamModule.update_team(%{
+           uuid: socket.assigns.editing_team.uuid,
+           name: params["name"],
+           slug: params["slug"],
+           description: params["description"]
+         }) do
       {:ok, team} ->
         TeamModule.sync_team_members(team.id, List.wrap(params["members"]))
-        {:noreply, socket |> assign(:editing_team, nil) |> put_flash(:info, "Team updated") |> load_teams()}
+
+        {:noreply,
+         socket |> assign(:editing_team, nil) |> put_flash(:info, "Team updated") |> load_teams()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -133,6 +164,7 @@ defmodule LynxWeb.TeamsLive do
 
   def handle_event("delete_team", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case TeamModule.delete_team_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Team deleted") |> load_teams()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}

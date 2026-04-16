@@ -51,7 +51,12 @@ defmodule LynxWeb.ProfileLive do
 
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
@@ -65,13 +70,15 @@ defmodule LynxWeb.ProfileLive do
          }) do
       {:ok, user} ->
         {:noreply, socket |> assign(:current_user, user) |> put_flash(:info, "Profile updated")}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
   end
 
   def handle_event("show_api_key", _, socket) do
-    {:noreply, assign(socket, api_key: socket.assigns.current_user.api_key, api_key_visible: true)}
+    {:noreply,
+     assign(socket, api_key: socket.assigns.current_user.api_key, api_key_visible: true)}
   end
 
   def handle_event("rotate_api_key", _, socket) do
@@ -80,7 +87,13 @@ defmodule LynxWeb.ProfileLive do
 
     case UserModule.rotate_api_key(socket.assigns.current_user.uuid, new_key) do
       {:ok, user} ->
-        {:noreply, socket |> assign(:current_user, user) |> assign(:api_key, new_key) |> assign(:api_key_visible, true) |> put_flash(:info, "API key rotated")}
+        {:noreply,
+         socket
+         |> assign(:current_user, user)
+         |> assign(:api_key, new_key)
+         |> assign(:api_key_visible, true)
+         |> put_flash(:info, "API key rotated")}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to rotate API key")}
     end

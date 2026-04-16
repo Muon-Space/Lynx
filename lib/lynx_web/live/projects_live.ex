@@ -12,7 +12,11 @@ defmodule LynxWeb.ProjectsLive do
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
-    all_teams = if user.role == "super", do: TeamModule.get_teams(0, 10000), else: TeamModule.get_user_teams(user.id, 0, 10000)
+
+    all_teams =
+      if user.role == "super",
+        do: TeamModule.get_teams(0, 10000),
+        else: TeamModule.get_user_teams(user.id, 0, 10000)
 
     socket =
       socket
@@ -94,12 +98,20 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   @impl true
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+  def handle_event("show_add", _, socket),
+    do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_project, nil)}
 
   def handle_event("form_change", %{"name" => name}, socket) do
-    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]/, "-")
+      |> String.replace(~r/-+/, "-")
+      |> String.trim("-")
+
     {:noreply, assign(socket, :add_slug, slug)}
   end
 
@@ -116,7 +128,13 @@ defmodule LynxWeb.ProjectsLive do
          }) do
       {:ok, project} ->
         AuditModule.log_system("created", "project", project.uuid, project.name)
-        {:noreply, socket |> assign(:show_add, false) |> put_flash(:info, "Project created") |> load_projects()}
+
+        {:noreply,
+         socket
+         |> assign(:show_add, false)
+         |> put_flash(:info, "Project created")
+         |> load_projects()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -127,7 +145,9 @@ defmodule LynxWeb.ProjectsLive do
       {:ok, project} ->
         teams = ProjectModule.get_project_team_uuids(project.id)
         {:noreply, assign(socket, editing_project: project, editing_teams: teams)}
-      _ -> {:noreply, put_flash(socket, :error, "Project not found")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Project not found")}
     end
   end
 
@@ -140,20 +160,31 @@ defmodule LynxWeb.ProjectsLive do
            team_ids: List.wrap(params["team_ids"])
          }) do
       {:ok, _} ->
-        {:noreply, socket |> assign(:editing_project, nil) |> put_flash(:info, "Project updated") |> load_projects()}
+        {:noreply,
+         socket
+         |> assign(:editing_project, nil)
+         |> put_flash(:info, "Project updated")
+         |> load_projects()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
   end
 
   def handle_event("confirm_delete", %{"uuid" => uuid}, socket) do
-    {:noreply, assign(socket, :confirm, %{message: "Delete this project and all its environments?", event: "delete_project", value: %{uuid: uuid}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: "Delete this project and all its environments?",
+       event: "delete_project",
+       value: %{uuid: uuid}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("delete_project", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case ProjectModule.delete_project_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Project deleted") |> load_projects()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
@@ -180,7 +211,8 @@ defmodule LynxWeb.ProjectsLive do
       if user.role == "super" do
         {ProjectModule.get_projects(offset, @per_page), ProjectModule.count_projects()}
       else
-        {ProjectModule.get_projects(user.id, offset, @per_page), ProjectModule.count_projects(user.id)}
+        {ProjectModule.get_projects(user.id, offset, @per_page),
+         ProjectModule.count_projects(user.id)}
       end
 
     assign(socket, projects: projects, total_pages: max(ceil(total / @per_page), 1))

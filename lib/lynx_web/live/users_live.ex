@@ -92,7 +92,12 @@ defmodule LynxWeb.UsersLive do
 
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
@@ -152,6 +157,7 @@ defmodule LynxWeb.UsersLive do
 
   def handle_event("delete_user", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case UserModule.delete_user_by_uuid(uuid) do
       {:ok, _} ->
         AuditModule.log_system("deleted", "user", uuid)

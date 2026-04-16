@@ -13,8 +13,16 @@ defmodule LynxWeb.SnapshotsLive do
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
-    all_teams = if user.role == "super", do: TeamModule.get_teams(0, 10000), else: TeamModule.get_user_teams(user.id, 0, 10000)
-    all_projects = if user.role == "super", do: ProjectModule.get_projects(0, 10000), else: ProjectModule.get_projects(user.id, 0, 10000)
+
+    all_teams =
+      if user.role == "super",
+        do: TeamModule.get_teams(0, 10000),
+        else: TeamModule.get_user_teams(user.id, 0, 10000)
+
+    all_projects =
+      if user.role == "super",
+        do: ProjectModule.get_projects(0, 10000),
+        else: ProjectModule.get_projects(user.id, 0, 10000)
 
     socket =
       socket
@@ -80,7 +88,12 @@ defmodule LynxWeb.SnapshotsLive do
 
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
@@ -102,10 +115,17 @@ defmodule LynxWeb.SnapshotsLive do
              }) do
           {:ok, snapshot} ->
             AuditModule.log_system("created", "snapshot", snapshot.uuid, snapshot.title)
-            {:noreply, socket |> assign(:show_add, false) |> put_flash(:info, "Snapshot created") |> load_snapshots()}
+
+            {:noreply,
+             socket
+             |> assign(:show_add, false)
+             |> put_flash(:info, "Snapshot created")
+             |> load_snapshots()}
+
           {:error, msg} ->
             {:noreply, put_flash(socket, :error, msg)}
         end
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -113,6 +133,7 @@ defmodule LynxWeb.SnapshotsLive do
 
   def handle_event("restore_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case SnapshotModule.restore_snapshot(uuid) do
       {:ok, _} -> {:noreply, put_flash(socket, :info, "Snapshot restored successfully")}
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
@@ -121,6 +142,7 @@ defmodule LynxWeb.SnapshotsLive do
 
   def handle_event("delete_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case SnapshotModule.delete_snapshot_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Snapshot deleted") |> load_snapshots()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
@@ -147,7 +169,8 @@ defmodule LynxWeb.SnapshotsLive do
       if user.role == "super" do
         {SnapshotModule.get_snapshots(offset, @per_page), SnapshotModule.count_snapshots()}
       else
-        {SnapshotModule.get_snapshots(user.id, offset, @per_page), SnapshotModule.count_snapshots(user.id)}
+        {SnapshotModule.get_snapshots(user.id, offset, @per_page),
+         SnapshotModule.count_snapshots(user.id)}
       end
 
     assign(socket, snapshots: snapshots, total_pages: max(ceil(total / @per_page), 1))

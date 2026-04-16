@@ -111,9 +111,11 @@ defmodule LynxWeb.CoreComponents do
   attr :rows, :list, required: true
   attr :empty_message, :string, default: "No records found."
   attr :row_click, :any, default: nil, doc: "fn(row) -> JS command for row click"
+
   slot :col, required: true do
     attr :label, :string
   end
+
   slot :action
 
   def table(assigns) do
@@ -237,16 +239,25 @@ defmodule LynxWeb.CoreComponents do
   defp button_size("md"), do: "px-4 py-2 text-sm"
   defp button_size("lg"), do: "px-6 py-3 text-base"
 
-  defp button_variant("primary"), do: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
-  defp button_variant("secondary"), do: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500"
+  defp button_variant("primary"),
+    do: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+
+  defp button_variant("secondary"),
+    do: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500"
+
   defp button_variant("danger"), do: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
-  defp button_variant("ghost"), do: "text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:ring-gray-500"
+
+  defp button_variant("ghost"),
+    do: "text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:ring-gray-500"
 
   # -- Simple Form --
 
   attr :for, :any, required: true
   attr :as, :any, default: nil
-  attr :rest, :global, include: ~w(autocomplete name rel action enctype method novalidate target multipart)
+
+  attr :rest, :global,
+    include: ~w(autocomplete name rel action enctype method novalidate target multipart)
+
   slot :inner_block, required: true
   slot :actions
 
@@ -277,7 +288,9 @@ defmodule LynxWeb.CoreComponents do
   attr :options, :list, doc: "select options"
   attr :multiple, :boolean, default: false
   attr :hint, :string, default: nil
-  attr :rest, :global, include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
+
+  attr :rest, :global,
+    include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                                     multiple pattern placeholder readonly required rows size step)
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
@@ -292,7 +305,10 @@ defmodule LynxWeb.CoreComponents do
   end
 
   def input(%{type: "checkbox"} = assigns) do
-    assigns = assign_new(assigns, :checked, fn -> Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value]) end)
+    assigns =
+      assign_new(assigns, :checked, fn ->
+        Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
+      end)
 
     ~H"""
     <label class="flex items-center gap-3 cursor-pointer">

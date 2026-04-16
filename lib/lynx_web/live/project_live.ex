@@ -54,7 +54,7 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:show_add_rule, false)
 
         socket = assign(socket, :confirm, nil)
-    {:ok, socket}
+        {:ok, socket}
     end
   end
 
@@ -180,18 +180,33 @@ defmodule LynxWeb.ProjectLive do
   # -- Environment CRUD --
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
-  def handle_event("show_add_env", _, socket), do: {:noreply, assign(socket, show_add_env: true, add_env_slug: "")}
-  def handle_event("hide_add_env", _, socket), do: {:noreply, assign(socket, :show_add_env, false)}
+  def handle_event("show_add_env", _, socket),
+    do: {:noreply, assign(socket, show_add_env: true, add_env_slug: "")}
+
+  def handle_event("hide_add_env", _, socket),
+    do: {:noreply, assign(socket, :show_add_env, false)}
 
   def handle_event("env_form_change", %{"name" => name}, socket) do
-    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]/, "-")
+      |> String.replace(~r/-+/, "-")
+      |> String.trim("-")
+
     {:noreply, assign(socket, :add_env_slug, slug)}
   end
+
   def handle_event("hide_edit_env", _, socket), do: {:noreply, assign(socket, :editing_env, nil)}
 
   def handle_event("create_env", params, socket) do
@@ -204,7 +219,13 @@ defmodule LynxWeb.ProjectLive do
          }) do
       {:ok, env} ->
         AuditModule.log_system("created", "environment", env.uuid, env.name)
-        {:noreply, socket |> assign(:show_add_env, false) |> put_flash(:info, "Environment created") |> reload_envs()}
+
+        {:noreply,
+         socket
+         |> assign(:show_add_env, false)
+         |> put_flash(:info, "Environment created")
+         |> reload_envs()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -224,7 +245,12 @@ defmodule LynxWeb.ProjectLive do
            secret: params["secret"]
          }) do
       {:ok, _} ->
-        {:noreply, socket |> assign(:editing_env, nil) |> put_flash(:info, "Environment updated") |> reload_envs()}
+        {:noreply,
+         socket
+         |> assign(:editing_env, nil)
+         |> put_flash(:info, "Environment updated")
+         |> reload_envs()}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -232,6 +258,7 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("delete_env", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case EnvironmentModule.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
@@ -241,8 +268,11 @@ defmodule LynxWeb.ProjectLive do
   # -- Lock/Unlock --
   def handle_event("force_lock", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case EnvironmentContext.get_env_id_with_uuid(uuid) do
-      nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
+      nil ->
+        {:noreply, put_flash(socket, :error, "Environment not found")}
+
       env_id ->
         LockModule.force_lock(env_id, socket.assigns.current_user.name)
         AuditModule.log_system("locked", "environment", uuid)
@@ -252,8 +282,11 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("force_unlock", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+
     case EnvironmentContext.get_env_id_with_uuid(uuid) do
-      nil -> {:noreply, put_flash(socket, :error, "Environment not found")}
+      nil ->
+        {:noreply, put_flash(socket, :error, "Environment not found")}
+
       env_id ->
         LockModule.force_unlock(env_id)
         AuditModule.log_system("unlocked", "environment", uuid)
@@ -267,7 +300,10 @@ defmodule LynxWeb.ProjectLive do
     project = socket.assigns.project
     teams = socket.assigns.teams
     team_slug = if teams != [], do: hd(teams).slug, else: "team"
-    app_url = Lynx.Module.SettingsModule.get_config("app_url", "http://localhost:4000") |> String.trim_trailing("/")
+
+    app_url =
+      Lynx.Module.SettingsModule.get_config("app_url", "http://localhost:4000")
+      |> String.trim_trailing("/")
 
     config = """
     terraform {
@@ -301,8 +337,11 @@ defmodule LynxWeb.ProjectLive do
     {:noreply, assign(socket, show_oidc_rules: nil, oidc_rules: [])}
   end
 
-  def handle_event("show_add_rule", _, socket), do: {:noreply, assign(socket, :show_add_rule, true)}
-  def handle_event("hide_add_rule", _, socket), do: {:noreply, assign(socket, :show_add_rule, false)}
+  def handle_event("show_add_rule", _, socket),
+    do: {:noreply, assign(socket, :show_add_rule, true)}
+
+  def handle_event("hide_add_rule", _, socket),
+    do: {:noreply, assign(socket, :show_add_rule, false)}
 
   def handle_event("create_rule", params, socket) do
     provider = Lynx.Context.OIDCProviderContext.get_provider_by_uuid(params["provider_id"])
@@ -328,7 +367,13 @@ defmodule LynxWeb.ProjectLive do
            }) do
         {:ok, _} ->
           rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
-          {:noreply, socket |> assign(:oidc_rules, rules) |> assign(:show_add_rule, false) |> put_flash(:info, "Rule created")}
+
+          {:noreply,
+           socket
+           |> assign(:oidc_rules, rules)
+           |> assign(:show_add_rule, false)
+           |> put_flash(:info, "Rule created")}
+
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to create rule")}
       end
@@ -370,6 +415,8 @@ defmodule LynxWeb.ProjectLive do
   end
 
   defp random_string(length) do
-    :crypto.strong_rand_bytes(length) |> Base.url_encode64(padding: false) |> binary_part(0, length)
+    :crypto.strong_rand_bytes(length)
+    |> Base.url_encode64(padding: false)
+    |> binary_part(0, length)
   end
 end

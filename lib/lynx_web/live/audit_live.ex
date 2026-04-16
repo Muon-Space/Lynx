@@ -146,6 +146,7 @@ defmodule LynxWeb.AuditLive do
   defp action_color(_), do: "gray"
 
   defp format_datetime(nil), do: "-"
+
   defp format_datetime(dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S")
   end

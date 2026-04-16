@@ -11,7 +11,8 @@ defmodule LynxWeb.SettingsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    app_url = SettingsModule.get_config("app_url", "http://localhost:4000") |> String.trim_trailing("/")
+    app_url =
+      SettingsModule.get_config("app_url", "http://localhost:4000") |> String.trim_trailing("/")
 
     socket =
       socket
@@ -19,8 +20,14 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:app_url, app_url)
       |> assign(:app_email, SettingsModule.get_config("app_email", ""))
       # SSO
-      |> assign(:password_enabled, SettingsModule.get_sso_config("auth_password_enabled", "true") == "true")
-      |> assign(:sso_enabled, SettingsModule.get_sso_config("auth_sso_enabled", "false") == "true")
+      |> assign(
+        :password_enabled,
+        SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
+      )
+      |> assign(
+        :sso_enabled,
+        SettingsModule.get_sso_config("auth_sso_enabled", "false") == "true"
+      )
       |> assign(:jit_enabled, SettingsModule.get_sso_config("sso_jit_enabled", "true") == "true")
       |> assign(:sso_protocol, SettingsModule.get_sso_config("sso_protocol", "oidc"))
       |> assign(:sso_login_label, SettingsModule.get_sso_config("sso_login_label", "SSO"))
@@ -30,9 +37,15 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:saml_idp_sso_url, SettingsModule.get_sso_config("sso_saml_idp_sso_url", ""))
       |> assign(:saml_idp_issuer, SettingsModule.get_sso_config("sso_saml_idp_issuer", ""))
       |> assign(:saml_idp_cert, SettingsModule.get_sso_config("sso_saml_idp_cert", ""))
-      |> assign(:saml_idp_metadata_url, SettingsModule.get_sso_config("sso_saml_idp_metadata_url", ""))
+      |> assign(
+        :saml_idp_metadata_url,
+        SettingsModule.get_sso_config("sso_saml_idp_metadata_url", "")
+      )
       |> assign(:saml_sp_entity_id, SettingsModule.get_sso_config("sso_saml_sp_entity_id", ""))
-      |> assign(:saml_sign_requests, SettingsModule.get_sso_config("sso_saml_sign_requests", "false") == "true")
+      |> assign(
+        :saml_sign_requests,
+        SettingsModule.get_sso_config("sso_saml_sign_requests", "false") == "true"
+      )
       |> assign(:saml_sp_cert, SettingsModule.get_sso_config("sso_saml_sp_cert", ""))
       # SCIM
       |> assign(:scim_enabled, SettingsModule.get_sso_config("scim_enabled", "false") == "true")
@@ -178,21 +191,38 @@ defmodule LynxWeb.SettingsLive do
   # -- General --
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("save_general", params, socket) do
-    SettingsModule.update_configs(%{app_name: params["app_name"], app_url: params["app_url"], app_email: params["app_email"]})
+    SettingsModule.update_configs(%{
+      app_name: params["app_name"],
+      app_url: params["app_url"],
+      app_email: params["app_email"]
+    })
+
     AuditModule.log_system("updated", "settings", nil, "general")
-    {:noreply, socket |> assign(:app_name, params["app_name"]) |> assign(:app_url, params["app_url"]) |> assign(:app_email, params["app_email"]) |> put_flash(:info, "Settings saved")}
+
+    {:noreply,
+     socket
+     |> assign(:app_name, params["app_name"])
+     |> assign(:app_url, params["app_url"])
+     |> assign(:app_email, params["app_email"])
+     |> put_flash(:info, "Settings saved")}
   end
 
   # -- SSO --
   def handle_event("save_sso", params, socket) do
     configs = %{
-      "auth_password_enabled" => if(params["auth_password_enabled"] == "true", do: "true", else: "false"),
+      "auth_password_enabled" =>
+        if(params["auth_password_enabled"] == "true", do: "true", else: "false"),
       "auth_sso_enabled" => if(params["auth_sso_enabled"] == "true", do: "true", else: "false"),
       "sso_jit_enabled" => if(params["sso_jit_enabled"] == "true", do: "true", else: "false"),
       "sso_protocol" => params["sso_protocol"],
@@ -201,9 +231,15 @@ defmodule LynxWeb.SettingsLive do
       "sso_client_id" => params["sso_client_id"] || "",
       "sso_client_secret" => params["sso_client_secret"] || ""
     }
+
     SettingsModule.update_sso_configs(configs)
     AuditModule.log_system("updated", "settings", nil, "sso")
-    {:noreply, socket |> put_flash(:info, "SSO settings saved") |> assign(:password_enabled, configs["auth_password_enabled"] == "true") |> assign(:sso_enabled, configs["auth_sso_enabled"] == "true")}
+
+    {:noreply,
+     socket
+     |> put_flash(:info, "SSO settings saved")
+     |> assign(:password_enabled, configs["auth_password_enabled"] == "true")
+     |> assign(:sso_enabled, configs["auth_sso_enabled"] == "true")}
   end
 
   # -- SCIM --
@@ -217,7 +253,12 @@ defmodule LynxWeb.SettingsLive do
     case SCIMTokenModule.generate_token("") do
       {:ok, result} ->
         AuditModule.log_system("generated", "scim_token", result.uuid)
-        {:noreply, socket |> assign(:new_token, result.token) |> assign(:scim_tokens, SCIMTokenModule.list_tokens())}
+
+        {:noreply,
+         socket
+         |> assign(:new_token, result.token)
+         |> assign(:scim_tokens, SCIMTokenModule.list_tokens())}
+
       {:error, msg} ->
         {:noreply, put_flash(socket, :error, msg)}
     end
@@ -227,17 +268,33 @@ defmodule LynxWeb.SettingsLive do
     socket = assign(socket, :confirm, nil)
     SCIMTokenModule.revoke_token(uuid)
     AuditModule.log_system("revoked", "scim_token", uuid)
-    {:noreply, socket |> assign(:scim_tokens, SCIMTokenModule.list_tokens()) |> put_flash(:info, "Token revoked")}
+
+    {:noreply,
+     socket
+     |> assign(:scim_tokens, SCIMTokenModule.list_tokens())
+     |> put_flash(:info, "Token revoked")}
   end
 
   # -- OIDC Providers --
-  def handle_event("show_add_provider", _, socket), do: {:noreply, assign(socket, :show_add_provider, true)}
-  def handle_event("hide_add_provider", _, socket), do: {:noreply, assign(socket, :show_add_provider, false)}
+  def handle_event("show_add_provider", _, socket),
+    do: {:noreply, assign(socket, :show_add_provider, true)}
+
+  def handle_event("hide_add_provider", _, socket),
+    do: {:noreply, assign(socket, :show_add_provider, false)}
 
   def handle_event("create_provider", params, socket) do
-    case OIDCBackendModule.create_provider(%{name: params["name"], discovery_url: params["discovery_url"], audience: params["audience"]}) do
+    case OIDCBackendModule.create_provider(%{
+           name: params["name"],
+           discovery_url: params["discovery_url"],
+           audience: params["audience"]
+         }) do
       {:ok, _} ->
-        {:noreply, socket |> assign(:show_add_provider, false) |> assign(:oidc_providers, OIDCBackendModule.list_providers()) |> put_flash(:info, "Provider created")}
+        {:noreply,
+         socket
+         |> assign(:show_add_provider, false)
+         |> assign(:oidc_providers, OIDCBackendModule.list_providers())
+         |> put_flash(:info, "Provider created")}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to create provider")}
     end
@@ -246,6 +303,10 @@ defmodule LynxWeb.SettingsLive do
   def handle_event("delete_provider", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
     OIDCBackendModule.delete_provider(uuid)
-    {:noreply, socket |> assign(:oidc_providers, OIDCBackendModule.list_providers()) |> put_flash(:info, "Provider deleted")}
+
+    {:noreply,
+     socket
+     |> assign(:oidc_providers, OIDCBackendModule.list_providers())
+     |> put_flash(:info, "Provider deleted")}
   end
 end
