@@ -46,17 +46,17 @@ defmodule LynxWeb.MiscController do
 
           conn
           |> put_status(:ok)
-          |> render("success.json", %{message: "Application installed successfully"})
+          |> render(:success, %{message: "Application installed successfully"})
 
         {:error, reason} ->
           conn
           |> put_status(:bad_request)
-          |> render("error.json", %{message: reason})
+          |> render(:error, %{message: reason})
       end
     else
       conn
       |> put_status(:bad_request)
-      |> render("error.json", %{message: "Application is installed"})
+      |> render(:error, %{message: "Application is installed"})
     end
   end
 
@@ -67,7 +67,7 @@ defmodule LynxWeb.MiscController do
     if not SSOModule.is_password_enabled?() do
       conn
       |> put_status(:bad_request)
-      |> render("error.json", %{message: "Password authentication is disabled. Please use SSO."})
+      |> render(:error, %{message: "Password authentication is disabled. Please use SSO."})
     else
       auth_with_password(conn, params)
     end
@@ -103,13 +103,13 @@ defmodule LynxWeb.MiscController do
         {:error, message} ->
           conn
           |> put_status(:bad_request)
-          |> render("error.json", %{message: message})
+          |> render(:error, %{message: message})
       end
     else
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 

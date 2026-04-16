@@ -32,7 +32,7 @@ defmodule LynxWeb.UserController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -66,12 +66,12 @@ defmodule LynxWeb.UserController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, user} ->
         conn
         |> put_status(:ok)
-        |> render("index.json", %{user: user})
+        |> render(:index, %{user: user})
     end
   end
 
@@ -96,20 +96,20 @@ defmodule LynxWeb.UserController do
 
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: "Invalid Request"})
+            |> render(:error, %{message: "Invalid Request"})
 
           {:ok, user} ->
             AuditModule.log(conn, "created", "user", user.uuid, user.name)
 
             conn
             |> put_status(:created)
-            |> render("index.json", %{user: user})
+            |> render(:index, %{user: user})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -134,18 +134,18 @@ defmodule LynxWeb.UserController do
 
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: "Invalid Request"})
+            |> render(:error, %{message: "Invalid Request"})
 
           {:ok, user} ->
             conn
             |> put_status(:ok)
-            |> render("index.json", %{user: user})
+            |> render(:index, %{user: user})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -158,13 +158,13 @@ defmodule LynxWeb.UserController do
     if conn.assigns[:user_uuid] == uuid do
       conn
       |> put_status(:bad_request)
-      |> render("error.json", %{message: "User can't delete his own account!"})
+      |> render(:error, %{message: "User can't delete his own account!"})
     else
       case UserModule.delete_user_by_uuid(uuid) do
         {:not_found, msg} ->
           conn
           |> put_status(:not_found)
-          |> render("error.json", %{message: msg})
+          |> render(:error, %{message: msg})
 
         {:ok, _} ->
           conn

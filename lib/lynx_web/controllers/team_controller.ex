@@ -36,7 +36,7 @@ defmodule LynxWeb.TeamController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -53,7 +53,7 @@ defmodule LynxWeb.TeamController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -107,18 +107,18 @@ defmodule LynxWeb.TeamController do
 
             conn
             |> put_status(:created)
-            |> render("index.json", %{team: team})
+            |> render(:index, %{team: team})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -130,12 +130,12 @@ defmodule LynxWeb.TeamController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, team} ->
         conn
         |> put_status(:ok)
-        |> render("index.json", %{team: team})
+        |> render(:index, %{team: team})
     end
   end
 
@@ -159,18 +159,18 @@ defmodule LynxWeb.TeamController do
 
             conn
             |> put_status(:ok)
-            |> render("index.json", %{team: team})
+            |> render(:index, %{team: team})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -186,7 +186,7 @@ defmodule LynxWeb.TeamController do
 
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, _} ->
         Logger.info("Team with uuid #{uuid} is deleted")

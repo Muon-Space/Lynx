@@ -33,7 +33,7 @@ defmodule LynxWeb.StateController do
 
           conn
           |> put_status(:forbidden)
-          |> render("error.json", %{
+          |> render(:error, %{
             message: "Access is forbidden"
           })
           |> halt
@@ -65,7 +65,7 @@ defmodule LynxWeb.StateController do
       {:not_found, _} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: "Project not found"
         })
 
@@ -83,7 +83,7 @@ defmodule LynxWeb.StateController do
       {:error, msg} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: msg
         })
     end
@@ -104,14 +104,14 @@ defmodule LynxWeb.StateController do
       {:not_found, _} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: "Project not found"
         })
 
       {:no_state, _} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{
+        |> render(:error, %{
           message: "State not found"
         })
 

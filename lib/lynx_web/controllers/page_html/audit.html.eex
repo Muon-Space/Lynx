@@ -1,0 +1,180 @@
+<main class="hp-bg-color-dark-90 d-flex min-vh-100">
+    <div class="hp-main-layout hp-main-layout-horizontal">
+        <header>
+            <div class="row w-100 m-0">
+                <div class="col ps-18 pe-16 px-sm-24">
+                    <div class="row w-100 align-items-center justify-content-between position-relative">
+                        <div class="col hp-flex-none w-auto hp-horizontal-block">
+                            <div class="hp-header-logo d-flex align-items-end">
+                                <a href="<%= ~p"/admin/projects" %>">
+                                    <img class="hp-logo hp-sidebar-visible" src="<%= ~p"/images/ico.png" %>" alt="logo">
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="col hp-flex-none w-auto hp-horizontal-block hp-horizontal-menu ps-24">
+                            <ul class="d-flex flex-wrap align-items-center">
+                                <li class="px-6">
+                                    <a href="<%= ~p"/admin/projects" %>" class="px-12 py-4"><span><%= gettext "Projects" %></span></a>
+                                </li>
+                                <li class="px-6">
+                                    <a href="<%= ~p"/admin/snapshots" %>" class="px-12 py-4"><span><%= gettext "Snapshots" %></span></a>
+                                </li>
+                                <%= if @data.is_super do %>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/teams" %>" class="px-12 py-4"><span><%= gettext "Teams" %></span></a>
+                                    </li>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/users" %>" class="px-12 py-4"><span><%= gettext "Users" %></span></a>
+                                    </li>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/settings" %>" class="px-12 py-4"><span><%= gettext "Settings" %></span></a>
+                                    </li>
+                                    <li class="px-6">
+                                        <a href="<%= ~p"/admin/audit" %>" class="px-12 py-4"><span><%= gettext "Audit Log" %></span></a>
+                                    </li>
+                                <% end %>
+                            </ul>
+                        </div>
+
+                        <div class="col hp-flex-none w-auto pe-0">
+                            <div class="row align-items-center justify-content-end">
+                                <div class="hover-dropdown-fade w-auto px-0 ms-6 position-relative hp-cursor-pointer">
+                                    <div class="avatar-item d-flex align-items-center justify-content-center rounded-circle" style="width: 40px; height: 40px;">
+                                        <img src=<%= @data.avatar_url %>>
+                                    </div>
+                                    <div class="hp-header-profile-menu dropdown-fade position-absolute pt-18" style="top: 100%; width: 260px;">
+                                        <div class="rounded border hp-border-color-black-40 hp-bg-black-0 hp-bg-dark-100 hp-border-color-dark-80 p-24">
+                                            <a href="<%= ~p"/admin/profile" %>" class="hp-p1-body hp-text-color-primary-1"><%= gettext "Profile" %></a>
+                                            <div class="divider my-12"></div>
+                                            <a class="hp-p1-body" href="<%= ~p"/logout" %>"><%= gettext "Logout" %></a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="hp-main-layout-content">
+            <div class="row g-32">
+                <div class="col-12">
+                    <div class="hp-bg-black-bg py-32 py-sm-64 px-24 px-sm-48 px-md-80 position-relative overflow-hidden hp-page-content" style="border-radius: 32px;">
+                        <div class="row">
+                            <div class="col-sm-6 col-12">
+                                <h1 class="mb-0 hp-text-color-black-0"><%= gettext "Audit Log" %></h1>
+                                <ol class="breadcrumb mt-24">
+                                    <li class="breadcrumb-item breadcrumb-link"><a href="javascript:;"><%= gettext "Dashboard" %></a></li>
+                                    <li class="breadcrumb-item active"><%= gettext "Audit Log" %></li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12" id="audit_log">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row mb-16">
+                                <div class="col-md-3 mb-8">
+                                    <select class="form-select form-select-sm" v-model="filterAction" v-on:change="loadDataAction">
+                                        <option value=""><%= gettext "All Actions" %></option>
+                                        <option value="created"><%= gettext "Created" %></option>
+                                        <option value="updated"><%= gettext "Updated" %></option>
+                                        <option value="deleted"><%= gettext "Deleted" %></option>
+                                        <option value="locked"><%= gettext "Locked" %></option>
+                                        <option value="unlocked"><%= gettext "Unlocked" %></option>
+                                        <option value="state_pushed"><%= gettext "State Pushed" %></option>
+                                        <option value="login"><%= gettext "Login" %></option>
+                                        <option value="sso_login"><%= gettext "SSO Login" %></option>
+                                        <option value="generated"><%= gettext "Generated" %></option>
+                                        <option value="revoked"><%= gettext "Revoked" %></option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-8">
+                                    <select class="form-select form-select-sm" v-model="filterResource" v-on:change="loadDataAction">
+                                        <option value=""><%= gettext "All Resources" %></option>
+                                        <option value="project"><%= gettext "Project" %></option>
+                                        <option value="environment"><%= gettext "Environment" %></option>
+                                        <option value="team"><%= gettext "Team" %></option>
+                                        <option value="user"><%= gettext "User" %></option>
+                                        <option value="snapshot"><%= gettext "Snapshot" %></option>
+                                        <option value="settings"><%= gettext "Settings" %></option>
+                                        <option value="scim_token"><%= gettext "SCIM Token" %></option>
+                                        <option value="oidc_provider"><%= gettext "OIDC Provider" %></option>
+                                        <option value="saml_certificate"><%= gettext "SAML Certificate" %></option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th><%= gettext "Time" %></th>
+                                            <th><%= gettext "Actor" %></th>
+                                            <th><%= gettext "Action" %></th>
+                                            <th><%= gettext "Resource" %></th>
+                                            <th><%= gettext "Name" %></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="event in events" :key="event.id">
+                                            <td>${ formatDatetime(event.createdAt) }</td>
+                                            <td>
+                                                <span class="badge" :class="event.actorType === 'system' ? 'bg-secondary' : 'bg-primary'">${ event.actorName }</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge" :class="{
+                                                    'bg-success': event.action === 'created',
+                                                    'bg-info': event.action === 'updated',
+                                                    'bg-danger': event.action === 'deleted',
+                                                    'bg-warning': event.action === 'locked' || event.action === 'unlocked',
+                                                    'bg-primary': event.action === 'state_pushed',
+                                                    'bg-secondary': !['created','updated','deleted','locked','unlocked','state_pushed'].includes(event.action)
+                                                }">${ event.action }</span>
+                                            </td>
+                                            <td><code>${ event.resourceType }</code></td>
+                                            <td>${ event.resourceName || event.resourceId || '-' }</td>
+                                        </tr>
+                                        <tr v-if="events.length == 0">
+                                            <td colspan="5" style="text-align: center;"><%= gettext "No audit events found." %></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-16" v-if="totalCount > limit">
+                                <button class="btn btn-sm btn-outline-primary" :disabled="currentPage <= 1" v-on:click="loadPreviousPageAction"><%= gettext "Previous" %></button>
+                                <span class="hp-p1-body">${ currentPage } / ${ totalPages }</span>
+                                <button class="btn btn-sm btn-outline-primary" :disabled="currentPage >= totalPages" v-on:click="loadNextPageAction"><%= gettext "Next" %></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="w-100 py-18 px-16 py-sm-24 px-sm-32 hp-bg-color-black-20 hp-bg-color-dark-90">
+            <div class="row">
+                <div class="col-12">
+                    <p class="hp-badge-text fw-semibold mb-0 text-center text-sm-start hp-text-color-dark-30"><%= gettext "Copyright © 2025 Clivern. All rights Reserved" %></p>
+                </div>
+            </div>
+        </footer>
+    </div>
+</main>
+
+<div class="position-fixed top-0 end-0 p-16" style="z-index: 99">
+    <div class="toast fade hide" id="toast_notification" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <img class="me-8" src="<%= ~p"/images/ico.png" %>" width="20">
+            <strong class="me-auto"><%= @data.app_name %></strong>
+            <small><%= gettext "Just Now" %></small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body"></div>
+    </div>
+</div>

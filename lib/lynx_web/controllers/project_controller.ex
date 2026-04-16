@@ -37,7 +37,7 @@ defmodule LynxWeb.ProjectController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -59,7 +59,7 @@ defmodule LynxWeb.ProjectController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User can access the project")
@@ -114,18 +114,18 @@ defmodule LynxWeb.ProjectController do
 
             conn
             |> put_status(:created)
-            |> render("index.json", %{project: project})
+            |> render(:index, %{project: project})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -137,12 +137,12 @@ defmodule LynxWeb.ProjectController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, project} ->
         conn
         |> put_status(:ok)
-        |> render("index.json", %{project: project})
+        |> render(:index, %{project: project})
     end
   end
 
@@ -167,18 +167,18 @@ defmodule LynxWeb.ProjectController do
 
             conn
             |> put_status(:ok)
-            |> render("index.json", %{project: project})
+            |> render(:index, %{project: project})
 
           {:error, msg} ->
             conn
             |> put_status(:bad_request)
-            |> render("error.json", %{message: msg})
+            |> render(:error, %{message: msg})
         end
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> render("error.json", %{message: reason})
+        |> render(:error, %{message: reason})
     end
   end
 
@@ -190,7 +190,7 @@ defmodule LynxWeb.ProjectController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, _} ->
         AuditModule.log(conn, "deleted", "project", uuid)

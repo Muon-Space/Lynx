@@ -23,7 +23,7 @@ defmodule LynxWeb.TaskController do
 
       conn
       |> put_status(:forbidden)
-      |> render("error.json", %{message: "Forbidden Access"})
+      |> render(:error, %{message: "Forbidden Access"})
       |> halt
     else
       Logger.info("User has the right access permissions")
@@ -40,12 +40,12 @@ defmodule LynxWeb.TaskController do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
-        |> render("error.json", %{message: msg})
+        |> render(:error, %{message: msg})
 
       {:ok, task} ->
         conn
         |> put_status(:ok)
-        |> render("index.json", %{task: task})
+        |> render(:index, %{task: task})
     end
   end
 end

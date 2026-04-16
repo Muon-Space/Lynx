@@ -32,7 +32,7 @@ defmodule LynxWeb.PageController do
 
       {true, _} ->
         conn
-        |> render("login.html",
+        |> render(:login,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -75,7 +75,7 @@ defmodule LynxWeb.PageController do
 
       false ->
         conn
-        |> render("install.html",
+        |> render(:install,
           data: %{
             app_name: SettingsModule.get_config("app_name", "Lynx")
           }
@@ -96,7 +96,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("home.html",
+        |> render(:home,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -125,7 +125,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("404.html",
+        |> render(:"404",
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -152,7 +152,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("profile.html",
+        |> render(:profile,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -180,7 +180,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("users.html",
+        |> render(:users,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -207,7 +207,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("teams.html",
+        |> render(:teams,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -234,7 +234,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("settings.html",
+        |> render(:settings,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -283,7 +283,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("projects.html",
+        |> render(:projects,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -310,7 +310,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("audit.html",
+        |> render(:audit,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -337,7 +337,7 @@ defmodule LynxWeb.PageController do
 
       true ->
         conn
-        |> render("snapshots.html",
+        |> render(:snapshots,
           data: %{
             is_logged: conn.assigns[:is_logged],
             is_super: conn.assigns[:is_super],
@@ -373,7 +373,7 @@ defmodule LynxWeb.PageController do
           |> redirect(to: "/404")
         else
           conn
-          |> render("project.html",
+          |> render(:project,
             data: %{
               is_logged: conn.assigns[:is_logged],
               is_super: conn.assigns[:is_super],
