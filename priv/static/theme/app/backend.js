@@ -1026,7 +1026,8 @@ lynx_app.projects_list = (Vue, axios, $) => {
                             $('form#update_project_form input[name="name"]').val(response.data.name);
                             $('form#update_project_form input[name="slug"]').val(response.data.slug);
                             $('form#update_project_form textarea[name="description"]').val(response.data.description);
-                            $('form#update_project_form select[name="team_id"]').val(response.data.team.id);
+                            var teamIds = (response.data.teams || []).map(function(t) { return t.id; });
+                            $('form#update_project_form select[name="team_ids"]').val(teamIds);
                         }
                     })
                     .catch((error) => {
@@ -1141,7 +1142,12 @@ lynx_app.edit_project_modal = (Vue, axios, $) => {
                 let _form = _self.closest("form");
 
                 _form.serializeArray().map((item, index) => {
-                    inputs[item.name] = item.value;
+                    if (item.name === 'team_ids') {
+                        if (!inputs['team_ids']) inputs['team_ids'] = [];
+                        inputs['team_ids'].push(item.value);
+                    } else {
+                        inputs[item.name] = item.value;
+                    }
                 });
 
                 axios.put(_form.attr('action'), inputs)
@@ -1210,7 +1216,12 @@ lynx_app.add_project_modal = (Vue, axios, $) => {
                 let _form = _self.closest("form");
 
                 _form.serializeArray().map((item, index) => {
-                    inputs[item.name] = item.value;
+                    if (item.name === 'team_ids') {
+                        if (!inputs['team_ids']) inputs['team_ids'] = [];
+                        inputs['team_ids'].push(item.value);
+                    } else {
+                        inputs[item.name] = item.value;
+                    }
                 });
 
                 axios.post(_form.attr('action'), inputs)

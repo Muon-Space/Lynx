@@ -244,7 +244,7 @@ defmodule Lynx.Module.SnapshotModule do
           name: project.name,
           slug: project.slug,
           description: project.description,
-          team_id: project.team_id,
+          team_ids: Lynx.Context.ProjectContext.get_project_team_ids(project.id),
           inserted_at: project.inserted_at,
           updated_at: project.updated_at,
           environments: []
@@ -300,7 +300,7 @@ defmodule Lynx.Module.SnapshotModule do
               name: project.name,
               slug: project.slug,
               description: project.description,
-              team_id: project.team_id,
+              team_ids: Lynx.Context.ProjectContext.get_project_team_ids(project.id),
               inserted_at: project.inserted_at,
               updated_at: project.updated_at,
               environments: []

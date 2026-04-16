@@ -6,7 +6,7 @@ defmodule LynxWeb.ProjectView do
   use LynxWeb, :view
 
   alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.TeamModule
+  alias Lynx.Module.ProjectModule
 
   # Render projects list
   def render("list.json", %{projects: projects, metadata: metadata}) do
@@ -32,18 +32,23 @@ defmodule LynxWeb.ProjectView do
 
   # Format project
   defp render_project(project) do
-    {_, team} = TeamModule.get_team_by_id(project.team_id)
+    teams = ProjectModule.get_project_teams(project.id)
 
     %{
       id: project.uuid,
       name: project.name,
       slug: project.slug,
       description: project.description,
-      team: %{
-        id: team.uuid,
-        name: team.name,
-        slug: team.slug
-      },
+      teams:
+        Enum.map(teams, fn team ->
+          %{id: team.uuid, name: team.name, slug: team.slug}
+        end),
+      # Backward compat: first team as "team"
+      team:
+        case teams do
+          [first | _] -> %{id: first.uuid, name: first.name, slug: first.slug}
+          [] -> nil
+        end,
       envCount: EnvironmentModule.count_project_envs(project.id),
       createdAt: project.inserted_at,
       updatedAt: project.updated_at

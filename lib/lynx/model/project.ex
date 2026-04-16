@@ -15,7 +15,6 @@ defmodule Lynx.Model.Project do
     field :name, :string
     field :slug, :string
     field :description, :string
-    field :team_id, :id
 
     timestamps()
   end
@@ -27,15 +26,13 @@ defmodule Lynx.Model.Project do
       :uuid,
       :name,
       :slug,
-      :description,
-      :team_id
+      :description
     ])
     |> validate_required([
       :uuid,
       :name,
       :slug,
-      :description,
-      :team_id
+      :description
     ])
   end
 end

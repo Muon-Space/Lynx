@@ -103,7 +103,8 @@ defmodule LynxWeb.ProjectController do
             name: params["name"],
             description: params["description"],
             slug: params["slug"],
-            team_id: params["team_id"]
+            team_id: params["team_id"],
+            team_ids: params["team_ids"]
           })
 
         case result do
@@ -154,7 +155,7 @@ defmodule LynxWeb.ProjectController do
             name: params["name"],
             description: params["description"],
             slug: params["slug"],
-            team_id: params["team_id"]
+            team_ids: params["team_ids"]
           })
 
         case result do
@@ -234,17 +235,23 @@ defmodule LynxWeb.ProjectController do
              errs.slug_invalid
            ),
          {:ok, _} <-
-           ValidatorService.is_uuid?(params["team_id"], errs.team_id_required),
-         {:ok, _} <-
-           ValidatorService.is_project_slug_used?(
-             params["slug"],
-             params["team_id"],
-             nil,
-             errs.slug_used
-           ) do
+           validate_team_ids(params, errs.team_id_required) do
       {:ok, ""}
     else
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_team_ids(params, err) do
+    cond do
+      is_list(params["team_ids"]) and length(params["team_ids"]) > 0 ->
+        {:ok, params["team_ids"]}
+
+      is_binary(params["team_id"]) and params["team_id"] != "" ->
+        ValidatorService.is_uuid?(params["team_id"], err)
+
+      true ->
+        {:error, err}
     end
   end
 
@@ -291,16 +298,7 @@ defmodule LynxWeb.ProjectController do
              errs.slug_invalid
            ),
          {:ok, _} <-
-           ValidatorService.is_uuid?(params["team_id"], errs.team_id_required),
-         {:ok, _} <-
-           ValidatorService.is_uuid?(project_uuid, errs.project_id_required),
-         {:ok, _} <-
-           ValidatorService.is_project_slug_used?(
-             params["slug"],
-             params["team_id"],
-             project_uuid,
-             errs.slug_used
-           ) do
+           ValidatorService.is_uuid?(project_uuid, errs.project_id_required) do
       {:ok, ""}
     else
       {:error, reason} -> {:error, reason}
