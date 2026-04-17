@@ -147,7 +147,7 @@ defmodule LynxWeb.ProjectLive do
       <%!-- Environments Table --%>
       <.card>
         <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
-          <:col :let={env} label="Name"><span class="font-medium text-blue-600">{env.name}</span></:col>
+          <:col :let={env} label="Name"><span class="font-medium text-primary-600">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
             <span
               class="cursor-pointer"

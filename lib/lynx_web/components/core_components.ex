@@ -335,7 +335,7 @@ defmodule LynxWeb.CoreComponents do
           class="peer sr-only"
           {@rest}
         />
-        <div class="w-10 h-5 bg-gray-200 dark:bg-gray-600 peer-checked:bg-blue-600 rounded-full transition-colors"></div>
+        <div class="w-10 h-5 bg-gray-200 dark:bg-gray-600 peer-checked:bg-primary-500 rounded-full transition-colors"></div>
         <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white dark:bg-gray-300 rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
       </div>
       <span :if={@label} class="text-sm font-medium text-gray-700 dark:text-gray-300">{@label}</span>
@@ -368,7 +368,7 @@ defmodule LynxWeb.CoreComponents do
         <button
           type="button"
           data-trigger
-          class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm text-left flex items-center justify-between hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+          class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm text-left flex items-center justify-between hover:border-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
         >
           <span data-label class="truncate">{@display_label}</span>
           <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,9 +382,9 @@ defmodule LynxWeb.CoreComponents do
             data-value={value}
             data-label={label}
             data-selected={to_string(select_option_active?(value, assigns))}
-            class={["px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"]}
+            class={["px-3 py-2 text-sm hover:bg-primary-50 dark:hover:bg-primary-900/30 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400"]}
           >
-            <span :if={@multiple} data-check class="text-blue-500 w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
+            <span :if={@multiple} data-check class="text-primary-500 w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
             {label}
           </div>
         </div>
@@ -402,7 +402,7 @@ defmodule LynxWeb.CoreComponents do
       <textarea
         id={@id}
         name={@name}
-        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
         {@rest}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
@@ -420,7 +420,7 @@ defmodule LynxWeb.CoreComponents do
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
         {@rest}
       />
       <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>

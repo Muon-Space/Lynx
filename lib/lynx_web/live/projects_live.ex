@@ -87,7 +87,7 @@ defmodule LynxWeb.ProjectsLive do
 
       <.card>
         <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
-          <:col :let={project} label="Name"><span class="font-medium text-blue-600">{project.name}</span></:col>
+          <:col :let={project} label="Name"><span class="font-medium text-primary-600">{project.name}</span></:col>
           <:col :let={project} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{project.slug}</code></:col>
           <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">

@@ -98,7 +98,7 @@ defmodule LynxWeb.EnvironmentLive do
       <.card>
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-semibold text-gray-700">Units</h3>
-          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-blue-600 hover:text-blue-800">
+          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-primary-600 hover:text-primary-800">
             Download Root State
           </a>
         </div>
