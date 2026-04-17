@@ -136,15 +136,11 @@ defmodule LynxWeb.SSOController do
   Serve SAML SP metadata XML (for IdP configuration).
   """
   def metadata(conn, _params) do
-    if SSOModule.is_sso_enabled?() and SSOModule.get_sso_protocol() == :saml do
-      conn
-      |> put_status(:not_found)
-      |> json(%{errorMessage: "SP metadata not yet implemented for runtime SAML"})
-    else
-      conn
-      |> put_status(:not_found)
-      |> json(%{errorMessage: "SAML is not enabled"})
-    end
+    {:ok, xml} = SAMLService.generate_sp_metadata()
+
+    conn
+    |> put_resp_content_type("application/xml")
+    |> send_resp(200, xml)
   end
 
   # -- Private --

@@ -113,8 +113,9 @@ defmodule LynxWeb.SettingsLive do
           <div :if={@sso_protocol == "saml"}>
             <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
+              <p>SP Metadata URL: <code class="bg-input px-1 rounded">{@app_url}/saml/metadata</code></p>
               <p>ACS URL: <code class="bg-input px-1 rounded">{@saml_acs_url}</code></p>
-              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{@saml_sp_entity_id}</code></p>
+              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{if @saml_sp_entity_id == "", do: @saml_acs_url, else: @saml_sp_entity_id}</code></p>
               <p>NameID format: EmailAddress</p>
             </div>
             <div class="space-y-4">
@@ -122,7 +123,7 @@ defmodule LynxWeb.SettingsLive do
               <.input name="sso_saml_idp_issuer" label="IdP Issuer / Entity ID" value={@saml_idp_issuer} />
               <.input name="sso_saml_idp_cert" label="IdP X.509 Certificate (PEM)" type="textarea" value={@saml_idp_cert} />
               <.input name="sso_saml_idp_metadata_url" label="IdP Metadata URL (optional)" type="url" value={@saml_idp_metadata_url} />
-              <.input name="sso_saml_sp_entity_id" label="SP Entity ID / Audience URI" value={@saml_sp_entity_id} />
+              <.input name="sso_saml_sp_entity_id" label="SP Entity ID / Audience URI (optional)" value={@saml_sp_entity_id} placeholder={@saml_acs_url} hint={"Defaults to #{@saml_acs_url} if left blank"} />
               <.input name="sso_saml_sign_requests" type="checkbox" label="Sign AuthnRequests" checked={@saml_sign_requests} />
               <div :if={@saml_sign_requests} class="mt-3 space-y-3">
                 <div :if={@saml_sp_cert == ""}>
@@ -301,8 +302,9 @@ defmodule LynxWeb.SettingsLive do
 
   def handle_event("generate_saml_cert", _, socket) do
     case Lynx.Service.SAMLService.generate_sp_certificate() do
-      {:ok, %{cert_pem: cert_pem}} ->
+      {:ok, %{cert_pem: cert_pem, key_pem: key_pem}} ->
         SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
+        SettingsModule.upsert_config("sso_saml_sp_key", key_pem)
         SettingsModule.upsert_config("sso_saml_sign_requests", "true")
         AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
 
@@ -321,8 +323,9 @@ defmodule LynxWeb.SettingsLive do
     socket = assign(socket, :confirm, nil)
 
     case Lynx.Service.SAMLService.generate_sp_certificate() do
-      {:ok, %{cert_pem: cert_pem}} ->
+      {:ok, %{cert_pem: cert_pem, key_pem: key_pem}} ->
         SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
+        SettingsModule.upsert_config("sso_saml_sp_key", key_pem)
         AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
 
         {:noreply,
@@ -357,8 +360,29 @@ defmodule LynxWeb.SettingsLive do
         if(params["sso_saml_sign_requests"] == "true", do: "true", else: "false")
     }
 
+    old_sso = %{
+      "auth_password_enabled" => to_string(socket.assigns.password_enabled),
+      "auth_sso_enabled" => to_string(socket.assigns.sso_enabled),
+      "sso_protocol" => socket.assigns.sso_protocol,
+      "sso_login_label" => socket.assigns.sso_login_label,
+      "sso_issuer" => socket.assigns.sso_issuer,
+      "sso_client_id" => socket.assigns.sso_client_id,
+      "sso_saml_idp_sso_url" => socket.assigns.saml_idp_sso_url,
+      "sso_saml_idp_issuer" => socket.assigns.saml_idp_issuer,
+      "sso_saml_idp_cert" => socket.assigns.saml_idp_cert,
+      "sso_saml_idp_metadata_url" => socket.assigns.saml_idp_metadata_url,
+      "sso_saml_sp_entity_id" => socket.assigns.saml_sp_entity_id,
+      "sso_saml_sign_requests" => to_string(socket.assigns.saml_sign_requests)
+    }
+
+    changed =
+      Enum.filter(configs, fn {k, v} -> Map.get(old_sso, k) != v end)
+      |> Enum.map(fn {k, _} -> k end)
+
+    label = if changed == [], do: "sso (no changes)", else: "sso (#{Enum.join(changed, ", ")})"
+
     SettingsModule.update_sso_configs(configs)
-    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "sso")
+    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, label)
 
     {:noreply,
      socket

@@ -466,8 +466,7 @@ defmodule LynxWeb.CoreComponents do
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-8">
           <a href="/" class="flex items-center gap-2">
-            <img src="/images/ico.png" alt="Lynx" class="h-8 dark:hidden" />
-            <img src="/images/ico-dark.png" alt="Lynx" class="h-8 hidden dark:block" />
+            <.logo />
           </a>
           <div :if={@current_user} class="flex items-center gap-1">
             <.nav_link href="/admin/workspaces" active={@active == "workspaces"}>Workspaces</.nav_link>
@@ -504,6 +503,19 @@ defmodule LynxWeb.CoreComponents do
     >
       {render_slot(@inner_block)}
     </a>
+    """
+  end
+
+  # -- Logo --
+
+  attr :class, :string, default: "h-8"
+
+  def logo(assigns) do
+    ~H"""
+    <span class="inline-flex">
+      <img src="/images/ico.png" alt="Lynx" class={"#{@class} dark:hidden"} />
+      <img src="/images/ico-dark.png" alt="Lynx" class={"#{@class} hidden dark:block"} />
+    </span>
     """
   end
 
