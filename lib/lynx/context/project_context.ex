@@ -20,6 +20,7 @@ defmodule Lynx.Context.ProjectContext do
       name: attrs.name,
       description: attrs.description,
       slug: attrs.slug,
+      workspace_id: attrs[:workspace_id],
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
   end
@@ -132,6 +133,47 @@ defmodule Lynx.Context.ProjectContext do
   """
   def count_projects() do
     from(p in Project, select: count(p.id))
+    |> Repo.one()
+  end
+
+  def get_projects_by_workspace(workspace_id, offset, limit) do
+    from(p in Project,
+      where: p.workspace_id == ^workspace_id,
+      order_by: [desc: p.inserted_at],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  def count_projects_by_workspace(workspace_id) do
+    from(p in Project, select: count(p.id), where: p.workspace_id == ^workspace_id)
+    |> Repo.one()
+  end
+
+  def get_projects_by_workspace_and_teams(workspace_id, teams_ids, offset, limit) do
+    from(p in Project,
+      join: pt in ProjectTeam,
+      on: pt.project_id == p.id,
+      where: p.workspace_id == ^workspace_id,
+      where: pt.team_id in ^teams_ids,
+      distinct: p.id,
+      order_by: [desc: p.inserted_at],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  def count_projects_by_workspace_and_teams(workspace_id, teams_ids) do
+    from(p in Project,
+      join: pt in ProjectTeam,
+      on: pt.project_id == p.id,
+      where: p.workspace_id == ^workspace_id,
+      where: pt.team_id in ^teams_ids,
+      distinct: p.id,
+      select: count(p.id)
+    )
     |> Repo.one()
   end
 

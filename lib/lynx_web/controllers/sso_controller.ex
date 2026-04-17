@@ -119,7 +119,7 @@ defmodule LynxWeb.SSOController do
             |> send_resp(200, """
             <!DOCTYPE html>
             <html>
-            <head><meta http-equiv="refresh" content="0;url=/admin/projects"></head>
+            <head><meta http-equiv="refresh" content="0;url=/admin/workspaces"></head>
             <body><p>Signing in...</p></body>
             </html>
             """)

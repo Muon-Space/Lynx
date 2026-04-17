@@ -23,6 +23,7 @@ defmodule LynxWeb.EnvironmentLive do
             {:ok, redirect(socket, to: "/admin/projects/#{project_uuid}")}
 
           env ->
+            workspace = if project.workspace_id, do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
             app_url =
               SettingsModule.get_config("app_url", "http://localhost:4000")
               |> String.trim_trailing("/")
@@ -30,6 +31,7 @@ defmodule LynxWeb.EnvironmentLive do
             socket =
               socket
               |> assign(:project, project)
+              |> assign(:workspace, workspace)
               |> assign(:env, env)
               |> assign(:app_url, app_url)
               |> assign(:env_locked, LockContext.is_environment_locked(env.id))
@@ -52,8 +54,10 @@ defmodule LynxWeb.EnvironmentLive do
 
       <div class="flex items-center justify-between mb-4">
         <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/projects" class="hover:text-gray-700 dark:hover:text-gray-200">Projects</a>
+          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
           <span>/</span>
+          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@workspace.name}</a>
+          <span :if={@workspace}>/</span>
           <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@project.name}</a>
           <span>/</span>
           <span class="text-gray-900 dark:text-white font-medium">{@env.name}</span>

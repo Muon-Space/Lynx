@@ -114,7 +114,8 @@ defmodule Lynx.Module.ProjectModule do
       ProjectContext.new_project(%{
         name: data[:name],
         description: data[:description],
-        slug: data[:slug]
+        slug: data[:slug],
+        workspace_id: data[:workspace_id]
       })
 
     case ProjectContext.create_project(project) do
