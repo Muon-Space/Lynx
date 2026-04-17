@@ -115,7 +115,7 @@ defmodule LynxWeb.SettingsLive do
               <p class="font-medium">Use in your Identity Provider:</p>
               <p>SP Metadata URL: <code class="bg-input px-1 rounded">{@app_url}/saml/metadata</code></p>
               <p>ACS URL: <code class="bg-input px-1 rounded">{@saml_acs_url}</code></p>
-              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{if @saml_sp_entity_id == "", do: @saml_acs_url, else: @saml_sp_entity_id}</code></p>
+              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{if @saml_sp_entity_id == "", do: "#{@app_url}/saml/metadata", else: @saml_sp_entity_id}</code></p>
               <p>NameID format: EmailAddress</p>
             </div>
             <div class="space-y-4">
@@ -123,7 +123,7 @@ defmodule LynxWeb.SettingsLive do
               <.input name="sso_saml_idp_issuer" label="IdP Issuer / Entity ID" value={@saml_idp_issuer} />
               <.input name="sso_saml_idp_cert" label="IdP X.509 Certificate (PEM)" type="textarea" value={@saml_idp_cert} />
               <.input name="sso_saml_idp_metadata_url" label="IdP Metadata URL (optional)" type="url" value={@saml_idp_metadata_url} />
-              <.input name="sso_saml_sp_entity_id" label="SP Entity ID / Audience URI (optional)" value={@saml_sp_entity_id} placeholder={@saml_acs_url} hint={"Defaults to #{@saml_acs_url} if left blank"} />
+              <.input name="sso_saml_sp_entity_id" label="SP Entity ID / Audience URI (optional)" value={@saml_sp_entity_id} placeholder={"#{@app_url}/saml/metadata"} hint={"Defaults to #{@app_url}/saml/metadata if left blank"} />
               <.input name="sso_saml_sign_requests" type="checkbox" label="Sign AuthnRequests" checked={@saml_sign_requests} />
               <div :if={@saml_sign_requests} class="mt-3 space-y-3">
                 <div :if={@saml_sp_cert == ""}>
@@ -348,16 +348,26 @@ defmodule LynxWeb.SettingsLive do
       "sso_jit_enabled" => if(params["sso_jit_enabled"] == "true", do: "true", else: "false"),
       "sso_protocol" => protocol,
       "sso_login_label" => params["sso_login_label"] || socket.assigns.sso_login_label,
-      "sso_issuer" => params["sso_issuer"] || "",
-      "sso_client_id" => params["sso_client_id"] || "",
-      "sso_client_secret" => params["sso_client_secret"] || "",
-      "sso_saml_idp_sso_url" => params["sso_saml_idp_sso_url"] || "",
-      "sso_saml_idp_issuer" => params["sso_saml_idp_issuer"] || "",
-      "sso_saml_idp_cert" => params["sso_saml_idp_cert"] || "",
-      "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
-      "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
+      # OIDC fields — preserve existing when SAML tab is active
+      "sso_issuer" => Map.get(params, "sso_issuer", socket.assigns.sso_issuer),
+      "sso_client_id" => Map.get(params, "sso_client_id", socket.assigns.sso_client_id),
+      "sso_client_secret" =>
+        Map.get(params, "sso_client_secret", socket.assigns.sso_client_secret),
+      # SAML fields — preserve existing when OIDC tab is active
+      "sso_saml_idp_sso_url" =>
+        Map.get(params, "sso_saml_idp_sso_url", socket.assigns.saml_idp_sso_url),
+      "sso_saml_idp_issuer" =>
+        Map.get(params, "sso_saml_idp_issuer", socket.assigns.saml_idp_issuer),
+      "sso_saml_idp_cert" => Map.get(params, "sso_saml_idp_cert", socket.assigns.saml_idp_cert),
+      "sso_saml_idp_metadata_url" =>
+        Map.get(params, "sso_saml_idp_metadata_url", socket.assigns.saml_idp_metadata_url),
+      "sso_saml_sp_entity_id" =>
+        Map.get(params, "sso_saml_sp_entity_id", socket.assigns.saml_sp_entity_id),
       "sso_saml_sign_requests" =>
-        if(params["sso_saml_sign_requests"] == "true", do: "true", else: "false")
+        if(Map.has_key?(params, "sso_saml_sign_requests"),
+          do: if(params["sso_saml_sign_requests"] == "true", do: "true", else: "false"),
+          else: to_string(socket.assigns.saml_sign_requests)
+        )
     }
 
     old_sso = %{

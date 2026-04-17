@@ -102,9 +102,9 @@ defmodule LynxWeb.EnvironmentLive do
             Download Root State
           </a>
         </div>
-        <.table rows={@units} empty_message="No units yet. State will appear here after your first Terraform apply.">
+        <.table rows={@units} empty_message="No units yet. State will appear here after your first Terraform apply." row_click={fn unit -> JS.navigate(state_explorer_path(@project, @env, unit.sub_path)) end}>
           <:col :let={unit} label="Path">
-            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
+            <span class="font-medium text-clickable"><code class="text-xs px-1.5 py-0.5">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code></span>
           </:col>
           <:col :let={unit} label="Lock Status">
             <span
@@ -124,6 +124,9 @@ defmodule LynxWeb.EnvironmentLive do
             <span class="text-xs text-muted">{Calendar.strftime(unit.latest, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={unit}>
+            <a href={state_explorer_path(@project, @env, unit.sub_path)} class="text-secondary hover:text-foreground text-xs px-3 py-1.5">
+              History
+            </a>
             <a href={"/admin/environment/download/#{@env.uuid}?sub_path=#{unit.sub_path}"} class="text-secondary hover:text-foreground text-xs px-3 py-1.5">
               Download
             </a>
@@ -201,7 +204,7 @@ defmodule LynxWeb.EnvironmentLive do
 
     LockContext.create_lock(lock)
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditModule.log_user(socket.assigns.current_user, "locked", "environment", env.uuid, label)
+    AuditModule.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
     {:noreply, socket |> put_flash(:info, "Unit locked") |> load_units()}
   end
 
@@ -215,7 +218,7 @@ defmodule LynxWeb.EnvironmentLive do
     end
 
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditModule.log_user(socket.assigns.current_user, "unlocked", "environment", env.uuid, label)
+    AuditModule.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
     {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
   end
 
@@ -237,6 +240,11 @@ defmodule LynxWeb.EnvironmentLive do
       end)
 
     assign(socket, :units, units)
+  end
+
+  defp state_explorer_path(project, env, sub_path) do
+    base = "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state"
+    if sub_path == "", do: base, else: "#{base}/#{sub_path}"
   end
 
   defp backend_config(app_url, workspace, project_slug, env) do

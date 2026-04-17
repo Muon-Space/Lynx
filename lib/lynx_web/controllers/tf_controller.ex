@@ -33,7 +33,7 @@ defmodule LynxWeb.TfController do
           |> halt
 
         {:ok, _, _} ->
-          conn
+          assign(conn, :tf_username, user)
       end
     else
       _ -> conn |> Plug.BasicAuth.request_basic_auth() |> halt()
@@ -159,7 +159,19 @@ defmodule LynxWeb.TfController do
         path_label =
           if sub_path == "", do: "#{p_slug}/#{e_slug}", else: "#{p_slug}/#{e_slug}/#{sub_path}"
 
-        Lynx.Module.AuditModule.log_system("state_pushed", "environment", path_label)
+        actor_name = conn.assigns[:tf_username] || "system"
+
+        Lynx.Context.AuditContext.create_event(%{
+          actor_id: nil,
+          actor_name: actor_name,
+          actor_type: if(String.contains?(actor_name, "@"), do: "user", else: "system"),
+          action: "state_pushed",
+          resource_type: "environment",
+          resource_id: path_label,
+          resource_name: nil,
+          metadata: nil
+        })
+
         conn |> put_resp_content_type("application/json") |> send_resp(200, body)
 
       {:error, msg} ->

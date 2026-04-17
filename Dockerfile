@@ -24,7 +24,7 @@ FROM ${BUILDER_IMAGE} AS builder
 # install build dependencies
 RUN rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update --allow-releaseinfo-change -y && \
-    apt-get install -y build-essential git && \
+    apt-get install -y build-essential git npm && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # prepare build dir
@@ -53,6 +53,7 @@ COPY priv priv
 COPY lib lib
 
 COPY assets assets
+RUN cd assets && npm install
 
 # Compile assets
 RUN mix esbuild lynx --minify

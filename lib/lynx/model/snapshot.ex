@@ -43,8 +43,7 @@ defmodule Lynx.Model.Snapshot do
       :record_type,
       :record_uuid,
       :status,
-      :data,
-      :team_id
+      :data
     ])
   end
 end

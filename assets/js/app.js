@@ -1,4 +1,5 @@
 import "phoenix_html"
+import {diffLines} from "diff"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
@@ -15,6 +16,70 @@ Hooks.AutoDismiss = {
   },
   destroyed() {
     clearTimeout(this.timer)
+  }
+}
+
+Hooks.JsonHighlight = {
+  mounted() { this.highlight() },
+  updated() { this.highlight() },
+  highlight() {
+    let raw = this.el.textContent
+    try {
+      let parsed = JSON.parse(raw)
+      this.el.innerHTML = this.colorize(JSON.stringify(parsed, null, 2))
+    } catch(e) {}
+  },
+  colorize(json) {
+    let s = getComputedStyle(document.documentElement)
+    let ck = s.getPropertyValue('--json-key').trim()
+    let cs = s.getPropertyValue('--json-string').trim()
+    let cn = s.getPropertyValue('--json-number').trim()
+    let cb = s.getPropertyValue('--json-boolean').trim()
+    let cl = s.getPropertyValue('--json-null').trim()
+    return json.replace(/("(?:\\.|[^"\\])*")\s*:/g, `<span style="color:${ck}">$1</span>:`)
+      .replace(/:\s*("(?:\\.|[^"\\])*")/g, `: <span style="color:${cs}">$1</span>`)
+      .replace(/:\s*(\d+\.?\d*)/g, `: <span style="color:${cn}">$1</span>`)
+      .replace(/:\s*(true|false)/g, `: <span style="color:${cb}">$1</span>`)
+      .replace(/:\s*(null)/g, `: <span style="color:${cl}">$1</span>`)
+  }
+}
+
+Hooks.DiffHighlight = {
+  mounted() { this.diff() },
+  updated() { this.diff() },
+  diff() {
+    let leftEl = document.querySelector('[data-diff="left"]')
+    let rightEl = document.querySelector('[data-diff="right"]')
+    if (!leftEl || !rightEl) return
+
+    let leftText = leftEl.textContent
+    let rightText = rightEl.textContent
+    let s = getComputedStyle(document.documentElement)
+    let addBg = s.getPropertyValue('--diff-highlight').trim() || 'rgba(239,68,68,0.15)'
+    let removeBg = 'rgba(34,197,94,0.12)'
+
+    let changes = diffLines(leftText, rightText)
+
+    let leftHtml = []
+    let rightHtml = []
+
+    changes.forEach(part => {
+      let lines = part.value.replace(/\n$/, '').split('\n')
+      lines.forEach(line => {
+        let escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        if (part.added) {
+          rightHtml.push(`<span style="background:${addBg};display:inline-block;width:100%">${escaped}</span>`)
+        } else if (part.removed) {
+          leftHtml.push(`<span style="background:${removeBg};display:inline-block;width:100%">${escaped}</span>`)
+        } else {
+          leftHtml.push(escaped)
+          rightHtml.push(escaped)
+        }
+      })
+    })
+
+    leftEl.innerHTML = leftHtml.join('\n')
+    rightEl.innerHTML = rightHtml.join('\n')
   }
 }
 
