@@ -374,7 +374,7 @@ defmodule LynxWeb.CoreComponents do
           </svg>
         </button>
         <div data-dropdown class="hidden absolute z-50 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto">
-          <div :if={@prompt} data-value="" data-label={@prompt} class="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer">{@prompt}</div>
+          <div :if={@prompt} data-value="" data-label={@prompt} class="px-3 py-2 text-sm text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">{@prompt}</div>
           <div
             :for={{label, value} <- @options}
             data-value={value}
