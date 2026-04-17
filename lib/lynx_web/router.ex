@@ -51,7 +51,10 @@ defmodule LynxWeb.Router do
     live "/admin/workspaces/:workspace_uuid", ProjectsLive
     live "/admin/projects/:uuid", ProjectLive
     live "/admin/projects/:project_uuid/environments/:env_uuid", EnvironmentLive
+    live "/admin/projects/:project_uuid/environments/:env_uuid/state", StateExplorerLive
+    live "/admin/projects/:project_uuid/environments/:env_uuid/state/:sub_path", StateExplorerLive
     live "/admin/snapshots", SnapshotsLive
+    live "/admin/snapshots/:uuid", SnapshotLive
     live "/admin/settings", SettingsLive
 
     get "/logout", SessionController, :logout

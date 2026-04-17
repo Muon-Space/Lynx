@@ -16,6 +16,9 @@
     --bg-input: #ffffff;
     --bg-modal: #ffffff;
     --bg-code: #111827;
+    --bg-state-viewer: #f1f5f9;
+    --text-state-viewer: #0f172a;
+    --diff-highlight: rgba(239, 68, 68, 0.12);
 
     /* Borders */
     --border-default: #e5e7eb;
@@ -35,6 +38,13 @@
 
     /* Focus */
     --ring-focus: #3b82f6;
+
+    /* JSON syntax highlighting */
+    --json-key: #1d4ed8;
+    --json-string: #047857;
+    --json-number: #b45309;
+    --json-boolean: #9333ea;
+    --json-null: #6b7280;
 
     /* Selection / active highlight */
     --select-bg: #eff6ff;
@@ -102,6 +112,9 @@
     --bg-input: #1f2937;
     --bg-modal: #111827;
     --bg-code: #111827;
+    --bg-state-viewer: #0f172a;
+    --text-state-viewer: #e2e8f0;
+    --diff-highlight: rgba(239, 68, 68, 0.2);
 
     /* Borders */
     --border-default: #374151;
@@ -121,6 +134,13 @@
 
     /* Focus */
     --ring-focus: #3b82f6;
+
+    /* JSON syntax highlighting */
+    --json-key: #93c5fd;
+    --json-string: #86efac;
+    --json-number: #fcd34d;
+    --json-boolean: #f9a8d4;
+    --json-null: #9ca3af;
 
     /* Selection / active highlight */
     --select-bg: rgba(30, 58, 138, 0.3);
@@ -217,6 +237,11 @@
 
   /* Focus ring */
   --color-ring: var(--ring-focus);
+
+  /* State viewer */
+  --color-state-viewer: var(--bg-state-viewer);
+  --color-state-viewer-text: var(--text-state-viewer);
+  --color-diff-highlight: var(--diff-highlight);
 
   /* Page header */
   --color-header-from: var(--bg-header-from);

@@ -180,8 +180,7 @@ defmodule Lynx.Context.ProjectContext do
       on: pt.project_id == p.id,
       where: p.workspace_id == ^workspace_id,
       where: pt.team_id in ^teams_ids,
-      distinct: p.id,
-      select: count(p.id)
+      select: count(p.id, :distinct)
     )
     |> Repo.one()
   end
