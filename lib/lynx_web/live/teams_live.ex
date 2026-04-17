@@ -68,7 +68,7 @@ defmodule LynxWeb.TeamsLive do
       <.card>
         <.table rows={@teams}>
           <:col :let={team} label="Name">{team.name}</:col>
-          <:col :let={team} label="Slug"><code class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{team.slug}</code></:col>
+          <:col :let={team} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{team.slug}</code></:col>
           <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
           <:col :let={team} label="Projects">{Lynx.Module.ProjectModule.count_projects_by_team(team.id)}</:col>
           <:col :let={team} label="Created">

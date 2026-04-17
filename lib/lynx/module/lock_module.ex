@@ -76,11 +76,22 @@ defmodule Lynx.Module.LockModule do
           env ->
             sub_path = params[:sub_path] || ""
 
-            case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
+            case check_env_and_unit_lock(env.id, sub_path) do
               nil -> {:success, ""}
               lock -> {:locked, lock}
             end
         end
+    end
+  end
+
+  defp check_env_and_unit_lock(env_id, "") do
+    LockContext.get_active_lock_by_environment_and_path(env_id, "")
+  end
+
+  defp check_env_and_unit_lock(env_id, sub_path) do
+    case LockContext.get_active_lock_by_environment_and_path(env_id, "") do
+      nil -> LockContext.get_active_lock_by_environment_and_path(env_id, sub_path)
+      env_lock -> env_lock
     end
   end
 

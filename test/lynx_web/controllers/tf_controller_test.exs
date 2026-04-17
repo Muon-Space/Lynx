@@ -247,6 +247,29 @@ defmodule LynxWeb.TfControllerTest do
 
       assert dns_conn.status == 423
     end
+
+    test "environment-level lock blocks all unit locks", %{conn: conn, env: env} do
+      # Create an environment-level lock (root path)
+      Lynx.Module.LockModule.force_lock(env.id, "admin")
+
+      lock_body = %{
+        "ID" => Ecto.UUID.generate(),
+        "Operation" => "apply",
+        "Info" => "",
+        "Who" => "test",
+        "Version" => "1.9.0",
+        "Path" => ""
+      }
+
+      # Trying to lock any unit should return 423
+      dns_conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/platform/production/dns/lock", lock_body)
+
+      assert dns_conn.status == 423
+    end
   end
 
   describe "email-based API key auth" do

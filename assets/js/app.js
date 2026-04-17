@@ -5,6 +5,34 @@ import topbar from "../vendor/topbar"
 
 let Hooks = {}
 
+Hooks.CopyToClipboard = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      let target = document.querySelector(this.el.dataset.target)
+      if (!target) return
+      let text = target.textContent || target.innerText
+      navigator.clipboard.writeText(text).then(() => {
+        let orig = this.el.textContent
+        this.el.textContent = "Copied!"
+        setTimeout(() => { this.el.textContent = orig }, 1500)
+      })
+    })
+  }
+}
+
+Hooks.DarkMode = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark")
+      let dark = document.documentElement.classList.contains("dark")
+      localStorage.setItem("theme", dark ? "dark" : "light")
+      this.el.innerHTML = dark ? "\u2600\uFE0F" : "\uD83C\uDF19"
+    })
+    let dark = document.documentElement.classList.contains("dark")
+    this.el.innerHTML = dark ? "\u2600\uFE0F" : "\uD83C\uDF19"
+  }
+}
+
 Hooks.CustomSelect = {
   mounted() {
     this.isOpen = false
@@ -29,15 +57,17 @@ Hooks.CustomSelect = {
         let wasSelected = opt.dataset.selected === "true"
         opt.dataset.selected = wasSelected ? "false" : "true"
         opt.classList.toggle("bg-blue-50", !wasSelected)
+        opt.classList.toggle("dark:bg-blue-900/30", !wasSelected)
         opt.classList.toggle("text-blue-700", !wasSelected)
+        opt.classList.toggle("dark:text-blue-400", !wasSelected)
         let check = opt.querySelector("[data-check]")
         if (check) check.textContent = !wasSelected ? "\u2713" : ""
         this.syncMultiple()
       } else {
         this.dropdown.querySelectorAll("[data-value]").forEach(o => {
-          o.classList.remove("bg-blue-50", "text-blue-700")
+          o.classList.remove("bg-blue-50", "dark:bg-blue-900/30", "text-blue-700", "dark:text-blue-400")
         })
-        opt.classList.add("bg-blue-50", "text-blue-700")
+        opt.classList.add("bg-blue-50", "dark:bg-blue-900/30", "text-blue-700", "dark:text-blue-400")
         this.labelEl.textContent = opt.dataset.label
         this.inputs.innerHTML = `<input type="hidden" name="${this.name}" value="${this.esc(opt.dataset.value)}" />`
         this.close()

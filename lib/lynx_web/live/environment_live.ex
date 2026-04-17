@@ -34,6 +34,7 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:app_url, app_url)
               |> assign(:env_locked, LockContext.is_environment_locked(env.id))
               |> assign(:confirm, nil)
+              |> assign(:config_tab, "terraform")
               |> load_units()
 
             {:ok, socket}
@@ -50,12 +51,12 @@ defmodule LynxWeb.EnvironmentLive do
       <.page_header title={@env.name} subtitle={"Environment in #{@project.name}"} />
 
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500">
-          <a href="/admin/projects" class="hover:text-gray-700">Projects</a>
+        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <a href="/admin/projects" class="hover:text-gray-700 dark:hover:text-gray-200">Projects</a>
           <span>/</span>
-          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-gray-700">{@project.name}</a>
+          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@project.name}</a>
           <span>/</span>
-          <span class="text-gray-900 font-medium">{@env.name}</span>
+          <span class="text-gray-900 dark:text-white font-medium">{@env.name}</span>
         </nav>
         <div class="flex items-center gap-3">
           <span
@@ -74,13 +75,16 @@ defmodule LynxWeb.EnvironmentLive do
 
       <%!-- Backend Config --%>
       <.card class="mb-6">
-        <h3 class="text-sm font-semibold text-gray-700 mb-3">Backend Configuration</h3>
-        <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
-          <pre class="text-xs font-mono whitespace-pre-wrap">{backend_config(@app_url, @project.slug, @env)}</pre>
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex gap-2">
+            <button phx-click="show_terraform_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terraform", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terraform</button>
+            <button phx-click="show_terragrunt_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terragrunt", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terragrunt</button>
+          </div>
+          <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
         </div>
-        <p class="mt-2 text-xs text-gray-500">
-          For Terragrunt units, append the unit path before /state, /lock, /unlock (e.g. /tf/{@project.slug}/{@env.slug}/dns/state).
-        </p>
+        <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
+          <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @project.slug, @env), else: terragrunt_config(@app_url, @project.slug, @env)}</pre>
+        </div>
       </.card>
 
       <%!-- Units Table --%>
@@ -93,7 +97,7 @@ defmodule LynxWeb.EnvironmentLive do
         </div>
         <.table rows={@units} empty_message="No units yet. State will appear here after your first Terraform apply.">
           <:col :let={unit} label="Path">
-            <code class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
+            <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
           </:col>
           <:col :let={unit} label="Lock Status">
             <span
@@ -134,6 +138,12 @@ defmodule LynxWeb.EnvironmentLive do
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
+  def handle_event("show_terraform_config", _, socket),
+    do: {:noreply, assign(socket, :config_tab, "terraform")}
+
+  def handle_event("show_terragrunt_config", _, socket),
+    do: {:noreply, assign(socket, :config_tab, "terragrunt")}
 
   def handle_event("env_force_lock", _, socket) do
     socket = assign(socket, :confirm, nil)
@@ -231,6 +241,30 @@ defmodule LynxWeb.EnvironmentLive do
         address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/state"
         lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/lock"
         unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/unlock"
+        lock_method    = "POST"
+        unlock_method  = "POST"
+      }
+    }\
+    """
+  end
+
+  defp terragrunt_config(app_url, project_slug, env) do
+    """
+    # Root terragrunt.hcl
+    remote_state {
+      backend = "http"
+
+      generate = {
+        path      = "backend.tf"
+        if_exists = "overwrite_terragrunt"
+      }
+
+      config = {
+        username       = "#{env.username}"
+        password       = "#{env.secret}"
+        address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
+        lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
+        unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"
         lock_method    = "POST"
         unlock_method  = "POST"
       }
