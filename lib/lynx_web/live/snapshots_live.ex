@@ -75,10 +75,11 @@ defmodule LynxWeb.SnapshotsLive do
           </div>
 
           <div :if={@snapshot_unit_path && @snapshot_unit_path != "" && @snapshot_unit_versions != []}>
-            <.input name="unit_version" id={"snapshot-version-#{@snapshot_unit_path}"} label="Version" type="select" prompt="Latest (Current)" options={Enum.map(@snapshot_unit_versions, fn {s, idx} -> {"v#{idx} — #{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M:%S")}", to_string(idx)} end)} value={@snapshot_unit_version || ""} />
+            <% max_v = if @snapshot_unit_versions != [], do: elem(hd(@snapshot_unit_versions), 1), else: 0 %>
+            <.input name="unit_version" id={"snapshot-version-#{@snapshot_env_uuid}-#{@snapshot_unit_path}"} label="Version" type="select" options={Enum.map(@snapshot_unit_versions, fn {s, idx} -> {"v#{idx}#{if idx == max_v, do: " (Current)", else: ""} — #{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M:%S")}", to_string(idx)} end)} value={to_string(@snapshot_unit_version || max_v)} />
           </div>
 
-          <div class="flex gap-3 pt-2">
+          <div class="flex gap-3 pt-2 mb-40">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
           </div>
@@ -147,7 +148,9 @@ defmodule LynxWeb.SnapshotsLive do
     workspace_id = params["workspace_id"]
     project_uuid = params["project_uuid"]
     env_uuid = params["env_uuid"]
-    unit_path = params["unit_path"]
+
+    env_changed = env_uuid != socket.assigns.snapshot_env_uuid
+    unit_path = if env_changed, do: nil, else: params["unit_path"]
 
     filtered_projects =
       if workspace_id && workspace_id != "" do
