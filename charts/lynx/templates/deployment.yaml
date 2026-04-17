@@ -37,6 +37,10 @@ spec:
           command: ["/app/bin/migrate"]
           env:
             {{- include "lynx.env" . | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       containers:
         - name: lynx
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
