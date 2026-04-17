@@ -15,7 +15,7 @@ defmodule LynxWeb.InstallLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 py-12 px-4">
+    <div class="min-h-screen flex items-center justify-center bg-page py-12 px-4">
       <div class="absolute top-4 right-4">
         <button id="dark-mode-toggle-install" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode"></button>
       </div>
@@ -23,19 +23,19 @@ defmodule LynxWeb.InstallLive do
         <div class="text-center">
           <img src="/images/ico.png" alt="Lynx" class="mx-auto h-12 dark:hidden" />
           <img src="/images/ico-dark.png" alt="Lynx" class="mx-auto h-12 hidden dark:block" />
-          <h2 class="mt-6 text-3xl font-bold text-gray-900 dark:text-white">Setup Lynx</h2>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Configure your Terraform backend</p>
+          <h2 class="mt-6 text-3xl font-bold text-foreground">Setup Lynx</h2>
+          <p class="mt-2 text-sm text-secondary">Configure your Terraform backend</p>
         </div>
 
         <.card>
-          <p :if={@error} class="mb-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-3">{@error}</p>
+          <p :if={@error} class="mb-4 text-sm text-flash-error-text bg-flash-error-bg rounded-lg px-4 py-3 border border-flash-error-border">{@error}</p>
 
           <form phx-submit="install" class="space-y-4">
             <.input name="app_name" label="Application Name" value="" required placeholder="Lynx" />
             <.input name="app_url" label="Application URL" type="url" value="" required placeholder="https://lynx.example.com" />
             <.input name="app_email" label="Application Email" type="email" value="" required placeholder="admin@example.com" />
 
-            <hr class="my-4 border-gray-200 dark:border-gray-700" />
+            <hr class="my-4 border-border" />
 
             <.input name="admin_name" label="Admin Name" value="" required placeholder="John Doe" />
             <.input name="admin_email" label="Admin Email" type="email" value="" required placeholder="admin@example.com" />

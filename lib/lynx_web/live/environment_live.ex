@@ -52,18 +52,18 @@ defmodule LynxWeb.EnvironmentLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="projects" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title={@env.name} subtitle={"Environment in #{@project.name}"} />
 
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
+        <nav class="flex items-center gap-2 text-sm text-secondary">
+          <a href="/admin/workspaces" class="hover:text-foreground">Workspaces</a>
           <span>/</span>
-          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@workspace.name}</a>
+          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-foreground">{@workspace.name}</a>
           <span :if={@workspace}>/</span>
-          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@project.name}</a>
+          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-foreground">{@project.name}</a>
           <span>/</span>
-          <span class="text-gray-900 dark:text-white font-medium">{@env.name}</span>
+          <span class="text-foreground font-medium">{@env.name}</span>
         </nav>
         <div class="flex items-center gap-3">
           <span
@@ -84,27 +84,27 @@ defmodule LynxWeb.EnvironmentLive do
       <.card class="mb-6">
         <div class="flex items-center justify-between mb-3">
           <div class="flex gap-2">
-            <button phx-click="show_terraform_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terraform", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terraform</button>
-            <button phx-click="show_terragrunt_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terragrunt", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terragrunt</button>
+            <button phx-click="show_terraform_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terraform", do: "bg-code text-on-primary", else: "text-secondary hover:text-foreground")}>Terraform</button>
+            <button phx-click="show_terragrunt_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terragrunt", do: "bg-code text-on-primary", else: "text-secondary hover:text-foreground")}>Terragrunt</button>
           </div>
-          <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
+          <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
         </div>
-        <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
-          <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @project.slug, @env), else: terragrunt_config(@app_url, @project.slug, @env)}</pre>
+        <div class="bg-code text-on-primary rounded-lg p-4">
+          <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @workspace, @project.slug, @env), else: terragrunt_config(@app_url, @workspace, @project.slug, @env)}</pre>
         </div>
       </.card>
 
       <%!-- Units Table --%>
       <.card>
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold text-gray-700">Units</h3>
-          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-blue-600 hover:text-blue-800">
+          <h3 class="text-sm font-semibold text-secondary">Units</h3>
+          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-clickable hover:text-clickable-hover">
             Download Root State
           </a>
         </div>
         <.table rows={@units} empty_message="No units yet. State will appear here after your first Terraform apply.">
           <:col :let={unit} label="Path">
-            <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
+            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
           </:col>
           <:col :let={unit} label="Lock Status">
             <span
@@ -121,10 +121,10 @@ defmodule LynxWeb.EnvironmentLive do
           </:col>
           <:col :let={unit} label="State">v{unit.count}</:col>
           <:col :let={unit} label="Last Updated">
-            <span class="text-xs text-gray-500">{Calendar.strftime(unit.latest, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(unit.latest, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={unit}>
-            <a href={"/admin/environment/download/#{@env.uuid}?sub_path=#{unit.sub_path}"} class="text-gray-600 hover:text-gray-800 text-xs px-3 py-1.5">
+            <a href={"/admin/environment/download/#{@env.uuid}?sub_path=#{unit.sub_path}"} class="text-secondary hover:text-foreground text-xs px-3 py-1.5">
               Download
             </a>
           </:action>
@@ -239,15 +239,17 @@ defmodule LynxWeb.EnvironmentLive do
     assign(socket, :units, units)
   end
 
-  defp backend_config(app_url, project_slug, env) do
+  defp backend_config(app_url, workspace, project_slug, env) do
+    ws_slug = if workspace, do: workspace.slug, else: "default"
+
     """
     terraform {
       backend "http" {
         username       = "#{env.username}"
         password       = "#{env.secret}"
-        address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/state"
-        lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/lock"
-        unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/unlock"
+        address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/state"
+        lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/lock"
+        unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/unlock"
         lock_method    = "POST"
         unlock_method  = "POST"
       }
@@ -255,7 +257,9 @@ defmodule LynxWeb.EnvironmentLive do
     """
   end
 
-  defp terragrunt_config(app_url, project_slug, env) do
+  defp terragrunt_config(app_url, workspace, project_slug, env) do
+    ws_slug = if workspace, do: workspace.slug, else: "default"
+
     """
     # Root terragrunt.hcl
     remote_state {
@@ -269,9 +273,9 @@ defmodule LynxWeb.EnvironmentLive do
       config = {
         username       = "#{env.username}"
         password       = "#{env.secret}"
-        address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
-        lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
-        unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"
+        address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
+        lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
+        unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"
         lock_method    = "POST"
         unlock_method  = "POST"
       }

@@ -10,76 +10,59 @@ defmodule Lynx.Module.LockModule do
   alias Lynx.Context.LockContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.WorkspaceContext
 
   def lock_action(params \\ %{}) do
     :sleeplocks.new(1, name: :lynx_lock)
 
-    case ProjectContext.get_project_by_slug(params[:p_slug]) do
-      nil ->
-        {:not_found, "Project not found"}
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
 
-      project ->
-        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
-          nil ->
-            {:not_found, "Environment not found"}
+      {:ok, env} ->
+        lock =
+          LockContext.new_lock(%{
+            environment_id: env.id,
+            operation: params[:operation],
+            info: params[:info],
+            who: params[:who],
+            version: params[:version],
+            path: params[:path],
+            sub_path: params[:sub_path] || "",
+            uuid: params[:uuid],
+            is_active: true
+          })
 
-          env ->
-            lock =
-              LockContext.new_lock(%{
-                environment_id: env.id,
-                operation: params[:operation],
-                info: params[:info],
-                who: params[:who],
-                version: params[:version],
-                path: params[:path],
-                sub_path: params[:sub_path] || "",
-                uuid: params[:uuid],
-                is_active: true
-              })
+        case :sleeplocks.attempt(:lynx_lock) do
+          :ok ->
+            case LockContext.create_lock(lock) do
+              {:ok, _} ->
+                :sleeplocks.release(:lynx_lock)
+                {:success, ""}
 
-            case :sleeplocks.attempt(:lynx_lock) do
-              :ok ->
-                case LockContext.create_lock(lock) do
-                  {:ok, _} ->
-                    :sleeplocks.release(:lynx_lock)
-                    {:success, ""}
-
-                  {:error, changeset} ->
-                    :sleeplocks.release(:lynx_lock)
-
-                    messages =
-                      changeset.errors()
-                      |> Enum.map(fn {field, {message, _options}} ->
-                        "#{field}: #{message}"
-                      end)
-
-                    {:error, Enum.at(messages, 0)}
-                end
-
-              {:error, :unavailable} ->
-                {:error, "Unable to hold a lock on environment"}
+              {:error, changeset} ->
+                :sleeplocks.release(:lynx_lock)
+                messages = changeset.errors() |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end)
+                {:error, Enum.at(messages, 0)}
             end
+
+          {:error, :unavailable} ->
+            {:error, "Unable to hold a lock on environment"}
         end
     end
   end
 
   def is_locked(params \\ %{}) do
-    case ProjectContext.get_project_by_slug(params[:p_slug]) do
-      nil ->
-        {:not_found, "Project not found"}
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
 
-      project ->
-        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
-          nil ->
-            {:not_found, "Environment not found"}
+      {:ok, env} ->
+        sub_path = params[:sub_path] || ""
 
-          env ->
-            sub_path = params[:sub_path] || ""
-
-            case check_env_and_unit_lock(env.id, sub_path) do
-              nil -> {:success, ""}
-              lock -> {:locked, lock}
-            end
+        case check_env_and_unit_lock(env.id, sub_path) do
+          nil -> {:success, ""}
+          lock -> {:locked, lock}
         end
     end
   end
@@ -96,37 +79,51 @@ defmodule Lynx.Module.LockModule do
   end
 
   def unlock_action(params \\ %{}) do
-    case ProjectContext.get_project_by_slug(params[:p_slug]) do
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
+
+      {:ok, env} ->
+        sub_path = params[:sub_path] || ""
+
+        case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
+          nil ->
+            {:success, ""}
+
+          lock ->
+            case LockContext.update_lock(lock, %{is_active: false}) do
+              {:ok, _} ->
+                {:success, ""}
+
+              {:error, changeset} ->
+                messages =
+                  changeset.errors()
+                  |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+                {:error, Enum.at(messages, 0)}
+            end
+        end
+    end
+  end
+
+  defp resolve_env(params) do
+    workspace = WorkspaceContext.get_workspace_by_slug(params[:w_slug])
+
+    project =
+      if workspace do
+        ProjectContext.get_project_by_slug_and_workspace(params[:p_slug], workspace.id)
+      else
+        nil
+      end
+
+    case project do
       nil ->
-        {:not_found, "Project not found"}
+        {:error, "Project not found"}
 
       project ->
         case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
-          nil ->
-            {:not_found, "Environment not found"}
-
-          env ->
-            sub_path = params[:sub_path] || ""
-
-            case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
-              nil ->
-                {:success, ""}
-
-              lock ->
-                case LockContext.update_lock(lock, %{is_active: false}) do
-                  {:ok, _} ->
-                    {:success, ""}
-
-                  {:error, changeset} ->
-                    messages =
-                      changeset.errors()
-                      |> Enum.map(fn {field, {message, _options}} ->
-                        "#{field}: #{message}"
-                      end)
-
-                    {:error, Enum.at(messages, 0)}
-                end
-            end
+          nil -> {:error, "Environment not found"}
+          env -> {:ok, env}
         end
     end
   end

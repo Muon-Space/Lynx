@@ -30,7 +30,7 @@ defmodule LynxWeb.TeamsLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="teams" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Teams" subtitle="Organize users into teams for project access control" />
 
       <div class="flex justify-end mb-4">
@@ -68,11 +68,11 @@ defmodule LynxWeb.TeamsLive do
       <.card>
         <.table rows={@teams}>
           <:col :let={team} label="Name">{team.name}</:col>
-          <:col :let={team} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{team.slug}</code></:col>
+          <:col :let={team} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{team.slug}</code></:col>
           <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
           <:col :let={team} label="Projects">{Lynx.Module.ProjectModule.count_projects_by_team(team.id)}</:col>
           <:col :let={team} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={team}>
             <.button phx-click="edit_team" phx-value-uuid={team.uuid} variant="ghost" size="sm">Edit</.button>

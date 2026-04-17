@@ -28,12 +28,12 @@ defmodule LynxWeb.WorkspacesLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="workspaces" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Workspaces" subtitle="Organize projects into workspaces" />
 
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <span class="text-gray-900 dark:text-white font-medium">Workspaces</span>
+        <nav class="flex items-center gap-2 text-sm text-secondary">
+          <span class="text-foreground font-medium">Workspaces</span>
         </nav>
         <.button :if={@current_user.role == "super"} phx-click="show_add" variant="primary">+ Add Workspace</.button>
       </div>
@@ -66,11 +66,11 @@ defmodule LynxWeb.WorkspacesLive do
 
       <.card>
         <.table rows={@workspaces} row_click={fn ws -> JS.push("view_workspace", value: %{uuid: ws.uuid}) end}>
-          <:col :let={ws} label="Name"><span class="font-medium text-blue-600">{ws.name}</span></:col>
-          <:col :let={ws} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{ws.slug}</code></:col>
+          <:col :let={ws} label="Name"><span class="font-medium text-clickable">{ws.name}</span></:col>
+          <:col :let={ws} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{ws.slug}</code></:col>
           <:col :let={ws} label="Projects">{ws.project_count}</:col>
           <:col :let={ws} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(ws.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(ws.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={ws}>
             <.button :if={@current_user.role == "super"} phx-click="edit_workspace" phx-value-uuid={ws.uuid} variant="ghost" size="sm">Edit</.button>

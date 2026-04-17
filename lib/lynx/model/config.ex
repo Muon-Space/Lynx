@@ -31,7 +31,7 @@ defmodule Lynx.Model.Config do
       :name,
       :value
     ])
-    |> validate_length(:name, min: 3, max: 200)
-    |> validate_length(:value, min: 3, max: 2000)
+    |> validate_length(:name, min: 1, max: 200)
+    |> validate_length(:value, max: 2000)
   end
 end

@@ -33,7 +33,7 @@ defmodule LynxWeb.LoginLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 py-12 px-4">
+    <div class="min-h-screen flex items-center justify-center bg-page py-12 px-4">
       <div class="absolute top-4 right-4">
         <button id="dark-mode-toggle-login" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode"></button>
       </div>
@@ -41,7 +41,7 @@ defmodule LynxWeb.LoginLive do
         <div class="text-center">
           <img src="/images/ico.png" alt="Lynx" class="mx-auto h-12 dark:hidden" />
           <img src="/images/ico-dark.png" alt="Lynx" class="mx-auto h-12 hidden dark:block" />
-          <h2 class="mt-6 text-3xl font-bold text-gray-900 dark:text-white">Sign in</h2>
+          <h2 class="mt-6 text-3xl font-bold text-foreground">Sign in</h2>
         </div>
 
         <.card>
@@ -53,12 +53,12 @@ defmodule LynxWeb.LoginLive do
           </form>
 
           <div :if={@sso_enabled && @password_enabled} class="my-6 flex items-center">
-            <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
-            <span class="px-4 text-sm text-gray-400 dark:text-gray-500">or</span>
-            <div class="flex-1 border-t border-gray-200 dark:border-gray-700"></div>
+            <div class="flex-1 border-t border-border"></div>
+            <span class="px-4 text-sm text-muted">or</span>
+            <div class="flex-1 border-t border-border"></div>
           </div>
 
-          <a :if={@sso_enabled} href="/auth/sso" class="flex items-center justify-center w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          <a :if={@sso_enabled} href="/auth/sso" class="flex items-center justify-center w-full px-4 py-2 border border-border-input rounded-lg text-sm font-medium text-secondary hover:bg-surface-secondary transition-colors">
             Sign in with {@sso_login_label}
           </a>
         </.card>

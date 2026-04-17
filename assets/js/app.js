@@ -5,6 +5,19 @@ import topbar from "../vendor/topbar"
 
 let Hooks = {}
 
+Hooks.AutoDismiss = {
+  mounted() {
+    this.timer = setTimeout(() => {
+      this.el.style.transition = "opacity 500ms"
+      this.el.style.opacity = "0"
+      setTimeout(() => { this.el.remove() }, 500)
+    }, 5000)
+  },
+  destroyed() {
+    clearTimeout(this.timer)
+  }
+}
+
 Hooks.CopyToClipboard = {
   mounted() {
     this.el.addEventListener("click", () => {
@@ -56,18 +69,16 @@ Hooks.CustomSelect = {
       if (this.multiple) {
         let wasSelected = opt.dataset.selected === "true"
         opt.dataset.selected = wasSelected ? "false" : "true"
-        opt.classList.toggle("bg-blue-50", !wasSelected)
-        opt.classList.toggle("dark:bg-blue-900/30", !wasSelected)
-        opt.classList.toggle("text-blue-700", !wasSelected)
-        opt.classList.toggle("dark:text-blue-400", !wasSelected)
+        opt.classList.toggle("bg-select-bg", !wasSelected)
+        opt.classList.toggle("text-select-text", !wasSelected)
         let check = opt.querySelector("[data-check]")
         if (check) check.textContent = !wasSelected ? "\u2713" : ""
         this.syncMultiple()
       } else {
         this.dropdown.querySelectorAll("[data-value]").forEach(o => {
-          o.classList.remove("bg-blue-50", "dark:bg-blue-900/30", "text-blue-700", "dark:text-blue-400")
+          o.classList.remove("bg-select-bg", "text-select-text")
         })
-        opt.classList.add("bg-blue-50", "dark:bg-blue-900/30", "text-blue-700", "dark:text-blue-400")
+        opt.classList.add("bg-select-bg", "text-select-text")
         this.labelEl.textContent = opt.dataset.label
         this.inputs.innerHTML = `<input type="hidden" name="${this.name}" value="${this.esc(opt.dataset.value)}" />`
         this.close()

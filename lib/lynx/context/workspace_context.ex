@@ -26,6 +26,9 @@ defmodule Lynx.Context.WorkspaceContext do
     |> Repo.one()
   end
 
+  def get_workspace_by_slug(nil), do: nil
+  def get_workspace_by_slug(""), do: nil
+
   def get_workspace_by_slug(slug) do
     from(w in Workspace, where: w.slug == ^slug)
     |> Repo.one()

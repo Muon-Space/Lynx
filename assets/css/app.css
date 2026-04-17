@@ -5,8 +5,184 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@layer base {
+  :root {
+    /* Surfaces */
+    --bg-page: #f9fafb;
+    --bg-surface: #ffffff;
+    --bg-surface-secondary: #f3f4f6;
+    --bg-inset: #f3f4f6;
+    --bg-nav: #ffffff;
+    --bg-input: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-code: #111827;
+
+    /* Borders */
+    --border-default: #e5e7eb;
+    --border-input: #d1d5db;
+
+    /* Text */
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-on-primary: #ffffff;
+    --text-link: #2563eb;
+
+    /* Page header */
+    --bg-header-from: #3b82f6;
+    --bg-header-to: #2563eb;
+    --text-header-subtitle: #dbeafe;
+
+    /* Focus */
+    --ring-focus: #3b82f6;
+
+    /* Selection / active highlight */
+    --select-bg: #eff6ff;
+    --select-text: #1d4ed8;
+
+    /* Clickable text (links, row names) */
+    --text-clickable: #2563eb;
+    --text-clickable-hover: #1e40af;
+
+    /* Interactive accent (buttons, toggles, focus, checkmarks) */
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-focus-border: #3b82f6;
+    --accent-focus-ring: rgba(59, 130, 246, 0.2);
+
+    /* Status: success */
+    --status-success-bg: #ecfdf5;
+    --status-success-text: #047857;
+    --status-success-border: #a7f3d0;
+
+    /* Status: danger */
+    --status-danger-bg: #fef2f2;
+    --status-danger-text: #b91c1c;
+    --status-danger-border: #fecaca;
+
+    /* Status: warning */
+    --status-warning-bg: #fffbeb;
+    --status-warning-text: #b45309;
+    --status-warning-border: #fde68a;
+
+    /* Status: info */
+    --status-info-bg: #eff6ff;
+    --status-info-text: #1d4ed8;
+    --status-info-border: #bfdbfe;
+
+    /* Status: purple */
+    --status-purple-bg: #faf5ff;
+    --status-purple-text: #7e22ce;
+    --status-purple-border: #e9d5ff;
+
+    /* Status: neutral */
+    --status-neutral-bg: #f3f4f6;
+    --status-neutral-text: #4b5563;
+
+    /* Danger button */
+    --btn-danger-bg: #dc2626;
+    --btn-danger-hover: #b91c1c;
+
+    /* Flash */
+    --flash-success-bg: #ecfdf5;
+    --flash-success-text: #065f46;
+    --flash-success-border: #a7f3d0;
+    --flash-error-bg: #fef2f2;
+    --flash-error-text: #991b1b;
+    --flash-error-border: #fecaca;
+  }
+
+  .dark {
+    /* Surfaces */
+    --bg-page: #030712;
+    --bg-surface: #111827;
+    --bg-surface-secondary: #1f2937;
+    --bg-inset: #1f2937;
+    --bg-nav: #111827;
+    --bg-input: #1f2937;
+    --bg-modal: #111827;
+    --bg-code: #111827;
+
+    /* Borders */
+    --border-default: #374151;
+    --border-input: #4b5563;
+
+    /* Text */
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-on-primary: #ffffff;
+    --text-link: #60a5fa;
+
+    /* Page header */
+    --bg-header-from: #1e3a8a;
+    --bg-header-to: #1e40af;
+    --text-header-subtitle: #93c5fd;
+
+    /* Focus */
+    --ring-focus: #3b82f6;
+
+    /* Selection / active highlight */
+    --select-bg: rgba(30, 58, 138, 0.3);
+    --select-text: #93c5fd;
+
+    /* Clickable text */
+    --text-clickable: #60a5fa;
+    --text-clickable-hover: #93c5fd;
+
+    /* Interactive accent */
+    --accent: #1e40af;
+    --accent-hover: #1e3a8a;
+    --accent-focus-border: #3b82f6;
+    --accent-focus-ring: rgba(59, 130, 246, 0.2);
+
+    /* Status: success */
+    --status-success-bg: rgba(6, 78, 59, 0.4);
+    --status-success-text: #6ee7b7;
+    --status-success-border: rgba(6, 78, 59, 0.6);
+
+    /* Status: danger */
+    --status-danger-bg: rgba(127, 29, 29, 0.4);
+    --status-danger-text: #fca5a5;
+    --status-danger-border: rgba(127, 29, 29, 0.6);
+
+    /* Status: warning */
+    --status-warning-bg: rgba(120, 53, 15, 0.4);
+    --status-warning-text: #fcd34d;
+    --status-warning-border: rgba(120, 53, 15, 0.6);
+
+    /* Status: info */
+    --status-info-bg: rgba(30, 58, 138, 0.4);
+    --status-info-text: #93c5fd;
+    --status-info-border: rgba(30, 58, 138, 0.6);
+
+    /* Status: purple */
+    --status-purple-bg: rgba(88, 28, 135, 0.4);
+    --status-purple-text: #d8b4fe;
+    --status-purple-border: rgba(88, 28, 135, 0.6);
+
+    /* Status: neutral */
+    --status-neutral-bg: #1f2937;
+    --status-neutral-text: #9ca3af;
+
+    /* Danger button */
+    --btn-danger-bg: #dc2626;
+    --btn-danger-hover: #b91c1c;
+
+    /* Flash */
+    --flash-success-bg: #022c22;
+    --flash-success-text: #6ee7b7;
+    --flash-success-border: #064e3b;
+    --flash-error-bg: #450a0a;
+    --flash-error-text: #fca5a5;
+    --flash-error-border: #7f1d1d;
+  }
+}
+
 @theme {
   --font-sans: 'Inter', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+
+  /* Primary brand */
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
   --color-primary-200: #bfdbfe;
@@ -17,4 +193,73 @@
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
+
+  /* Semantic surfaces */
+  --color-page: var(--bg-page);
+  --color-surface: var(--bg-surface);
+  --color-surface-secondary: var(--bg-surface-secondary);
+  --color-inset: var(--bg-inset);
+  --color-nav: var(--bg-nav);
+  --color-input: var(--bg-input);
+  --color-modal: var(--bg-modal);
+  --color-code: var(--bg-code);
+
+  /* Semantic borders */
+  --color-border: var(--border-default);
+  --color-border-input: var(--border-input);
+
+  /* Semantic text */
+  --color-foreground: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-on-primary: var(--text-on-primary);
+  --color-link: var(--text-link);
+
+  /* Focus ring */
+  --color-ring: var(--ring-focus);
+
+  /* Page header */
+  --color-header-from: var(--bg-header-from);
+  --color-header-to: var(--bg-header-to);
+  --color-header-subtitle: var(--text-header-subtitle);
+
+  /* Status badges */
+  --color-badge-success-bg: var(--status-success-bg);
+  --color-badge-success-text: var(--status-success-text);
+  --color-badge-danger-bg: var(--status-danger-bg);
+  --color-badge-danger-text: var(--status-danger-text);
+  --color-badge-warning-bg: var(--status-warning-bg);
+  --color-badge-warning-text: var(--status-warning-text);
+  --color-badge-info-bg: var(--status-info-bg);
+  --color-badge-info-text: var(--status-info-text);
+  --color-badge-purple-bg: var(--status-purple-bg);
+  --color-badge-purple-text: var(--status-purple-text);
+  --color-badge-neutral-bg: var(--status-neutral-bg);
+  --color-badge-neutral-text: var(--status-neutral-text);
+
+  /* Danger button */
+  --color-danger: var(--btn-danger-bg);
+  --color-danger-hover: var(--btn-danger-hover);
+
+  /* Selection / active highlight */
+  --color-select-bg: var(--select-bg);
+  --color-select-text: var(--select-text);
+
+  /* Clickable text */
+  --color-clickable: var(--text-clickable);
+  --color-clickable-hover: var(--text-clickable-hover);
+
+  /* Interactive accent */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-focus-border: var(--accent-focus-border);
+  --color-accent-focus-ring: var(--accent-focus-ring);
+
+  /* Flash messages */
+  --color-flash-success-bg: var(--flash-success-bg);
+  --color-flash-success-text: var(--flash-success-text);
+  --color-flash-success-border: var(--flash-success-border);
+  --color-flash-error-bg: var(--flash-error-bg);
+  --color-flash-error-text: var(--flash-error-text);
+  --color-flash-error-border: var(--flash-error-border);
 }

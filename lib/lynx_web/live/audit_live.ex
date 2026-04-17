@@ -24,7 +24,7 @@ defmodule LynxWeb.AuditLive do
   def render(assigns) do
     ~H"""
     <.nav current_user={@current_user} active="audit" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Audit Log" subtitle="Track who did what and when" />
 
       <.card>
@@ -49,7 +49,7 @@ defmodule LynxWeb.AuditLive do
 
         <.table rows={@events}>
           <:col :let={event} label="Time">
-            <span class="text-gray-500 text-xs">{format_datetime(event.inserted_at)}</span>
+            <span class="text-muted text-xs">{format_datetime(event.inserted_at)}</span>
           </:col>
           <:col :let={event} label="Actor">
             <.badge color={if event.actor_type == "system", do: "gray", else: "blue"}>
@@ -60,7 +60,7 @@ defmodule LynxWeb.AuditLive do
             <.badge color={action_color(event.action)}>{event.action}</.badge>
           </:col>
           <:col :let={event} label="Resource">
-            <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{event.resource_type}</code>
+            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
           </:col>
           <:col :let={event} label="Name">
             {event.resource_name || event.resource_id || "-"}

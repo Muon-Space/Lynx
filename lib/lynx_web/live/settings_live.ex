@@ -96,10 +96,10 @@ defmodule LynxWeb.SettingsLive do
 
           <%!-- OIDC fields --%>
           <div :if={@sso_protocol == "oidc"}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
-              <p>Sign-in redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_redirect_uri}</code></p>
-              <p>Sign-out redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_signout_uri}</code></p>
+              <p>Sign-in redirect URI: <code class="bg-input px-1 rounded">{@oidc_redirect_uri}</code></p>
+              <p>Sign-out redirect URI: <code class="bg-input px-1 rounded">{@oidc_signout_uri}</code></p>
               <p>Grant type: Authorization Code (no Refresh Token needed)</p>
             </div>
             <div class="space-y-4">
@@ -111,10 +111,10 @@ defmodule LynxWeb.SettingsLive do
 
           <%!-- SAML fields --%>
           <div :if={@sso_protocol == "saml"}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
-              <p>ACS URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_acs_url}</code></p>
-              <p>Audience URI (SP Entity ID): <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_sp_entity_id}</code></p>
+              <p>ACS URL: <code class="bg-input px-1 rounded">{@saml_acs_url}</code></p>
+              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{@saml_sp_entity_id}</code></p>
               <p>NameID format: EmailAddress</p>
             </div>
             <div class="space-y-4">
@@ -129,11 +129,11 @@ defmodule LynxWeb.SettingsLive do
                   <.button type="button" phx-click="generate_saml_cert" variant="primary" size="sm">Generate SP Certificate</.button>
                 </div>
                 <div :if={@saml_sp_cert != ""}>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SP Certificate (PEM)</label>
-                  <pre id="saml-cert-content" class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
+                  <label class="block text-sm font-medium text-secondary mb-1">SP Certificate (PEM)</label>
+                  <pre id="saml-cert-content" class="bg-inset rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
                   <div class="flex gap-2 mt-2">
-                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
-                    <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Download</a>
+                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+                    <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Download</a>
                     <.button type="button" phx-click="confirm_action" phx-value-event="regenerate_saml_cert" phx-value-message="Regenerate certificate? The old certificate will be invalidated." phx-value-uuid="" variant="secondary" size="sm">Regenerate</.button>
                   </div>
                 </div>
@@ -155,9 +155,9 @@ defmodule LynxWeb.SettingsLive do
           </label>
 
           <div :if={@scim_enabled}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
-              <p>SCIM Base URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@app_url}/scim/v2</code></p>
-              <p>Unique identifier: <code class="bg-white dark:bg-gray-800 px-1 rounded">userName</code></p>
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
+              <p>SCIM Base URL: <code class="bg-input px-1 rounded">{@app_url}/scim/v2</code></p>
+              <p>Unique identifier: <code class="bg-input px-1 rounded">userName</code></p>
               <p>Auth: HTTP Header (Bearer token)</p>
             </div>
 
@@ -166,9 +166,12 @@ defmodule LynxWeb.SettingsLive do
               <.button phx-click="generate_scim_token" variant="primary" size="sm">Generate Token</.button>
             </div>
 
-            <div :if={@new_token} class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 mb-4">
-              <p class="text-sm font-medium text-emerald-800">New token (copy now, won't be shown again):</p>
-              <code class="text-sm break-all">{@new_token}</code>
+            <div :if={@new_token} class="bg-flash-success-bg border border-flash-success-border rounded-lg p-4 mb-4">
+              <p class="text-sm font-medium text-flash-success-text">New token (copy now, won't be shown again):</p>
+              <code id="scim-token-content" class="text-sm break-all">{@new_token}</code>
+              <div class="mt-2">
+                <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+              </div>
             </div>
 
             <.table rows={@scim_tokens} empty_message="No tokens generated yet.">
@@ -189,9 +192,9 @@ defmodule LynxWeb.SettingsLive do
       <%!-- OIDC Providers --%>
       <.card>
         <h3 class="text-lg font-semibold mb-2">OIDC Providers (Terraform Backend Auth)</h3>
-        <p class="text-sm text-gray-500 mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
+        <p class="text-sm text-muted mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
 
-        <div :if={@show_add_provider} class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
+        <div :if={@show_add_provider} class="border border-border rounded-lg p-4 mb-4">
           <form phx-submit="create_provider" class="space-y-4">
             <.input name="name" label="Provider Name" value="" required placeholder="github-actions" hint="Used as HTTP Basic Auth username in Terraform" />
             <.input name="discovery_url" label="Discovery URL" type="url" value="" required placeholder="https://token.actions.githubusercontent.com" />
@@ -216,8 +219,10 @@ defmodule LynxWeb.SettingsLive do
           </:action>
         </.table>
 
-        <p class="text-xs text-gray-400 mt-3">
-          Common: GitHub Actions: <code>https://token.actions.githubusercontent.com</code> · GitLab CI: <code>https://gitlab.com</code>
+        <p class="text-xs text-muted mt-3">
+          Common discovery URLs:<br />
+          GitHub Actions: <code>https://token.actions.githubusercontent.com</code><br />
+          GitLab CI: <code>https://gitlab.com</code>
         </p>
       </.card>
     </div>
@@ -238,16 +243,41 @@ defmodule LynxWeb.SettingsLive do
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("save_general", params, socket) do
+    old = %{
+      app_name: socket.assigns.app_name,
+      app_url: socket.assigns.app_url,
+      app_email: socket.assigns.app_email,
+      state_retention: socket.assigns.state_retention
+    }
+
     SettingsModule.update_configs(%{
       app_name: params["app_name"],
       app_url: params["app_url"],
       app_email: params["app_email"]
     })
 
-    retention = params["state_retention"] || "0"
+    retention =
+      case params["state_retention"] do
+        nil -> "0"
+        "" -> "0"
+        v -> v
+      end
+
     SettingsModule.upsert_config("state_retention_count", retention)
 
-    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "general")
+    changed =
+      []
+      |> then(fn l -> if params["app_name"] != old.app_name, do: ["app_name" | l], else: l end)
+      |> then(fn l -> if params["app_url"] != old.app_url, do: ["app_url" | l], else: l end)
+      |> then(fn l -> if params["app_email"] != old.app_email, do: ["app_email" | l], else: l end)
+      |> then(fn l ->
+        if retention != old.state_retention, do: ["state_retention" | l], else: l
+      end)
+
+    label =
+      if changed == [], do: "general (no changes)", else: "general (#{Enum.join(changed, ", ")})"
+
+    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, label)
 
     {:noreply,
      socket

@@ -10,59 +10,48 @@ defmodule Lynx.Module.StateModule do
   alias Lynx.Context.StateContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.WorkspaceContext
 
   def get_latest_state(params \\ %{}) do
-    case ProjectContext.get_project_by_slug(params[:p_slug]) do
-      nil ->
-        {:not_found, "Project not found"}
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
 
-      project ->
-        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
-          nil ->
-            {:not_found, "Environment not found"}
+      {:ok, env} ->
+        sub_path = params[:sub_path] || ""
 
-          env ->
-            sub_path = params[:sub_path] || ""
-
-            case StateContext.get_latest_state_by_environment_and_path(env.id, sub_path) do
-              nil -> {:no_state, ""}
-              state -> {:state_found, state}
-            end
+        case StateContext.get_latest_state_by_environment_and_path(env.id, sub_path) do
+          nil -> {:no_state, ""}
+          state -> {:state_found, state}
         end
     end
   end
 
   def add_state(params \\ %{}) do
-    case ProjectContext.get_project_by_slug(params[:p_slug]) do
-      nil ->
-        {:not_found, "Project not found"}
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
 
-      project ->
-        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
-          nil ->
-            {:not_found, "Environment not found"}
+      {:ok, env} ->
+        state =
+          StateContext.new_state(%{
+            environment_id: env.id,
+            name: params[:name],
+            value: params[:value],
+            sub_path: params[:sub_path] || ""
+          })
 
-          env ->
-            state =
-              StateContext.new_state(%{
-                environment_id: env.id,
-                name: params[:name],
-                value: params[:value],
-                sub_path: params[:sub_path] || ""
-              })
+        case StateContext.create_state(state) do
+          {:ok, _} ->
+            trim_if_configured(env.id, params[:sub_path] || "")
+            {:success, ""}
 
-            case StateContext.create_state(state) do
-              {:ok, _} ->
-                trim_if_configured(env.id, params[:sub_path] || "")
-                {:success, ""}
+          {:error, changeset} ->
+            messages =
+              changeset.errors()
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
-              {:error, changeset} ->
-                messages =
-                  changeset.errors()
-                  |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
-
-                {:error, Enum.at(messages, 0)}
-            end
+            {:error, Enum.at(messages, 0)}
         end
     end
   end
@@ -86,6 +75,28 @@ defmodule Lynx.Module.StateModule do
 
   def count_states(environment_id) do
     StateContext.count_states(environment_id)
+  end
+
+  defp resolve_env(params) do
+    workspace = WorkspaceContext.get_workspace_by_slug(params[:w_slug])
+
+    project =
+      if workspace do
+        ProjectContext.get_project_by_slug_and_workspace(params[:p_slug], workspace.id)
+      else
+        nil
+      end
+
+    case project do
+      nil ->
+        {:error, "Project not found"}
+
+      project ->
+        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
+          nil -> {:error, "Environment not found"}
+          env -> {:ok, env}
+        end
+    end
   end
 
   defp trim_if_configured(environment_id, sub_path) do

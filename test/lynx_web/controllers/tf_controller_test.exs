@@ -5,9 +5,9 @@ defmodule LynxWeb.TfControllerTest do
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.UserContext
+  alias Lynx.Context.WorkspaceContext
 
   setup %{conn: conn} do
-    # Install the app and create admin
     install_params = %{
       app_name: "Lynx",
       app_url: "https://lynx.com",
@@ -19,7 +19,15 @@ defmodule LynxWeb.TfControllerTest do
 
     post(conn, "/action/install", install_params)
 
-    # Create team, project, environment
+    {:ok, workspace} =
+      WorkspaceContext.create_workspace(
+        WorkspaceContext.new_workspace(%{
+          name: "AWS GovCloud",
+          slug: "aws-govcloud",
+          description: "GovCloud infra"
+        })
+      )
+
     {:ok, team} =
       TeamContext.create_team(
         TeamContext.new_team(%{name: "Infra", slug: "infra", description: "Infra team"})
@@ -31,7 +39,8 @@ defmodule LynxWeb.TfControllerTest do
           name: "Platform",
           slug: "platform",
           description: "Platform project",
-          team_id: team.id
+          team_id: team.id,
+          workspace_id: workspace.id
         })
       )
 
@@ -48,7 +57,7 @@ defmodule LynxWeb.TfControllerTest do
 
     admin = UserContext.get_user_by_email("admin@example.com")
 
-    {:ok, conn: conn, team: team, project: project, env: env, admin: admin}
+    {:ok, conn: conn, workspace: workspace, team: team, project: project, env: env, admin: admin}
   end
 
   defp basic_auth(conn, username, password) do
@@ -65,7 +74,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/state", state_body)
+        |> post("/tf/aws-govcloud/platform/production/state", state_body)
 
       assert conn.status == 200
 
@@ -73,7 +82,7 @@ defmodule LynxWeb.TfControllerTest do
       conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert conn.status == 200
       body = Jason.decode!(conn.resp_body)
@@ -88,19 +97,19 @@ defmodule LynxWeb.TfControllerTest do
       conn
       |> basic_auth(env.username, env.secret)
       |> put_req_header("content-type", "application/json")
-      |> post("/tf/platform/production/dns/state", dns_state)
+      |> post("/tf/aws-govcloud/platform/production/dns/state", dns_state)
 
       # Push VPC unit state
       build_conn()
       |> basic_auth(env.username, env.secret)
       |> put_req_header("content-type", "application/json")
-      |> post("/tf/platform/production/vpc/state", vpc_state)
+      |> post("/tf/aws-govcloud/platform/production/vpc/state", vpc_state)
 
       # Pull DNS state
       dns_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/dns/state")
+        |> get("/tf/aws-govcloud/platform/production/dns/state")
 
       assert dns_conn.status == 200
       assert Jason.decode!(dns_conn.resp_body)["resources"] == ["aws_route53_zone"]
@@ -109,7 +118,7 @@ defmodule LynxWeb.TfControllerTest do
       vpc_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/vpc/state")
+        |> get("/tf/aws-govcloud/platform/production/vpc/state")
 
       assert vpc_conn.status == 200
       assert Jason.decode!(vpc_conn.resp_body)["resources"] == ["aws_vpc"]
@@ -119,13 +128,13 @@ defmodule LynxWeb.TfControllerTest do
       conn
       |> basic_auth(env.username, env.secret)
       |> put_req_header("content-type", "application/json")
-      |> post("/tf/platform/production/dns/state", %{"unit" => "dns"})
+      |> post("/tf/aws-govcloud/platform/production/dns/state", %{"unit" => "dns"})
 
       # Root state should not exist
       root_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert root_conn.status == 404
 
@@ -133,7 +142,7 @@ defmodule LynxWeb.TfControllerTest do
       other_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/vpc/state")
+        |> get("/tf/aws-govcloud/platform/production/vpc/state")
 
       assert other_conn.status == 404
     end
@@ -142,12 +151,12 @@ defmodule LynxWeb.TfControllerTest do
       conn
       |> basic_auth(env.username, env.secret)
       |> put_req_header("content-type", "application/json")
-      |> post("/tf/platform/production/network/vpc/state", %{"nested" => true})
+      |> post("/tf/aws-govcloud/platform/production/network/vpc/state", %{"nested" => true})
 
       nested_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/network/vpc/state")
+        |> get("/tf/aws-govcloud/platform/production/network/vpc/state")
 
       assert nested_conn.status == 200
       assert Jason.decode!(nested_conn.resp_body)["nested"] == true
@@ -157,7 +166,7 @@ defmodule LynxWeb.TfControllerTest do
       conn =
         conn
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/nonexistent/production/state")
+        |> get("/tf/aws-govcloud/nonexistent/production/state")
 
       assert conn.status == 403
     end
@@ -166,7 +175,7 @@ defmodule LynxWeb.TfControllerTest do
       conn =
         conn
         |> basic_auth("wrong", "creds")
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert conn.status == 403
     end
@@ -188,7 +197,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/lock", lock_body)
+        |> post("/tf/aws-govcloud/platform/production/lock", lock_body)
 
       assert lock_conn.status == 200
 
@@ -197,7 +206,7 @@ defmodule LynxWeb.TfControllerTest do
         build_conn()
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/lock", lock_body)
+        |> post("/tf/aws-govcloud/platform/production/lock", lock_body)
 
       assert locked_conn.status == 423
 
@@ -206,7 +215,7 @@ defmodule LynxWeb.TfControllerTest do
         build_conn()
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/unlock", %{})
+        |> post("/tf/aws-govcloud/platform/production/unlock", %{})
 
       assert unlock_conn.status == 200
     end
@@ -227,14 +236,14 @@ defmodule LynxWeb.TfControllerTest do
       conn
       |> basic_auth(env.username, env.secret)
       |> put_req_header("content-type", "application/json")
-      |> post("/tf/platform/production/dns/lock", lock_body.())
+      |> post("/tf/aws-govcloud/platform/production/dns/lock", lock_body.())
 
       # VPC unit should still be lockable
       vpc_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/vpc/lock", lock_body.())
+        |> post("/tf/aws-govcloud/platform/production/vpc/lock", lock_body.())
 
       assert vpc_conn.status == 200
 
@@ -243,7 +252,7 @@ defmodule LynxWeb.TfControllerTest do
         build_conn()
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/dns/lock", lock_body.())
+        |> post("/tf/aws-govcloud/platform/production/dns/lock", lock_body.())
 
       assert dns_conn.status == 423
     end
@@ -266,7 +275,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/dns/lock", lock_body)
+        |> post("/tf/aws-govcloud/platform/production/dns/lock", lock_body)
 
       assert dns_conn.status == 423
     end
@@ -280,7 +289,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(admin.email, admin.api_key)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/state", state_body)
+        |> post("/tf/aws-govcloud/platform/production/state", state_body)
 
       assert conn.status == 200
     end
@@ -289,7 +298,7 @@ defmodule LynxWeb.TfControllerTest do
       conn =
         conn
         |> basic_auth(admin.email, "wrong-key")
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert conn.status == 403
     end
@@ -298,7 +307,7 @@ defmodule LynxWeb.TfControllerTest do
       conn =
         conn
         |> basic_auth("nobody@example.com", "some-key")
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert conn.status == 403
     end
@@ -318,7 +327,7 @@ defmodule LynxWeb.TfControllerTest do
       tf_conn =
         build_conn()
         |> basic_auth(env.username, env.secret)
-        |> get("/tf/platform/production/state")
+        |> get("/tf/aws-govcloud/platform/production/state")
 
       assert tf_conn.status == 200
       assert Jason.decode!(tf_conn.resp_body)["legacy"] == true
@@ -360,7 +369,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/state", %{"version" => 4})
+        |> post("/tf/aws-govcloud/platform/production/state", %{"version" => 4})
 
       assert conn.status == 423
     end
@@ -372,7 +381,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/dns/state", %{"version" => 4})
+        |> post("/tf/aws-govcloud/platform/production/dns/state", %{"version" => 4})
 
       assert conn.status == 423
     end
@@ -385,7 +394,7 @@ defmodule LynxWeb.TfControllerTest do
         conn
         |> basic_auth(env.username, env.secret)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/platform/production/state", %{"version" => 4})
+        |> post("/tf/aws-govcloud/platform/production/state", %{"version" => 4})
 
       assert conn.status == 200
     end

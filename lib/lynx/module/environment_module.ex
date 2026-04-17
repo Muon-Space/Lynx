@@ -150,8 +150,18 @@ defmodule Lynx.Module.EnvironmentModule do
     alias Lynx.Module.OIDCBackendModule
     alias Lynx.Module.PermissionModule
     alias Lynx.Context.UserContext
+    alias Lynx.Context.WorkspaceContext
 
-    case ProjectContext.get_project_by_slug(data[:project_slug]) do
+    workspace = WorkspaceContext.get_workspace_by_slug(data[:workspace_slug])
+
+    project =
+      if workspace do
+        ProjectContext.get_project_by_slug_and_workspace(data[:project_slug], workspace.id)
+      else
+        nil
+      end
+
+    case project do
       nil ->
         {:error, "Invalid project slug"}
 
