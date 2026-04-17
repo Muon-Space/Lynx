@@ -87,7 +87,7 @@ defmodule LynxWeb.ProjectsLive do
 
       <.card>
         <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
-          <:col :let={project} label="Name"><span class="font-medium text-primary-600">{project.name}</span></:col>
+          <:col :let={project} label="Name"><span class="font-medium text-clickable">{project.name}</span></:col>
           <:col :let={project} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{project.slug}</code></:col>
           <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">
@@ -96,7 +96,7 @@ defmodule LynxWeb.ProjectsLive do
             <% end %>
           </:col>
           <:col :let={project} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(project.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(project.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={project}>
             <.button phx-click="edit_project" phx-value-uuid={project.uuid} variant="ghost" size="sm">Edit</.button>

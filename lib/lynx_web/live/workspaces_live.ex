@@ -66,11 +66,11 @@ defmodule LynxWeb.WorkspacesLive do
 
       <.card>
         <.table rows={@workspaces} row_click={fn ws -> JS.push("view_workspace", value: %{uuid: ws.uuid}) end}>
-          <:col :let={ws} label="Name"><span class="font-medium text-primary-600">{ws.name}</span></:col>
+          <:col :let={ws} label="Name"><span class="font-medium text-clickable">{ws.name}</span></:col>
           <:col :let={ws} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{ws.slug}</code></:col>
           <:col :let={ws} label="Projects">{ws.project_count}</:col>
           <:col :let={ws} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(ws.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(ws.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={ws}>
             <.button :if={@current_user.role == "super"} phx-click="edit_workspace" phx-value-uuid={ws.uuid} variant="ghost" size="sm">Edit</.button>

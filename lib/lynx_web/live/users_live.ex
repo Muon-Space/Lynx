@@ -77,7 +77,7 @@ defmodule LynxWeb.UsersLive do
             </.badge>
           </:col>
           <:col :let={user} label="Created">
-            <span class="text-xs text-gray-500">{format_datetime(user.inserted_at)}</span>
+            <span class="text-xs text-muted">{format_datetime(user.inserted_at)}</span>
           </:col>
           <:action :let={user}>
             <.button phx-click="edit_user" phx-value-uuid={user.uuid} variant="ghost" size="sm">Edit</.button>

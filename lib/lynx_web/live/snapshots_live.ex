@@ -71,7 +71,7 @@ defmodule LynxWeb.SnapshotsLive do
             <.badge color={if s.status == "success", do: "green", else: "yellow"}>{s.status}</.badge>
           </:col>
           <:col :let={s} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={s}>
             <.button phx-click="confirm_action" phx-value-event="restore_snapshot" phx-value-message="Restore this snapshot? This will overwrite current environments." phx-value-uuid={s.uuid} variant="ghost" size="sm">Restore</.button>

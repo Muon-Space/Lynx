@@ -3,8 +3,9 @@ defmodule LynxWeb.CoreComponents do
   Shared UI components for the Lynx admin interface.
 
   All colors use semantic tokens from @theme in app.css.
-  Brand accent: primary-*  |  Surfaces: surface, modal, nav, input, inset, code, page
-  Text: foreground, secondary, muted  |  Borders: border, border-input
+  Accent: accent, accent-hover  |  Surfaces: surface, modal, nav, input, inset, code, page
+  Text: foreground, secondary, muted, clickable  |  Borders: border, border-input
+  Status: badge-success-*, badge-danger-*, etc.  |  Selection: select-bg, select-text
   """
 
   use Phoenix.Component
@@ -23,8 +24,8 @@ defmodule LynxWeb.CoreComponents do
       :if={msg = Phoenix.Flash.get(@flash, @kind)}
       class={[
         "fixed top-4 right-4 z-[70] rounded-lg px-4 py-3 shadow-lg text-sm max-w-md",
-        @kind == :info && "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
-        @kind == :error && "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
+        @kind == :info && "bg-flash-success-bg text-flash-success-text border border-flash-success-border",
+        @kind == :error && "bg-flash-error-bg text-flash-error-text border border-flash-error-border"
       ]}
       id={"flash-#{@kind}"}
       phx-hook="AutoDismiss"
@@ -208,20 +209,12 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
-  defp badge_color("green"),
-    do: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-
-  defp badge_color("red"), do: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-
-  defp badge_color("yellow"),
-    do: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-
-  defp badge_color("blue"), do: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-
-  defp badge_color("purple"),
-    do: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400"
-
-  defp badge_color(_), do: "bg-inset text-secondary"
+  defp badge_color("green"), do: "bg-badge-success-bg text-badge-success-text"
+  defp badge_color("red"), do: "bg-badge-danger-bg text-badge-danger-text"
+  defp badge_color("yellow"), do: "bg-badge-warning-bg text-badge-warning-text"
+  defp badge_color("blue"), do: "bg-badge-info-bg text-badge-info-text"
+  defp badge_color("purple"), do: "bg-badge-purple-bg text-badge-purple-text"
+  defp badge_color(_), do: "bg-badge-neutral-bg text-badge-neutral-text"
 
   # -- Button --
 
@@ -254,13 +247,13 @@ defmodule LynxWeb.CoreComponents do
   defp button_size("lg"), do: "px-6 py-3 text-base"
 
   defp button_variant("primary"),
-    do: "bg-primary-500 text-on-primary hover:bg-primary-600 focus:ring-primary-500"
+    do: "bg-accent text-on-primary hover:bg-accent-hover focus:ring-accent"
 
   defp button_variant("secondary"),
     do:
       "bg-surface text-secondary border border-border-input hover:bg-surface-secondary focus:ring-ring"
 
-  defp button_variant("danger"), do: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+  defp button_variant("danger"), do: "bg-danger text-white hover:bg-danger-hover focus:ring-danger"
 
   defp button_variant("ghost"),
     do: "text-secondary hover:text-foreground hover:bg-surface-secondary focus:ring-ring"
@@ -330,7 +323,7 @@ defmodule LynxWeb.CoreComponents do
       <div class="relative">
         <input type="hidden" name={@name} value="false" disabled={@rest[:disabled]} />
         <input type="checkbox" id={@id} name={@name} value="true" checked={@checked} class="peer sr-only" {@rest} />
-        <div class="w-10 h-5 bg-inset peer-checked:bg-primary-500 rounded-full transition-colors"></div>
+        <div class="w-10 h-5 bg-inset peer-checked:bg-accent rounded-full transition-colors"></div>
         <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-surface rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
       </div>
       <span :if={@label} class="text-sm font-medium text-secondary">{@label}</span>
@@ -363,7 +356,7 @@ defmodule LynxWeb.CoreComponents do
         <button
           type="button"
           data-trigger
-          class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm text-left flex items-center justify-between hover:border-muted focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
+          class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm text-left flex items-center justify-between hover:border-muted focus:border-accent-focus-border focus:ring-2 focus:ring-accent-focus-ring cursor-pointer"
         >
           <span data-label class="truncate">{@display_label}</span>
           <svg class="w-4 h-4 text-muted shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -377,9 +370,9 @@ defmodule LynxWeb.CoreComponents do
             data-value={value}
             data-label={label}
             data-selected={to_string(select_option_active?(value, assigns))}
-            class={["px-3 py-2 text-sm hover:bg-primary-50 dark:hover:bg-primary-900/30 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400"]}
+            class={["px-3 py-2 text-sm hover:bg-select-bg cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-select-bg text-select-text"]}
           >
-            <span :if={@multiple} data-check class="text-primary-500 w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
+            <span :if={@multiple} data-check class="text-accent w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
             {label}
           </div>
         </div>
@@ -397,7 +390,7 @@ defmodule LynxWeb.CoreComponents do
       <textarea
         id={@id}
         name={@name}
-        class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+        class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm focus:border-accent-focus-border focus:ring-1 focus:ring-accent"
         {@rest}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       <p :if={@hint} class="mt-1 text-xs text-muted">{@hint}</p>
@@ -415,7 +408,7 @@ defmodule LynxWeb.CoreComponents do
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-        class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+        class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm focus:border-accent-focus-border focus:ring-1 focus:ring-accent"
         {@rest}
       />
       <p :if={@hint} class="mt-1 text-xs text-muted">{@hint}</p>
@@ -430,7 +423,7 @@ defmodule LynxWeb.CoreComponents do
 
   def error(assigns) do
     ~H"""
-    <p class="mt-1 text-xs text-red-600">{render_slot(@inner_block)}</p>
+    <p class="mt-1 text-xs text-badge-danger-text">{render_slot(@inner_block)}</p>
     """
   end
 
@@ -441,9 +434,9 @@ defmodule LynxWeb.CoreComponents do
 
   def page_header(assigns) do
     ~H"""
-    <div class="bg-gradient-to-r from-primary-500 to-primary-600 dark:from-gray-900 dark:to-gray-800 rounded-2xl px-8 py-10 mb-8">
+    <div class="bg-gradient-to-r from-header-from to-header-to rounded-2xl px-8 py-10 mb-8">
       <h1 class="text-3xl font-bold text-on-primary">{@title}</h1>
-      <p :if={@subtitle} class="mt-2 text-primary-100 dark:text-muted">{@subtitle}</p>
+      <p :if={@subtitle} class="mt-2 text-header-subtitle">{@subtitle}</p>
     </div>
     """
   end
@@ -504,7 +497,7 @@ defmodule LynxWeb.CoreComponents do
       href={@href}
       class={[
         "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-        @active && "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400",
+        @active && "bg-select-bg text-select-text",
         !@active && "text-secondary hover:text-foreground hover:bg-surface-secondary"
       ]}
     >

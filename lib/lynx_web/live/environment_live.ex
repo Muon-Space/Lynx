@@ -89,7 +89,7 @@ defmodule LynxWeb.EnvironmentLive do
           </div>
           <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
         </div>
-        <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
+        <div class="bg-code text-on-primary rounded-lg p-4">
           <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @workspace, @project.slug, @env), else: terragrunt_config(@app_url, @workspace, @project.slug, @env)}</pre>
         </div>
       </.card>
@@ -97,8 +97,8 @@ defmodule LynxWeb.EnvironmentLive do
       <%!-- Units Table --%>
       <.card>
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold text-gray-700">Units</h3>
-          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-primary-600 hover:text-primary-800">
+          <h3 class="text-sm font-semibold text-secondary">Units</h3>
+          <a href={"/admin/environment/download/#{@env.uuid}"} class="text-sm text-clickable hover:text-clickable-hover">
             Download Root State
           </a>
         </div>
@@ -121,10 +121,10 @@ defmodule LynxWeb.EnvironmentLive do
           </:col>
           <:col :let={unit} label="State">v{unit.count}</:col>
           <:col :let={unit} label="Last Updated">
-            <span class="text-xs text-gray-500">{Calendar.strftime(unit.latest, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(unit.latest, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={unit}>
-            <a href={"/admin/environment/download/#{@env.uuid}?sub_path=#{unit.sub_path}"} class="text-gray-600 hover:text-gray-800 text-xs px-3 py-1.5">
+            <a href={"/admin/environment/download/#{@env.uuid}?sub_path=#{unit.sub_path}"} class="text-secondary hover:text-foreground text-xs px-3 py-1.5">
               Download
             </a>
           </:action>

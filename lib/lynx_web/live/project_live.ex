@@ -147,7 +147,7 @@ defmodule LynxWeb.ProjectLive do
       <%!-- Environments Table --%>
       <.card>
         <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
-          <:col :let={env} label="Name"><span class="font-medium text-primary-600">{env.name}</span></:col>
+          <:col :let={env} label="Name"><span class="font-medium text-clickable">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
             <span
               class="cursor-pointer"
@@ -163,7 +163,7 @@ defmodule LynxWeb.ProjectLive do
           </:col>
           <:col :let={env} label="State">{env.state_version}</:col>
           <:col :let={env} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(env.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(env.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={env}>
             <.button phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>

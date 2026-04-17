@@ -72,7 +72,7 @@ defmodule LynxWeb.TeamsLive do
           <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
           <:col :let={team} label="Projects">{Lynx.Module.ProjectModule.count_projects_by_team(team.id)}</:col>
           <:col :let={team} label="Created">
-            <span class="text-xs text-gray-500">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
+            <span class="text-xs text-muted">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={team}>
             <.button phx-click="edit_team" phx-value-uuid={team.uuid} variant="ghost" size="sm">Edit</.button>

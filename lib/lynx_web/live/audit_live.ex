@@ -49,7 +49,7 @@ defmodule LynxWeb.AuditLive do
 
         <.table rows={@events}>
           <:col :let={event} label="Time">
-            <span class="text-gray-500 text-xs">{format_datetime(event.inserted_at)}</span>
+            <span class="text-muted text-xs">{format_datetime(event.inserted_at)}</span>
           </:col>
           <:col :let={event} label="Actor">
             <.badge color={if event.actor_type == "system", do: "gray", else: "blue"}>

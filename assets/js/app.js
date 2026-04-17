@@ -69,18 +69,16 @@ Hooks.CustomSelect = {
       if (this.multiple) {
         let wasSelected = opt.dataset.selected === "true"
         opt.dataset.selected = wasSelected ? "false" : "true"
-        opt.classList.toggle("bg-primary-50", !wasSelected)
-        opt.classList.toggle("dark:bg-primary-900/30", !wasSelected)
-        opt.classList.toggle("text-primary-700", !wasSelected)
-        opt.classList.toggle("dark:text-primary-400", !wasSelected)
+        opt.classList.toggle("bg-select-bg", !wasSelected)
+        opt.classList.toggle("text-select-text", !wasSelected)
         let check = opt.querySelector("[data-check]")
         if (check) check.textContent = !wasSelected ? "\u2713" : ""
         this.syncMultiple()
       } else {
         this.dropdown.querySelectorAll("[data-value]").forEach(o => {
-          o.classList.remove("bg-primary-50", "dark:bg-primary-900/30", "text-primary-700", "dark:text-primary-400")
+          o.classList.remove("bg-select-bg", "text-select-text")
         })
-        opt.classList.add("bg-primary-50", "dark:bg-primary-900/30", "text-primary-700", "dark:text-primary-400")
+        opt.classList.add("bg-select-bg", "text-select-text")
         this.labelEl.textContent = opt.dataset.label
         this.inputs.innerHTML = `<input type="hidden" name="${this.name}" value="${this.esc(opt.dataset.value)}" />`
         this.close()

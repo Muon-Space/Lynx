@@ -96,7 +96,7 @@ defmodule LynxWeb.SettingsLive do
 
           <%!-- OIDC fields --%>
           <div :if={@sso_protocol == "oidc"}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
               <p>Sign-in redirect URI: <code class="bg-input px-1 rounded">{@oidc_redirect_uri}</code></p>
               <p>Sign-out redirect URI: <code class="bg-input px-1 rounded">{@oidc_signout_uri}</code></p>
@@ -111,7 +111,7 @@ defmodule LynxWeb.SettingsLive do
 
           <%!-- SAML fields --%>
           <div :if={@sso_protocol == "saml"}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
               <p>ACS URL: <code class="bg-input px-1 rounded">{@saml_acs_url}</code></p>
               <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{@saml_sp_entity_id}</code></p>
@@ -155,7 +155,7 @@ defmodule LynxWeb.SettingsLive do
           </label>
 
           <div :if={@scim_enabled}>
-            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+            <div class="bg-badge-info-bg rounded-lg p-4 text-sm space-y-1 mb-4">
               <p>SCIM Base URL: <code class="bg-input px-1 rounded">{@app_url}/scim/v2</code></p>
               <p>Unique identifier: <code class="bg-input px-1 rounded">userName</code></p>
               <p>Auth: HTTP Header (Bearer token)</p>
@@ -166,8 +166,8 @@ defmodule LynxWeb.SettingsLive do
               <.button phx-click="generate_scim_token" variant="primary" size="sm">Generate Token</.button>
             </div>
 
-            <div :if={@new_token} class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 mb-4">
-              <p class="text-sm font-medium text-emerald-800 dark:text-emerald-300">New token (copy now, won't be shown again):</p>
+            <div :if={@new_token} class="bg-flash-success-bg border border-flash-success-border rounded-lg p-4 mb-4">
+              <p class="text-sm font-medium text-flash-success-text">New token (copy now, won't be shown again):</p>
               <code id="scim-token-content" class="text-sm break-all">{@new_token}</code>
               <div class="mt-2">
                 <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
@@ -192,7 +192,7 @@ defmodule LynxWeb.SettingsLive do
       <%!-- OIDC Providers --%>
       <.card>
         <h3 class="text-lg font-semibold mb-2">OIDC Providers (Terraform Backend Auth)</h3>
-        <p class="text-sm text-gray-500 mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
+        <p class="text-sm text-muted mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
 
         <div :if={@show_add_provider} class="border border-border rounded-lg p-4 mb-4">
           <form phx-submit="create_provider" class="space-y-4">
@@ -219,7 +219,7 @@ defmodule LynxWeb.SettingsLive do
           </:action>
         </.table>
 
-        <p class="text-xs text-gray-400 mt-3">
+        <p class="text-xs text-muted mt-3">
           Common discovery URLs:<br />
           GitHub Actions: <code>https://token.actions.githubusercontent.com</code><br />
           GitLab CI: <code>https://gitlab.com</code>

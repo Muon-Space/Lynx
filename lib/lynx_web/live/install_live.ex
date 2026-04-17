@@ -28,7 +28,7 @@ defmodule LynxWeb.InstallLive do
         </div>
 
         <.card>
-          <p :if={@error} class="mb-4 text-sm text-red-600 bg-red-50 dark:bg-red-950 rounded-lg px-4 py-3 border border-red-200 dark:border-red-800">{@error}</p>
+          <p :if={@error} class="mb-4 text-sm text-flash-error-text bg-flash-error-bg rounded-lg px-4 py-3 border border-flash-error-border">{@error}</p>
 
           <form phx-submit="install" class="space-y-4">
             <.input name="app_name" label="Application Name" value="" required placeholder="Lynx" />
