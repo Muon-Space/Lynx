@@ -98,8 +98,8 @@ defmodule LynxWeb.SettingsLive do
           <div :if={@sso_protocol == "oidc"}>
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
-              <p>Sign-in redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_redirect_uri}</code></p>
-              <p>Sign-out redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_signout_uri}</code></p>
+              <p>Sign-in redirect URI: <code class="bg-input px-1 rounded">{@oidc_redirect_uri}</code></p>
+              <p>Sign-out redirect URI: <code class="bg-input px-1 rounded">{@oidc_signout_uri}</code></p>
               <p>Grant type: Authorization Code (no Refresh Token needed)</p>
             </div>
             <div class="space-y-4">
@@ -113,8 +113,8 @@ defmodule LynxWeb.SettingsLive do
           <div :if={@sso_protocol == "saml"}>
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
               <p class="font-medium">Use in your Identity Provider:</p>
-              <p>ACS URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_acs_url}</code></p>
-              <p>Audience URI (SP Entity ID): <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_sp_entity_id}</code></p>
+              <p>ACS URL: <code class="bg-input px-1 rounded">{@saml_acs_url}</code></p>
+              <p>Audience URI (SP Entity ID): <code class="bg-input px-1 rounded">{@saml_sp_entity_id}</code></p>
               <p>NameID format: EmailAddress</p>
             </div>
             <div class="space-y-4">
@@ -129,11 +129,11 @@ defmodule LynxWeb.SettingsLive do
                   <.button type="button" phx-click="generate_saml_cert" variant="primary" size="sm">Generate SP Certificate</.button>
                 </div>
                 <div :if={@saml_sp_cert != ""}>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SP Certificate (PEM)</label>
-                  <pre id="saml-cert-content" class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
+                  <label class="block text-sm font-medium text-secondary mb-1">SP Certificate (PEM)</label>
+                  <pre id="saml-cert-content" class="bg-inset rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
                   <div class="flex gap-2 mt-2">
-                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
-                    <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Download</a>
+                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+                    <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Download</a>
                     <.button type="button" phx-click="confirm_action" phx-value-event="regenerate_saml_cert" phx-value-message="Regenerate certificate? The old certificate will be invalidated." phx-value-uuid="" variant="secondary" size="sm">Regenerate</.button>
                   </div>
                 </div>
@@ -156,8 +156,8 @@ defmodule LynxWeb.SettingsLive do
 
           <div :if={@scim_enabled}>
             <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
-              <p>SCIM Base URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@app_url}/scim/v2</code></p>
-              <p>Unique identifier: <code class="bg-white dark:bg-gray-800 px-1 rounded">userName</code></p>
+              <p>SCIM Base URL: <code class="bg-input px-1 rounded">{@app_url}/scim/v2</code></p>
+              <p>Unique identifier: <code class="bg-input px-1 rounded">userName</code></p>
               <p>Auth: HTTP Header (Bearer token)</p>
             </div>
 
@@ -170,7 +170,7 @@ defmodule LynxWeb.SettingsLive do
               <p class="text-sm font-medium text-emerald-800 dark:text-emerald-300">New token (copy now, won't be shown again):</p>
               <code id="scim-token-content" class="text-sm break-all">{@new_token}</code>
               <div class="mt-2">
-                <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
+                <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
               </div>
             </div>
 
@@ -194,7 +194,7 @@ defmodule LynxWeb.SettingsLive do
         <h3 class="text-lg font-semibold mb-2">OIDC Providers (Terraform Backend Auth)</h3>
         <p class="text-sm text-gray-500 mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
 
-        <div :if={@show_add_provider} class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
+        <div :if={@show_add_provider} class="border border-border rounded-lg p-4 mb-4">
           <form phx-submit="create_provider" class="space-y-4">
             <.input name="name" label="Provider Name" value="" required placeholder="github-actions" hint="Used as HTTP Basic Auth username in Terraform" />
             <.input name="discovery_url" label="Discovery URL" type="url" value="" required placeholder="https://token.actions.githubusercontent.com" />

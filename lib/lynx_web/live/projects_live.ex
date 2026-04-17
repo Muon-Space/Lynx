@@ -47,10 +47,10 @@ defmodule LynxWeb.ProjectsLive do
     <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title={@workspace.name} subtitle={@workspace.description} />
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
+        <nav class="flex items-center gap-2 text-sm text-secondary">
+          <a href="/admin/workspaces" class="hover:text-foreground">Workspaces</a>
           <span>/</span>
-          <span class="text-gray-900 dark:text-white font-medium">{@workspace.name}</span>
+          <span class="text-foreground font-medium">{@workspace.name}</span>
         </nav>
         <.button phx-click="show_add" variant="primary">+ Add Project</.button>
       </div>
@@ -88,7 +88,7 @@ defmodule LynxWeb.ProjectsLive do
       <.card>
         <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
           <:col :let={project} label="Name"><span class="font-medium text-primary-600">{project.name}</span></:col>
-          <:col :let={project} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{project.slug}</code></:col>
+          <:col :let={project} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{project.slug}</code></:col>
           <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">
             <%= for team <- ProjectModule.get_project_teams(project.id) do %>

@@ -5,10 +5,56 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@layer base {
+  :root {
+    --bg-page: #f9fafb;
+    --bg-surface: #ffffff;
+    --bg-surface-secondary: #f3f4f6;
+    --bg-inset: #f3f4f6;
+    --bg-nav: #ffffff;
+    --bg-input: #ffffff;
+    --bg-modal: #ffffff;
+    --bg-code: #111827;
+
+    --border-default: #e5e7eb;
+    --border-input: #d1d5db;
+
+    --text-primary: #111827;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --text-on-primary: #ffffff;
+    --text-link: #2563eb;
+
+    --ring-focus: #3b82f6;
+  }
+
+  .dark {
+    --bg-page: #030712;
+    --bg-surface: #111827;
+    --bg-surface-secondary: #1f2937;
+    --bg-inset: #1f2937;
+    --bg-nav: #111827;
+    --bg-input: #1f2937;
+    --bg-modal: #111827;
+    --bg-code: #111827;
+
+    --border-default: #374151;
+    --border-input: #4b5563;
+
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-on-primary: #ffffff;
+    --text-link: #60a5fa;
+
+    --ring-focus: #3b82f6;
+  }
+}
+
 @theme {
   --font-sans: 'Inter', 'Poppins', ui-sans-serif, system-ui, sans-serif;
 
-  /* Primary brand color */
+  /* Primary brand */
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
   --color-primary-200: #bfdbfe;
@@ -19,4 +65,28 @@
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
+
+  /* Semantic surfaces */
+  --color-page: var(--bg-page);
+  --color-surface: var(--bg-surface);
+  --color-surface-secondary: var(--bg-surface-secondary);
+  --color-inset: var(--bg-inset);
+  --color-nav: var(--bg-nav);
+  --color-input: var(--bg-input);
+  --color-modal: var(--bg-modal);
+  --color-code: var(--bg-code);
+
+  /* Semantic borders */
+  --color-border: var(--border-default);
+  --color-border-input: var(--border-input);
+
+  /* Semantic text */
+  --color-foreground: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-on-primary: var(--text-on-primary);
+  --color-link: var(--text-link);
+
+  /* Focus ring */
+  --color-ring: var(--ring-focus);
 }

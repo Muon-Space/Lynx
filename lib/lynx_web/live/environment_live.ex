@@ -56,14 +56,14 @@ defmodule LynxWeb.EnvironmentLive do
       <.page_header title={@env.name} subtitle={"Environment in #{@project.name}"} />
 
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
+        <nav class="flex items-center gap-2 text-sm text-secondary">
+          <a href="/admin/workspaces" class="hover:text-foreground">Workspaces</a>
           <span>/</span>
-          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@workspace.name}</a>
+          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-foreground">{@workspace.name}</a>
           <span :if={@workspace}>/</span>
-          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@project.name}</a>
+          <a href={"/admin/projects/#{@project.uuid}"} class="hover:text-foreground">{@project.name}</a>
           <span>/</span>
-          <span class="text-gray-900 dark:text-white font-medium">{@env.name}</span>
+          <span class="text-foreground font-medium">{@env.name}</span>
         </nav>
         <div class="flex items-center gap-3">
           <span
@@ -84,10 +84,10 @@ defmodule LynxWeb.EnvironmentLive do
       <.card class="mb-6">
         <div class="flex items-center justify-between mb-3">
           <div class="flex gap-2">
-            <button phx-click="show_terraform_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terraform", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terraform</button>
-            <button phx-click="show_terragrunt_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terragrunt", do: "bg-gray-900 dark:bg-gray-700 text-white", else: "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200")}>Terragrunt</button>
+            <button phx-click="show_terraform_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terraform", do: "bg-code text-on-primary", else: "text-secondary hover:text-foreground")}>Terraform</button>
+            <button phx-click="show_terragrunt_config" class={"text-sm font-semibold px-3 py-1 rounded-lg cursor-pointer " <> if(@config_tab == "terragrunt", do: "bg-code text-on-primary", else: "text-secondary hover:text-foreground")}>Terragrunt</button>
           </div>
-          <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
+          <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
         </div>
         <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
           <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @workspace, @project.slug, @env), else: terragrunt_config(@app_url, @workspace, @project.slug, @env)}</pre>
@@ -104,7 +104,7 @@ defmodule LynxWeb.EnvironmentLive do
         </div>
         <.table rows={@units} empty_message="No units yet. State will appear here after your first Terraform apply.">
           <:col :let={unit} label="Path">
-            <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
+            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code>
           </:col>
           <:col :let={unit} label="Lock Status">
             <span

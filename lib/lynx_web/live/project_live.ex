@@ -71,12 +71,12 @@ defmodule LynxWeb.ProjectLive do
     <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title={@project.name} subtitle={@project.description} />
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
+        <nav class="flex items-center gap-2 text-sm text-secondary">
+          <a href="/admin/workspaces" class="hover:text-foreground">Workspaces</a>
           <span>/</span>
-          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@workspace.name}</a>
+          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-foreground">{@workspace.name}</a>
           <span :if={@workspace}>/</span>
-          <span class="text-gray-900 dark:text-white font-medium">{@project.name}</span>
+          <span class="text-foreground font-medium">{@project.name}</span>
         </nav>
         <.button phx-click="show_add_env" variant="primary">+ Add Environment</.button>
       </div>
@@ -115,7 +115,7 @@ defmodule LynxWeb.ProjectLive do
       <.modal :if={@show_oidc_rules} id="oidc-rules" show on_close="hide_oidc_rules">
         <h3 class="text-lg font-semibold mb-4">OIDC Access Rules — {@show_oidc_rules.name}</h3>
 
-        <div :if={@show_add_rule} class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
+        <div :if={@show_add_rule} class="border border-border rounded-lg p-4 mb-4">
           <form phx-submit="create_rule" class="space-y-3">
             <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value="" required />
             <.input name="rule_name" label="Rule Name" value="" required placeholder="prod-deploy" />

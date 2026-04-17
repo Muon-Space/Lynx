@@ -60,7 +60,7 @@ defmodule LynxWeb.AuditLive do
             <.badge color={action_color(event.action)}>{event.action}</.badge>
           </:col>
           <:col :let={event} label="Resource">
-            <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{event.resource_type}</code>
+            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
           </:col>
           <:col :let={event} label="Name">
             {event.resource_name || event.resource_id || "-"}
