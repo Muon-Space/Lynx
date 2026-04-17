@@ -23,7 +23,11 @@ defmodule Lynx.Module.SSOModule do
   Check if password auth is enabled
   """
   def is_password_enabled? do
-    SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
+    if System.get_env("FORCE_PASSWORD_LOGIN") == "true" do
+      true
+    else
+      SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
+    end
   end
 
   @doc """

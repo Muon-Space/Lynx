@@ -336,16 +336,25 @@ defmodule LynxWeb.SettingsLive do
   end
 
   def handle_event("save_sso", params, socket) do
+    protocol = params["sso_protocol"] || socket.assigns.sso_protocol
+
     configs = %{
       "auth_password_enabled" =>
         if(params["auth_password_enabled"] == "true", do: "true", else: "false"),
       "auth_sso_enabled" => if(params["auth_sso_enabled"] == "true", do: "true", else: "false"),
       "sso_jit_enabled" => if(params["sso_jit_enabled"] == "true", do: "true", else: "false"),
-      "sso_protocol" => params["sso_protocol"],
-      "sso_login_label" => params["sso_login_label"],
+      "sso_protocol" => protocol,
+      "sso_login_label" => params["sso_login_label"] || socket.assigns.sso_login_label,
       "sso_issuer" => params["sso_issuer"] || "",
       "sso_client_id" => params["sso_client_id"] || "",
-      "sso_client_secret" => params["sso_client_secret"] || ""
+      "sso_client_secret" => params["sso_client_secret"] || "",
+      "sso_saml_idp_sso_url" => params["sso_saml_idp_sso_url"] || "",
+      "sso_saml_idp_issuer" => params["sso_saml_idp_issuer"] || "",
+      "sso_saml_idp_cert" => params["sso_saml_idp_cert"] || "",
+      "sso_saml_idp_metadata_url" => params["sso_saml_idp_metadata_url"] || "",
+      "sso_saml_sp_entity_id" => params["sso_saml_sp_entity_id"] || "",
+      "sso_saml_sign_requests" =>
+        if(params["sso_saml_sign_requests"] == "true", do: "true", else: "false")
     }
 
     SettingsModule.update_sso_configs(configs)
@@ -355,7 +364,14 @@ defmodule LynxWeb.SettingsLive do
      socket
      |> put_flash(:info, "SSO settings saved")
      |> assign(:password_enabled, configs["auth_password_enabled"] == "true")
-     |> assign(:sso_enabled, configs["auth_sso_enabled"] == "true")}
+     |> assign(:sso_enabled, configs["auth_sso_enabled"] == "true")
+     |> assign(:sso_protocol, protocol)
+     |> assign(:saml_idp_sso_url, configs["sso_saml_idp_sso_url"])
+     |> assign(:saml_idp_issuer, configs["sso_saml_idp_issuer"])
+     |> assign(:saml_idp_cert, configs["sso_saml_idp_cert"])
+     |> assign(:saml_idp_metadata_url, configs["sso_saml_idp_metadata_url"])
+     |> assign(:saml_sp_entity_id, configs["sso_saml_sp_entity_id"])
+     |> assign(:saml_sign_requests, configs["sso_saml_sign_requests"] == "true")}
   end
 
   # -- SCIM --
