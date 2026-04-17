@@ -50,15 +50,8 @@ defmodule Lynx.Service.SAMLService do
       login_url = esaml_idp_metadata(idp_meta, :login_location) |> to_string()
       nameid_format = esaml_idp_metadata(idp_meta, :name_format)
 
-      Logger.info("SAML SP Entity ID: #{esaml_sp(sp, :entity_id)}")
-      Logger.info("SAML SP Consume URI: #{esaml_sp(sp, :consume_uri)}")
-      Logger.info("SAML SP Sign Requests: #{esaml_sp(sp, :sp_sign_requests)}")
-      Logger.info("SAML IdP Login URL: #{login_url}")
-
       xml = :esaml_sp.generate_authn_request(String.to_charlist(login_url), sp, nameid_format)
       xml_bytes = :xmerl.export_simple([xml], :xmerl_xml) |> List.flatten()
-
-      Logger.info("SAML AuthnRequest XML: #{xml_bytes}")
 
       # DEFLATE + Base64 encode for HTTP-Redirect binding
       z = :zlib.open()
