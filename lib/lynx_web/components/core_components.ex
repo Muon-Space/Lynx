@@ -253,7 +253,8 @@ defmodule LynxWeb.CoreComponents do
     do:
       "bg-surface text-secondary border border-border-input hover:bg-surface-secondary focus:ring-ring"
 
-  defp button_variant("danger"), do: "bg-danger text-white hover:bg-danger-hover focus:ring-danger"
+  defp button_variant("danger"),
+    do: "bg-danger text-white hover:bg-danger-hover focus:ring-danger"
 
   defp button_variant("ghost"),
     do: "text-secondary hover:text-foreground hover:bg-surface-secondary focus:ring-ring"
