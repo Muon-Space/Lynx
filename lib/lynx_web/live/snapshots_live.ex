@@ -13,6 +13,8 @@ defmodule LynxWeb.SnapshotsLive do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
+    all_workspaces = Lynx.Context.WorkspaceContext.get_workspaces(0, 10000)
+
     all_projects =
       if user.role == "super",
         do: ProjectModule.get_projects(0, 10000),
@@ -22,10 +24,15 @@ defmodule LynxWeb.SnapshotsLive do
       socket
       |> assign(:page, 1)
       |> assign(:show_add, false)
+      |> assign(:all_workspaces, all_workspaces)
       |> assign(:all_projects, all_projects)
+      |> assign(:filtered_projects, all_projects)
       |> assign(:snapshot_scope, "project")
+      |> assign(:snapshot_workspace_id, nil)
       |> assign(:snapshot_project_uuid, nil)
       |> assign(:snapshot_envs, [])
+      |> assign(:snapshot_env_uuid, nil)
+      |> assign(:snapshot_units, [])
       |> assign(:confirm, nil)
       |> load_snapshots()
 
@@ -49,11 +56,21 @@ defmodule LynxWeb.SnapshotsLive do
         <form phx-submit="create_snapshot" phx-change="snapshot_form_change" class="space-y-4">
           <.input name="title" label="Title" value="" required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="record_uuid" id="snapshot-project" label="Project" type="select" prompt="Select project" options={Enum.map(@all_projects, &{&1.name, &1.uuid})} value={@snapshot_project_uuid || ""} required />
-          <.input name="record_type" id="snapshot-scope" label="Scope" type="select" options={[{"Project (all environments)", "project"}, {"Single Environment", "environment"}]} value={@snapshot_scope} />
-          <div :if={@snapshot_scope == "environment" && @snapshot_envs != []}>
-            <.input name="env_uuid" id={"snapshot-env-#{@snapshot_project_uuid}"} label="Environment" type="select" prompt="Select environment" options={Enum.map(@snapshot_envs, &{&1.name, &1.uuid})} value="" required />
+
+          <.input name="workspace_id" id="snapshot-workspace" label="Workspace" type="select" prompt="All Workspaces" options={Enum.map(@all_workspaces, &{&1.name, to_string(&1.id)})} value={@snapshot_workspace_id || ""} />
+
+          <.input name="project_uuid" id={"snapshot-project-#{@snapshot_workspace_id}"} label="Project" type="select" prompt="Select project" options={Enum.map(@filtered_projects, &{&1.name, &1.uuid})} value={@snapshot_project_uuid || ""} required />
+
+          <.input name="record_type" id="snapshot-scope" label="Scope" type="select" options={[{"All Environments", "project"}, {"Single Environment", "environment"}, {"Single Unit", "unit"}]} value={@snapshot_scope} />
+
+          <div :if={@snapshot_scope in ["environment", "unit"] && @snapshot_envs != []}>
+            <.input name="env_uuid" id={"snapshot-env-#{@snapshot_project_uuid}"} label="Environment" type="select" prompt="Select environment" options={Enum.map(@snapshot_envs, &{&1.name, &1.uuid})} value={@snapshot_env_uuid || ""} required />
           </div>
+
+          <div :if={@snapshot_scope == "unit" && @snapshot_units != []}>
+            <.input name="unit_path" id={"snapshot-unit-#{@snapshot_env_uuid}"} label="Unit" type="select" prompt="Select unit" options={Enum.map(@snapshot_units, &{if(&1.sub_path == "", do: "(root)", else: &1.sub_path), &1.sub_path})} value="" required />
+          </div>
+
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -101,8 +118,12 @@ defmodule LynxWeb.SnapshotsLive do
      assign(socket,
        show_add: true,
        snapshot_scope: "project",
+       snapshot_workspace_id: nil,
        snapshot_project_uuid: nil,
-       snapshot_envs: []
+       filtered_projects: socket.assigns.all_projects,
+       snapshot_envs: [],
+       snapshot_env_uuid: nil,
+       snapshot_units: []
      )}
   end
 
@@ -110,8 +131,20 @@ defmodule LynxWeb.SnapshotsLive do
 
   def handle_event("snapshot_form_change", params, socket) do
     scope = params["record_type"] || socket.assigns.snapshot_scope
-    project_uuid = params["record_uuid"]
+    workspace_id = params["workspace_id"]
+    project_uuid = params["project_uuid"]
+    env_uuid = params["env_uuid"]
 
+    # Filter projects by workspace
+    filtered_projects =
+      if workspace_id && workspace_id != "" do
+        ws_id = String.to_integer(workspace_id)
+        Enum.filter(socket.assigns.all_projects, &(&1.workspace_id == ws_id))
+      else
+        socket.assigns.all_projects
+      end
+
+    # Load environments when project selected
     envs =
       if project_uuid && project_uuid != "" do
         case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
@@ -122,20 +155,44 @@ defmodule LynxWeb.SnapshotsLive do
         []
       end
 
+    # Load units when environment selected
+    units =
+      if env_uuid && env_uuid != "" do
+        case Lynx.Context.EnvironmentContext.get_env_by_uuid(env_uuid) do
+          nil -> []
+          env -> Lynx.Context.StateContext.list_sub_paths(env.id)
+        end
+      else
+        []
+      end
+
     {:noreply,
      socket
      |> assign(:snapshot_scope, scope)
+     |> assign(:snapshot_workspace_id, workspace_id)
      |> assign(:snapshot_project_uuid, project_uuid)
-     |> assign(:snapshot_envs, envs)}
+     |> assign(:filtered_projects, filtered_projects)
+     |> assign(:snapshot_envs, envs)
+     |> assign(:snapshot_env_uuid, env_uuid)
+     |> assign(:snapshot_units, units)}
   end
 
   def handle_event("create_snapshot", params, socket) do
-    record_uuid =
-      if params["record_type"] == "environment" && params["env_uuid"] && params["env_uuid"] != "",
-        do: params["env_uuid"],
-        else: params["record_uuid"]
+    record_type = params["record_type"]
 
-    project_uuid = params["record_uuid"]
+    {record_uuid, snapshot_opts} =
+      case record_type do
+        "project" ->
+          {params["project_uuid"], %{}}
+
+        "environment" ->
+          {params["env_uuid"], %{}}
+
+        "unit" ->
+          {params["env_uuid"], %{sub_path: params["unit_path"] || ""}}
+      end
+
+    project_uuid = params["project_uuid"]
 
     teams =
       case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
@@ -145,7 +202,7 @@ defmodule LynxWeb.SnapshotsLive do
 
     first_team_uuid = if teams != [], do: hd(teams).uuid, else: nil
 
-    case SnapshotModule.take_snapshot(params["record_type"], record_uuid) do
+    case SnapshotModule.take_snapshot(record_type, record_uuid, snapshot_opts) do
       {:ok, data} ->
         case SnapshotModule.create_snapshot(%{
                title: params["title"],

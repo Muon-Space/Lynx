@@ -139,24 +139,26 @@ defmodule Lynx.Module.SnapshotModule do
   @doc """
   Take Snapshot
   """
-  def take_snapshot(record_type, record_uuid) do
+  def take_snapshot(record_type, record_uuid, opts \\ %{}) do
     case {String.to_atom(record_type), record_uuid} do
       {:project, p_uuid} ->
         case project_snapshot_data(p_uuid) do
-          {:error, msg} ->
-            {:error, msg}
-
-          {:ok, data} ->
-            {:ok, Jason.encode!(data)}
+          {:error, msg} -> {:error, msg}
+          {:ok, data} -> {:ok, Jason.encode!(data)}
         end
 
       {:environment, e_uuid} ->
         case environment_snapshot_data(e_uuid) do
-          {:error, msg} ->
-            {:error, msg}
+          {:error, msg} -> {:error, msg}
+          {:ok, data} -> {:ok, Jason.encode!(data)}
+        end
 
-          {:ok, data} ->
-            {:ok, Jason.encode!(data)}
+      {:unit, e_uuid} ->
+        sub_path = opts[:sub_path] || ""
+
+        case unit_snapshot_data(e_uuid, sub_path) do
+          {:error, msg} -> {:error, msg}
+          {:ok, data} -> {:ok, Jason.encode!(data)}
         end
     end
   end
@@ -338,6 +340,62 @@ defmodule Lynx.Module.SnapshotModule do
             ]
 
             {:ok, %{data | environments: environments}}
+        end
+    end
+  end
+
+  defp unit_snapshot_data(env_uuid, sub_path) do
+    case EnvironmentContext.get_env_by_uuid(env_uuid) do
+      nil ->
+        {:error, "Environment with ID #{env_uuid} not found"}
+
+      environment ->
+        case ProjectContext.get_project_by_id(environment.project_id) do
+          nil ->
+            {:error, "Project not found"}
+
+          project ->
+            states =
+              for state <- StateContext.get_states_by_environment_id(environment.id),
+                  Map.get(state, :sub_path, "") == sub_path do
+                %{
+                  id: state.id,
+                  uuid: state.uuid,
+                  name: state.name,
+                  value: state.value,
+                  sub_path: Map.get(state, :sub_path, ""),
+                  environment_id: state.environment_id,
+                  inserted_at: state.inserted_at,
+                  updated_at: state.updated_at
+                }
+              end
+
+            data = %{
+              id: project.id,
+              uuid: project.uuid,
+              name: project.name,
+              slug: project.slug,
+              description: project.description,
+              team_ids: Lynx.Context.ProjectContext.get_project_team_ids(project.id),
+              inserted_at: project.inserted_at,
+              updated_at: project.updated_at,
+              environments: [
+                %{
+                  id: environment.id,
+                  uuid: environment.uuid,
+                  name: environment.name,
+                  slug: environment.slug,
+                  username: environment.username,
+                  secret: environment.secret,
+                  project_id: environment.project_id,
+                  inserted_at: environment.inserted_at,
+                  updated_at: environment.updated_at,
+                  states: states
+                }
+              ]
+            }
+
+            {:ok, data}
         end
     end
   end
