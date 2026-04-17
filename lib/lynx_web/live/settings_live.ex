@@ -351,17 +351,23 @@ defmodule LynxWeb.SettingsLive do
       # OIDC fields — preserve existing when SAML tab is active
       "sso_issuer" => Map.get(params, "sso_issuer", socket.assigns.sso_issuer),
       "sso_client_id" => Map.get(params, "sso_client_id", socket.assigns.sso_client_id),
-      "sso_client_secret" => Map.get(params, "sso_client_secret", socket.assigns.sso_client_secret),
+      "sso_client_secret" =>
+        Map.get(params, "sso_client_secret", socket.assigns.sso_client_secret),
       # SAML fields — preserve existing when OIDC tab is active
-      "sso_saml_idp_sso_url" => Map.get(params, "sso_saml_idp_sso_url", socket.assigns.saml_idp_sso_url),
-      "sso_saml_idp_issuer" => Map.get(params, "sso_saml_idp_issuer", socket.assigns.saml_idp_issuer),
+      "sso_saml_idp_sso_url" =>
+        Map.get(params, "sso_saml_idp_sso_url", socket.assigns.saml_idp_sso_url),
+      "sso_saml_idp_issuer" =>
+        Map.get(params, "sso_saml_idp_issuer", socket.assigns.saml_idp_issuer),
       "sso_saml_idp_cert" => Map.get(params, "sso_saml_idp_cert", socket.assigns.saml_idp_cert),
-      "sso_saml_idp_metadata_url" => Map.get(params, "sso_saml_idp_metadata_url", socket.assigns.saml_idp_metadata_url),
-      "sso_saml_sp_entity_id" => Map.get(params, "sso_saml_sp_entity_id", socket.assigns.saml_sp_entity_id),
+      "sso_saml_idp_metadata_url" =>
+        Map.get(params, "sso_saml_idp_metadata_url", socket.assigns.saml_idp_metadata_url),
+      "sso_saml_sp_entity_id" =>
+        Map.get(params, "sso_saml_sp_entity_id", socket.assigns.saml_sp_entity_id),
       "sso_saml_sign_requests" =>
         if(Map.has_key?(params, "sso_saml_sign_requests"),
           do: if(params["sso_saml_sign_requests"] == "true", do: "true", else: "false"),
-          else: to_string(socket.assigns.saml_sign_requests))
+          else: to_string(socket.assigns.saml_sign_requests)
+        )
     }
 
     old_sso = %{
