@@ -18,6 +18,7 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:app_name, SettingsModule.get_config("app_name", ""))
       |> assign(:app_url, app_url)
       |> assign(:app_email, SettingsModule.get_config("app_email", ""))
+      |> assign(:state_retention, SettingsModule.get_config("state_retention_count", "0"))
       # SSO
       |> assign(
         :password_enabled,
@@ -67,7 +68,7 @@ defmodule LynxWeb.SettingsLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="settings" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Settings" subtitle="Configure authentication, SSO, and system preferences" />
 
       <%!-- General Settings --%>
@@ -77,6 +78,7 @@ defmodule LynxWeb.SettingsLive do
           <.input name="app_name" label="Application Name" value={@app_name} required />
           <.input name="app_url" label="Application URL" type="url" value={@app_url} required />
           <.input name="app_email" label="Application Email" type="email" value={@app_email} required />
+          <.input name="state_retention" label="State Retention (versions per unit)" type="number" value={@state_retention} hint="Number of state versions to keep per unit. Set to 0 to keep all versions." />
           <.button type="submit" variant="primary">Save</.button>
         </form>
       </.card>
@@ -84,7 +86,7 @@ defmodule LynxWeb.SettingsLive do
       <%!-- SSO Settings --%>
       <.card class="mb-6">
         <h3 class="text-lg font-semibold mb-4">Single Sign-On (SSO)</h3>
-        <form phx-submit="save_sso" class="space-y-4">
+        <form phx-submit="save_sso" phx-change="sso_form_change" class="space-y-4">
           <.input name="auth_password_enabled" type="checkbox" label="Password Login Enabled" checked={@password_enabled} />
           <.input name="auth_sso_enabled" type="checkbox" label="SSO Login Enabled" checked={@sso_enabled} />
           <.input name="sso_jit_enabled" type="checkbox" label="JIT User Provisioning" checked={@jit_enabled} hint="Auto-create users on first SSO login. Disable if users should be provisioned via SCIM only." />
@@ -93,16 +95,49 @@ defmodule LynxWeb.SettingsLive do
           <.input name="sso_login_label" label="Login Button Label" value={@sso_login_label} />
 
           <%!-- OIDC fields --%>
-          <div class="bg-blue-50 rounded-lg p-4 text-sm space-y-1">
-            <p class="font-medium">Use in your Identity Provider:</p>
-            <p>Sign-in redirect URI: <code class="bg-white px-1 rounded">{@oidc_redirect_uri}</code></p>
-            <p>Sign-out redirect URI: <code class="bg-white px-1 rounded">{@oidc_signout_uri}</code></p>
-            <p>Grant type: Authorization Code (no Refresh Token needed)</p>
+          <div :if={@sso_protocol == "oidc"}>
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+              <p class="font-medium">Use in your Identity Provider:</p>
+              <p>Sign-in redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_redirect_uri}</code></p>
+              <p>Sign-out redirect URI: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@oidc_signout_uri}</code></p>
+              <p>Grant type: Authorization Code (no Refresh Token needed)</p>
+            </div>
+            <div class="space-y-4">
+              <.input name="sso_issuer" label="Issuer URL" type="url" value={@sso_issuer} placeholder="https://your-idp.com" />
+              <.input name="sso_client_id" label="Client ID" value={@sso_client_id} />
+              <.input name="sso_client_secret" label="Client Secret" type="password" value={@sso_client_secret} />
+            </div>
           </div>
 
-          <.input name="sso_issuer" label="Issuer URL" type="url" value={@sso_issuer} placeholder="https://your-idp.com" />
-          <.input name="sso_client_id" label="Client ID" value={@sso_client_id} />
-          <.input name="sso_client_secret" label="Client Secret" type="password" value={@sso_client_secret} />
+          <%!-- SAML fields --%>
+          <div :if={@sso_protocol == "saml"}>
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+              <p class="font-medium">Use in your Identity Provider:</p>
+              <p>ACS URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_acs_url}</code></p>
+              <p>Audience URI (SP Entity ID): <code class="bg-white dark:bg-gray-800 px-1 rounded">{@saml_sp_entity_id}</code></p>
+              <p>NameID format: EmailAddress</p>
+            </div>
+            <div class="space-y-4">
+              <.input name="sso_saml_idp_sso_url" label="IdP SSO URL" type="url" value={@saml_idp_sso_url} placeholder="https://idp.example.com/sso" />
+              <.input name="sso_saml_idp_issuer" label="IdP Issuer / Entity ID" value={@saml_idp_issuer} />
+              <.input name="sso_saml_idp_cert" label="IdP X.509 Certificate (PEM)" type="textarea" value={@saml_idp_cert} />
+              <.input name="sso_saml_idp_metadata_url" label="IdP Metadata URL (optional)" type="url" value={@saml_idp_metadata_url} />
+              <.input name="sso_saml_sp_entity_id" label="SP Entity ID / Audience URI" value={@saml_sp_entity_id} />
+              <.input name="sso_saml_sign_requests" type="checkbox" label="Sign AuthnRequests" checked={@saml_sign_requests} />
+              <div :if={@saml_sign_requests} class="mt-3 space-y-3">
+                <div :if={@saml_sp_cert == ""}>
+                  <.button type="button" phx-click="generate_saml_cert" variant="primary" size="sm">Generate SP Certificate</.button>
+                </div>
+                <div :if={@saml_sp_cert != ""}>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SP Certificate (PEM)</label>
+                  <pre class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
+                  <div class="flex gap-2 mt-2">
+                    <.button type="button" phx-click="confirm_action" phx-value-event="regenerate_saml_cert" phx-value-message="Regenerate certificate? The old certificate will be invalidated." phx-value-uuid="" variant="secondary" size="sm">Regenerate</.button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <.button type="submit" variant="primary">Save SSO Settings</.button>
         </form>
@@ -118,9 +153,9 @@ defmodule LynxWeb.SettingsLive do
           </label>
 
           <div :if={@scim_enabled}>
-            <div class="bg-blue-50 rounded-lg p-4 text-sm space-y-1 mb-4">
-              <p>SCIM Base URL: <code class="bg-white px-1 rounded">{@app_url}/scim/v2</code></p>
-              <p>Unique identifier: <code class="bg-white px-1 rounded">userName</code></p>
+            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-sm space-y-1 mb-4">
+              <p>SCIM Base URL: <code class="bg-white dark:bg-gray-800 px-1 rounded">{@app_url}/scim/v2</code></p>
+              <p>Unique identifier: <code class="bg-white dark:bg-gray-800 px-1 rounded">userName</code></p>
               <p>Auth: HTTP Header (Bearer token)</p>
             </div>
 
@@ -129,7 +164,7 @@ defmodule LynxWeb.SettingsLive do
               <.button phx-click="generate_scim_token" variant="primary" size="sm">Generate Token</.button>
             </div>
 
-            <div :if={@new_token} class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
+            <div :if={@new_token} class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 mb-4">
               <p class="text-sm font-medium text-emerald-800">New token (copy now, won't be shown again):</p>
               <code class="text-sm break-all">{@new_token}</code>
             </div>
@@ -154,7 +189,7 @@ defmodule LynxWeb.SettingsLive do
         <h3 class="text-lg font-semibold mb-2">OIDC Providers (Terraform Backend Auth)</h3>
         <p class="text-sm text-gray-500 mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
 
-        <div :if={@show_add_provider} class="border rounded-lg p-4 mb-4">
+        <div :if={@show_add_provider} class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
           <form phx-submit="create_provider" class="space-y-4">
             <.input name="name" label="Provider Name" value="" required placeholder="github-actions" hint="Used as HTTP Basic Auth username in Terraform" />
             <.input name="discovery_url" label="Discovery URL" type="url" value="" required placeholder="https://token.actions.githubusercontent.com" />
@@ -207,6 +242,9 @@ defmodule LynxWeb.SettingsLive do
       app_email: params["app_email"]
     })
 
+    retention = params["state_retention"] || "0"
+    SettingsModule.upsert_config("state_retention_count", retention)
+
     AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "general")
 
     {:noreply,
@@ -214,10 +252,43 @@ defmodule LynxWeb.SettingsLive do
      |> assign(:app_name, params["app_name"])
      |> assign(:app_url, params["app_url"])
      |> assign(:app_email, params["app_email"])
+     |> assign(:state_retention, retention)
      |> put_flash(:info, "Settings saved")}
   end
 
   # -- SSO --
+  def handle_event("sso_form_change", params, socket) do
+    protocol = params["sso_protocol"] || socket.assigns.sso_protocol
+    {:noreply, assign(socket, :sso_protocol, protocol)}
+  end
+
+  def handle_event("generate_saml_cert", _, socket) do
+    case Lynx.Service.SAMLService.generate_sp_certificate() do
+      {:ok, %{cert_pem: cert_pem}} ->
+        SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
+        SettingsModule.upsert_config("sso_saml_sign_requests", "true")
+        AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
+        {:noreply, socket |> assign(:saml_sp_cert, cert_pem) |> assign(:saml_sign_requests, true) |> put_flash(:info, "SP certificate generated")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to generate certificate")}
+    end
+  end
+
+  def handle_event("regenerate_saml_cert", _, socket) do
+    socket = assign(socket, :confirm, nil)
+
+    case Lynx.Service.SAMLService.generate_sp_certificate() do
+      {:ok, %{cert_pem: cert_pem}} ->
+        SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
+        AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
+        {:noreply, socket |> assign(:saml_sp_cert, cert_pem) |> put_flash(:info, "SP certificate regenerated")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to regenerate certificate")}
+    end
+  end
+
   def handle_event("save_sso", params, socket) do
     configs = %{
       "auth_password_enabled" =>

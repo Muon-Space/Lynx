@@ -39,8 +39,8 @@ defmodule LynxWeb.ProjectsLive do
     <div class="max-w-7xl mx-auto px-6">
       <.page_header title="Projects" subtitle="Manage your Terraform projects and environments" />
       <div class="flex items-center justify-between mb-4">
-        <nav class="flex items-center gap-2 text-sm text-gray-500">
-          <span class="text-gray-900 font-medium">Projects</span>
+        <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-gray-900 dark:text-white font-medium">Projects</span>
         </nav>
         <.button phx-click="show_add" variant="primary">+ Add Project</.button>
       </div>

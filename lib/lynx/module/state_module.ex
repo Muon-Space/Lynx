@@ -53,6 +53,7 @@ defmodule Lynx.Module.StateModule do
 
             case StateContext.create_state(state) do
               {:ok, _} ->
+                trim_if_configured(env.id, params[:sub_path] || "")
                 {:success, ""}
 
               {:error, changeset} ->
@@ -85,5 +86,18 @@ defmodule Lynx.Module.StateModule do
 
   def count_states(environment_id) do
     StateContext.count_states(environment_id)
+  end
+
+  defp trim_if_configured(environment_id, sub_path) do
+    case Lynx.Module.SettingsModule.get_config("state_retention_count", "0") do
+      "0" -> :ok
+      "" -> :ok
+      count_str ->
+        case Integer.parse(count_str) do
+          {count, _} when count > 0 ->
+            StateContext.trim_old_states(environment_id, sub_path, count)
+          _ -> :ok
+        end
+    end
   end
 end

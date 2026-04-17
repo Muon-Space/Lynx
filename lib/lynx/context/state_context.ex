@@ -127,6 +127,34 @@ defmodule Lynx.Context.StateContext do
     |> Repo.one()
   end
 
+  def trim_old_states(environment_id, sub_path, keep) do
+    ids_to_keep =
+      from(s in State,
+        select: s.id,
+        where: s.environment_id == ^environment_id,
+        where: s.sub_path == ^sub_path,
+        order_by: [desc: s.id],
+        limit: ^keep
+      )
+      |> Repo.all()
+
+    case ids_to_keep do
+      [] ->
+        0
+
+      _ ->
+        {count, _} =
+          from(s in State,
+            where: s.environment_id == ^environment_id,
+            where: s.sub_path == ^sub_path,
+            where: s.id not in ^ids_to_keep
+          )
+          |> Repo.delete_all()
+
+        count
+    end
+  end
+
   def list_sub_paths(environment_id) do
     from(s in State,
       select: %{

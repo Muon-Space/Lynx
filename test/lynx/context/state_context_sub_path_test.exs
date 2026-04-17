@@ -201,4 +201,55 @@ defmodule Lynx.Context.StateContextSubPathTest do
       assert LockContext.get_active_lock_by_environment_and_path(env.id, "vpc") != nil
     end
   end
+
+  describe "state retention trimming" do
+    test "trim_old_states keeps only the latest N versions", %{env: env} do
+      for i <- 1..10 do
+        StateContext.create_state(
+          StateContext.new_state(%{
+            environment_id: env.id,
+            name: "_tf_state_",
+            value: ~s({"serial":#{i}}),
+            sub_path: "dns"
+          })
+        )
+      end
+
+      assert StateContext.count_states_by_path(env.id, "dns") == 10
+
+      deleted = StateContext.trim_old_states(env.id, "dns", 3)
+      assert deleted == 7
+      assert StateContext.count_states_by_path(env.id, "dns") == 3
+
+      latest = StateContext.get_latest_state_by_environment_and_path(env.id, "dns")
+      assert Jason.decode!(latest.value)["serial"] == 10
+    end
+
+    test "trim_old_states only affects the specified sub_path", %{env: env} do
+      for i <- 1..5 do
+        StateContext.create_state(
+          StateContext.new_state(%{
+            environment_id: env.id,
+            name: "_tf_state_",
+            value: ~s({"serial":#{i}}),
+            sub_path: "dns"
+          })
+        )
+
+        StateContext.create_state(
+          StateContext.new_state(%{
+            environment_id: env.id,
+            name: "_tf_state_",
+            value: ~s({"serial":#{i}}),
+            sub_path: "vpc"
+          })
+        )
+      end
+
+      StateContext.trim_old_states(env.id, "dns", 2)
+
+      assert StateContext.count_states_by_path(env.id, "dns") == 2
+      assert StateContext.count_states_by_path(env.id, "vpc") == 5
+    end
+  end
 end

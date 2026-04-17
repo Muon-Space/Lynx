@@ -19,8 +19,8 @@ defmodule LynxWeb.CoreComponents do
       :if={msg = Phoenix.Flash.get(@flash, @kind)}
       class={[
         "fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg text-sm max-w-md",
-        @kind == :info && "bg-emerald-50 text-emerald-800 border border-emerald-200",
-        @kind == :error && "bg-red-50 text-red-800 border border-red-200"
+        @kind == :info && "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
+        @kind == :error && "bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
       ]}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> JS.hide()}
     >
@@ -58,8 +58,8 @@ defmodule LynxWeb.CoreComponents do
       <div class="fixed inset-0 bg-black/50 transition-opacity" aria-hidden="true" phx-click={@on_close} />
       <div class="fixed inset-0 overflow-y-auto pointer-events-none">
         <div class="flex min-h-full items-center justify-center p-4">
-          <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200 relative pointer-events-auto">
-            <button :if={@on_close} phx-click={@on_close} class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl cursor-pointer">&times;</button>
+          <div class="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-900 p-6 shadow-xl ring-1 ring-gray-200 dark:ring-gray-700 relative pointer-events-auto">
+            <button :if={@on_close} phx-click={@on_close} class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl cursor-pointer">&times;</button>
             {render_slot(@inner_block)}
           </div>
         </div>
@@ -91,9 +91,9 @@ defmodule LynxWeb.CoreComponents do
       <div class="fixed inset-0 bg-black/50 transition-opacity" phx-click="cancel_confirm" />
       <div class="fixed inset-0 overflow-y-auto pointer-events-none">
         <div class="flex min-h-full items-center justify-center p-4">
-          <div class="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl pointer-events-auto">
-            <h3 class="text-lg font-semibold text-gray-900 mb-2">{@title}</h3>
-            <p class="text-sm text-gray-600 mb-6">{@message}</p>
+          <div class="w-full max-w-sm rounded-xl bg-white dark:bg-gray-900 p-6 shadow-xl pointer-events-auto">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">{@title}</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">{@message}</p>
             <div class="flex justify-end gap-3">
               <.button phx-click="cancel_confirm" variant="secondary" size="sm">Cancel</.button>
               <.button phx-click={@confirm_event} phx-value-uuid={@confirm_value[:uuid]} variant="danger" size="sm">Confirm</.button>
@@ -122,7 +122,7 @@ defmodule LynxWeb.CoreComponents do
     ~H"""
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
-        <thead class="border-b border-gray-200 text-left text-gray-500 font-medium">
+        <thead class="border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400 font-medium">
           <tr>
             <th :for={col <- @col} class="px-4 py-3">{col[:label]}</th>
             <th :if={@action != []} class="px-4 py-3">Actions</th>
@@ -131,7 +131,7 @@ defmodule LynxWeb.CoreComponents do
         <tbody>
           <tr
             :for={row <- @rows}
-            class={["border-b border-gray-100 hover:bg-gray-50", @row_click && "cursor-pointer"]}
+            class={["border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800", @row_click && "cursor-pointer"]}
           >
             <td
               :for={col <- @col}
@@ -147,7 +147,7 @@ defmodule LynxWeb.CoreComponents do
             </td>
           </tr>
           <tr :if={@rows == []}>
-            <td colspan={length(@col) + if(@action != [], do: 1, else: 0)} class="px-4 py-8 text-center text-gray-400">
+            <td colspan={length(@col) + if(@action != [], do: 1, else: 0)} class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
               {@empty_message}
             </td>
           </tr>
@@ -168,15 +168,15 @@ defmodule LynxWeb.CoreComponents do
       <button
         phx-click="prev_page"
         disabled={@page <= 1}
-        class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        class="px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         ← Previous
       </button>
-      <span class="text-sm text-gray-500">{@page} / {@total_pages}</span>
+      <span class="text-sm text-gray-500 dark:text-gray-400">{@page} / {@total_pages}</span>
       <button
         phx-click="next_page"
         disabled={@page >= @total_pages}
-        class="px-3 py-1.5 text-sm rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        class="px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         Next →
       </button>
@@ -202,12 +202,12 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
-  defp badge_color("green"), do: "bg-emerald-100 text-emerald-700"
-  defp badge_color("red"), do: "bg-red-100 text-red-700"
-  defp badge_color("yellow"), do: "bg-amber-100 text-amber-700"
-  defp badge_color("blue"), do: "bg-blue-100 text-blue-700"
-  defp badge_color("purple"), do: "bg-purple-100 text-purple-700"
-  defp badge_color(_), do: "bg-gray-100 text-gray-600"
+  defp badge_color("green"), do: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+  defp badge_color("red"), do: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+  defp badge_color("yellow"), do: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+  defp badge_color("blue"), do: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
+  defp badge_color("purple"), do: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400"
+  defp badge_color(_), do: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
 
   # -- Button --
 
@@ -243,12 +243,14 @@ defmodule LynxWeb.CoreComponents do
     do: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
 
   defp button_variant("secondary"),
-    do: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-gray-500"
+    do:
+      "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-gray-500"
 
   defp button_variant("danger"), do: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
 
   defp button_variant("ghost"),
-    do: "text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:ring-gray-500"
+    do:
+      "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500"
 
   # -- Simple Form --
 
@@ -323,12 +325,12 @@ defmodule LynxWeb.CoreComponents do
           class="peer sr-only"
           {@rest}
         />
-        <div class="w-10 h-5 bg-gray-200 peer-checked:bg-blue-600 rounded-full transition-colors"></div>
-        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+        <div class="w-10 h-5 bg-gray-200 dark:bg-gray-600 peer-checked:bg-blue-600 rounded-full transition-colors"></div>
+        <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white dark:bg-gray-300 rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
       </div>
       <span :if={@label} class="text-sm font-medium text-gray-700">{@label}</span>
     </label>
-    <p :if={@hint} class="mt-1 text-xs text-gray-500">{@hint}</p>
+    <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
     """
   end
 
@@ -337,7 +339,7 @@ defmodule LynxWeb.CoreComponents do
 
     ~H"""
     <div>
-      <label :if={@label} class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <label :if={@label} class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{@label}</label>
       <div
         id={@id || @name}
         phx-hook="CustomSelect"
@@ -356,28 +358,28 @@ defmodule LynxWeb.CoreComponents do
         <button
           type="button"
           data-trigger
-          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-left flex items-center justify-between hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+          class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm text-left flex items-center justify-between hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
         >
           <span data-label class="truncate">{@display_label}</span>
           <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div data-dropdown class="hidden absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+        <div data-dropdown class="hidden absolute z-50 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-auto">
           <div :if={@prompt} data-value="" data-label={@prompt} class="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer">{@prompt}</div>
           <div
             :for={{label, value} <- @options}
             data-value={value}
             data-label={label}
             data-selected={to_string(select_option_active?(value, assigns))}
-            class={["px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-blue-50 text-blue-700"]}
+            class={["px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-2", select_option_active?(value, assigns) && "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"]}
           >
             <span :if={@multiple} data-check class="text-blue-500 w-4">{if select_option_active?(value, assigns), do: "✓", else: ""}</span>
             {label}
           </div>
         </div>
       </div>
-      <p :if={@hint} class="mt-1 text-xs text-gray-500">{@hint}</p>
+      <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -386,14 +388,14 @@ defmodule LynxWeb.CoreComponents do
   def input(%{type: "textarea"} = assigns) do
     ~H"""
     <div>
-      <label :if={@label} for={@id} class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <label :if={@label} for={@id} class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{@label}</label>
       <textarea
         id={@id}
         name={@name}
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         {@rest}
       >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
-      <p :if={@hint} class="mt-1 text-xs text-gray-500">{@hint}</p>
+      <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -402,16 +404,16 @@ defmodule LynxWeb.CoreComponents do
   def input(assigns) do
     ~H"""
     <div>
-      <label :if={@label} for={@id} class="block text-sm font-medium text-gray-700 mb-1">{@label}</label>
+      <label :if={@label} for={@id} class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{@label}</label>
       <input
         type={@type}
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-gray-100 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         {@rest}
       />
-      <p :if={@hint} class="mt-1 text-xs text-gray-500">{@hint}</p>
+      <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -448,7 +450,7 @@ defmodule LynxWeb.CoreComponents do
 
   def card(assigns) do
     ~H"""
-    <div class={["bg-white rounded-xl shadow-sm border border-gray-200 p-6", @class]}>
+    <div class={["bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6", @class]}>
       {render_slot(@inner_block)}
     </div>
     """
@@ -461,7 +463,7 @@ defmodule LynxWeb.CoreComponents do
 
   def nav(assigns) do
     ~H"""
-    <nav class="bg-white border-b border-gray-200 px-6 py-3 mb-6">
+    <nav class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 mb-6">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-8">
           <a href="/" class="flex items-center gap-2">
@@ -477,8 +479,9 @@ defmodule LynxWeb.CoreComponents do
           </div>
         </div>
         <div :if={@current_user} class="flex items-center gap-4">
-          <a href="/admin/profile" class="text-sm text-gray-600 hover:text-gray-900">{@current_user.name}</a>
-          <a href="/logout" class="text-sm text-gray-400 hover:text-gray-600">Logout</a>
+          <a href="/admin/profile" class="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">{@current_user.name}</a>
+          <a href="/logout" class="text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">Logout</a>
+          <button id="dark-mode-toggle" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode"></button>
         </div>
       </div>
     </nav>
@@ -495,8 +498,8 @@ defmodule LynxWeb.CoreComponents do
       href={@href}
       class={[
         "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-        @active && "bg-blue-50 text-blue-700",
-        !@active && "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+        @active && "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+        !@active && "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
       ]}
     >
       {render_slot(@inner_block)}
