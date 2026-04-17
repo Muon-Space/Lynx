@@ -85,16 +85,32 @@ defmodule LynxWeb.WorkspacesLive do
 
   @impl true
   def handle_event("confirm_action", params, socket) do
-    {:noreply, assign(socket, :confirm, %{message: params["message"], event: params["event"], value: %{uuid: params["uuid"]}})}
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{uuid: params["uuid"]}
+     })}
   end
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+
+  def handle_event("show_add", _, socket),
+    do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
-  def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_workspace, nil)}
+
+  def handle_event("hide_edit", _, socket),
+    do: {:noreply, assign(socket, :editing_workspace, nil)}
 
   def handle_event("form_change", %{"name" => name}, socket) do
-    slug = name |> String.downcase() |> String.replace(~r/[^a-z0-9]/, "-") |> String.replace(~r/-+/, "-") |> String.trim("-")
+    slug =
+      name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]/, "-")
+      |> String.replace(~r/-+/, "-")
+      |> String.trim("-")
+
     {:noreply, assign(socket, :add_slug, slug)}
   end
 
@@ -103,12 +119,28 @@ defmodule LynxWeb.WorkspacesLive do
   end
 
   def handle_event("create_workspace", params, socket) do
-    ws = WorkspaceContext.new_workspace(%{name: params["name"], slug: params["slug"], description: params["description"]})
+    ws =
+      WorkspaceContext.new_workspace(%{
+        name: params["name"],
+        slug: params["slug"],
+        description: params["description"]
+      })
 
     case WorkspaceContext.create_workspace(ws) do
       {:ok, workspace} ->
-        AuditModule.log_user(socket.assigns.current_user, "created", "workspace", workspace.uuid, workspace.name)
-        {:noreply, socket |> assign(:show_add, false) |> put_flash(:info, "Workspace created") |> load_workspaces()}
+        AuditModule.log_user(
+          socket.assigns.current_user,
+          "created",
+          "workspace",
+          workspace.uuid,
+          workspace.name
+        )
+
+        {:noreply,
+         socket
+         |> assign(:show_add, false)
+         |> put_flash(:info, "Workspace created")
+         |> load_workspaces()}
 
       {:error, changeset} ->
         msg = changeset.errors |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end) |> Enum.at(0)
@@ -126,9 +158,17 @@ defmodule LynxWeb.WorkspacesLive do
   def handle_event("update_workspace", params, socket) do
     ws = socket.assigns.editing_workspace
 
-    case WorkspaceContext.update_workspace(ws, %{name: params["name"], slug: params["slug"], description: params["description"]}) do
+    case WorkspaceContext.update_workspace(ws, %{
+           name: params["name"],
+           slug: params["slug"],
+           description: params["description"]
+         }) do
       {:ok, _} ->
-        {:noreply, socket |> assign(:editing_workspace, nil) |> put_flash(:info, "Workspace updated") |> load_workspaces()}
+        {:noreply,
+         socket
+         |> assign(:editing_workspace, nil)
+         |> put_flash(:info, "Workspace updated")
+         |> load_workspaces()}
 
       {:error, changeset} ->
         msg = changeset.errors |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end) |> Enum.at(0)
@@ -140,7 +180,9 @@ defmodule LynxWeb.WorkspacesLive do
     socket = assign(socket, :confirm, nil)
 
     case WorkspaceContext.get_workspace_by_uuid(uuid) do
-      nil -> {:noreply, put_flash(socket, :error, "Workspace not found")}
+      nil ->
+        {:noreply, put_flash(socket, :error, "Workspace not found")}
+
       ws ->
         ProjectContext.get_projects_by_workspace(ws.id, 0, 10000)
         |> Enum.each(fn p ->

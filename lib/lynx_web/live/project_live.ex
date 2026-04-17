@@ -18,7 +18,10 @@ defmodule LynxWeb.ProjectLive do
         {:ok, redirect(socket, to: "/admin/projects")}
 
       {:ok, project} ->
-        workspace = if project.workspace_id, do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
+        workspace =
+          if project.workspace_id,
+            do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
+
         teams = ProjectModule.get_project_teams(project.id)
         environments = EnvironmentContext.get_project_envs(project.id, 0, 10000)
 

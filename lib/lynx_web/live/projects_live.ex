@@ -235,7 +235,12 @@ defmodule LynxWeb.ProjectsLive do
         user_teams = TeamModule.get_user_teams(user.id)
         team_ids = Enum.map(user_teams, & &1.id)
 
-        {Lynx.Context.ProjectContext.get_projects_by_workspace_and_teams(workspace.id, team_ids, offset, @per_page),
+        {Lynx.Context.ProjectContext.get_projects_by_workspace_and_teams(
+           workspace.id,
+           team_ids,
+           offset,
+           @per_page
+         ),
          Lynx.Context.ProjectContext.count_projects_by_workspace_and_teams(workspace.id, team_ids)}
       end
 

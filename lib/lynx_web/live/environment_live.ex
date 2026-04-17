@@ -23,7 +23,10 @@ defmodule LynxWeb.EnvironmentLive do
             {:ok, redirect(socket, to: "/admin/projects/#{project_uuid}")}
 
           env ->
-            workspace = if project.workspace_id, do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
+            workspace =
+              if project.workspace_id,
+                do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
+
             app_url =
               SettingsModule.get_config("app_url", "http://localhost:4000")
               |> String.trim_trailing("/")
