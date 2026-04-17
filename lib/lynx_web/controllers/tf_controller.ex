@@ -85,6 +85,19 @@ defmodule LynxWeb.TfController do
   end
 
   defp push_state(conn, p_slug, e_slug, sub_path, params) do
+    case LockModule.is_locked(%{p_slug: p_slug, e_slug: e_slug, sub_path: sub_path}) do
+      {:locked, _} ->
+        conn
+        |> put_status(:locked)
+        |> put_view(LynxWeb.LockJSON)
+        |> render(:error, %{message: "Environment is locked"})
+
+      _ ->
+        do_push_state(conn, p_slug, e_slug, sub_path, params)
+    end
+  end
+
+  defp do_push_state(conn, p_slug, e_slug, sub_path, params) do
     body = Map.drop(params, ["p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
 
     case StateModule.add_state(%{

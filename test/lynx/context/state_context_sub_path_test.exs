@@ -202,6 +202,32 @@ defmodule Lynx.Context.StateContextSubPathTest do
     end
   end
 
+  describe "snapshot sub_path preservation" do
+    test "snapshot data includes sub_path", %{env: env} do
+      StateContext.create_state(
+        StateContext.new_state(%{
+          environment_id: env.id,
+          name: "_tf_state_",
+          value: ~s({"unit":"dns"}),
+          sub_path: "dns"
+        })
+      )
+
+      StateContext.create_state(
+        StateContext.new_state(%{
+          environment_id: env.id,
+          name: "_tf_state_",
+          value: ~s({"unit":"vpc"}),
+          sub_path: "vpc"
+        })
+      )
+
+      states = StateContext.get_states_by_environment_id(env.id)
+      sub_paths = Enum.map(states, & &1.sub_path) |> Enum.sort()
+      assert sub_paths == ["dns", "vpc"]
+    end
+  end
+
   describe "state retention trimming" do
     test "trim_old_states keeps only the latest N versions", %{env: env} do
       for i <- 1..10 do

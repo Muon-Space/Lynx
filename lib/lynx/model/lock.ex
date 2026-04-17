@@ -42,5 +42,6 @@ defmodule Lynx.Model.Lock do
       :uuid,
       :environment_id
     ])
+    |> unique_constraint([:environment_id, :sub_path], name: :locks_unique_active_per_path)
   end
 end

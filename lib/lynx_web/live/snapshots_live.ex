@@ -3,7 +3,6 @@ defmodule LynxWeb.SnapshotsLive do
 
   alias Lynx.Module.SnapshotModule
   alias Lynx.Module.ProjectModule
-  alias Lynx.Module.TeamModule
   alias Lynx.Module.AuditModule
 
   on_mount {LynxWeb.LiveAuth, :require_auth}
@@ -14,11 +13,6 @@ defmodule LynxWeb.SnapshotsLive do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
-    all_teams =
-      if user.role == "super",
-        do: TeamModule.get_teams(0, 10000),
-        else: TeamModule.get_user_teams(user.id, 0, 10000)
-
     all_projects =
       if user.role == "super",
         do: ProjectModule.get_projects(0, 10000),
@@ -28,8 +22,10 @@ defmodule LynxWeb.SnapshotsLive do
       socket
       |> assign(:page, 1)
       |> assign(:show_add, false)
-      |> assign(:all_teams, all_teams)
       |> assign(:all_projects, all_projects)
+      |> assign(:snapshot_scope, "project")
+      |> assign(:snapshot_project_uuid, nil)
+      |> assign(:snapshot_envs, [])
       |> assign(:confirm, nil)
       |> load_snapshots()
 
@@ -50,12 +46,14 @@ defmodule LynxWeb.SnapshotsLive do
 
       <.modal :if={@show_add} id="add-snapshot" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Create Snapshot</h3>
-        <form phx-submit="create_snapshot" class="space-y-4">
+        <form phx-submit="create_snapshot" phx-change="snapshot_form_change" class="space-y-4">
           <.input name="title" label="Title" value="" required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="team_id" label="Team" type="select" prompt="Select team" options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value="" required />
-          <.input name="record_type" label="Scope" type="select" options={[{"Project (all environments)", "project"}, {"Single Environment", "environment"}]} value="project" />
-          <.input name="record_uuid" label="Project" type="select" prompt="Select project" options={Enum.map(@all_projects, &{&1.name, &1.uuid})} value="" required />
+          <.input name="record_uuid" id="snapshot-project" label="Project" type="select" prompt="Select project" options={Enum.map(@all_projects, &{&1.name, &1.uuid})} value={@snapshot_project_uuid || ""} required />
+          <.input name="record_type" id="snapshot-scope" label="Scope" type="select" options={[{"Project (all environments)", "project"}, {"Single Environment", "environment"}]} value={@snapshot_scope} />
+          <div :if={@snapshot_scope == "environment" && @snapshot_envs != []}>
+            <.input name="env_uuid" id={"snapshot-env-#{@snapshot_project_uuid}"} label="Environment" type="select" prompt="Select environment" options={Enum.map(@snapshot_envs, &{&1.name, &1.uuid})} value="" required />
+          </div>
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -98,20 +96,65 @@ defmodule LynxWeb.SnapshotsLive do
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
-  def handle_event("show_add", _, socket), do: {:noreply, assign(socket, :show_add, true)}
+  def handle_event("show_add", _, socket) do
+    {:noreply,
+     assign(socket,
+       show_add: true,
+       snapshot_scope: "project",
+       snapshot_project_uuid: nil,
+       snapshot_envs: []
+     )}
+  end
+
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
 
+  def handle_event("snapshot_form_change", params, socket) do
+    scope = params["record_type"] || socket.assigns.snapshot_scope
+    project_uuid = params["record_uuid"]
+
+    envs =
+      if project_uuid && project_uuid != "" do
+        case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
+          nil -> []
+          project -> Lynx.Context.EnvironmentContext.get_project_envs(project.id, 0, 10000)
+        end
+      else
+        []
+      end
+
+    {:noreply,
+     socket
+     |> assign(:snapshot_scope, scope)
+     |> assign(:snapshot_project_uuid, project_uuid)
+     |> assign(:snapshot_envs, envs)}
+  end
+
   def handle_event("create_snapshot", params, socket) do
-    case SnapshotModule.take_snapshot(params["record_type"], params["record_uuid"]) do
+    record_uuid =
+      if params["record_type"] == "environment" && params["env_uuid"] && params["env_uuid"] != "",
+        do: params["env_uuid"],
+        else: params["record_uuid"]
+
+    project_uuid = params["record_uuid"]
+
+    teams =
+      case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
+        nil -> []
+        project -> Lynx.Module.ProjectModule.get_project_teams(project.id)
+      end
+
+    first_team_uuid = if teams != [], do: hd(teams).uuid, else: nil
+
+    case SnapshotModule.take_snapshot(params["record_type"], record_uuid) do
       {:ok, data} ->
         case SnapshotModule.create_snapshot(%{
                title: params["title"],
                description: params["description"],
                record_type: params["record_type"],
-               record_uuid: params["record_uuid"],
+               record_uuid: record_uuid,
                status: "success",
                data: data,
-               team_id: params["team_id"]
+               team_id: first_team_uuid
              }) do
           {:ok, snapshot} ->
             AuditModule.log_user(

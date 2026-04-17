@@ -206,6 +206,7 @@ defmodule Lynx.Module.SnapshotModule do
             StateContext.new_state(%{
               name: state["name"],
               value: state["value"],
+              sub_path: state["sub_path"] || "",
               environment_id: environment.id,
               uuid: state["uuid"]
             })
@@ -259,6 +260,7 @@ defmodule Lynx.Module.SnapshotModule do
                   uuid: state.uuid,
                   name: state.name,
                   value: state.value,
+                  sub_path: Map.get(state, :sub_path, ""),
                   environment_id: state.environment_id,
                   inserted_at: state.inserted_at,
                   updated_at: state.updated_at
@@ -313,6 +315,7 @@ defmodule Lynx.Module.SnapshotModule do
                   uuid: state.uuid,
                   name: state.name,
                   value: state.value,
+                  sub_path: Map.get(state, :sub_path, ""),
                   environment_id: state.environment_id,
                   inserted_at: state.inserted_at,
                   updated_at: state.updated_at

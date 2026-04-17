@@ -351,4 +351,75 @@ defmodule LynxWeb.TfControllerTest do
       assert unlock_conn.status == 200
     end
   end
+
+  describe "env-level lock blocks state push" do
+    test "state push rejected when environment is locked", %{conn: conn, env: env} do
+      Lynx.Module.LockModule.force_lock(env.id, "admin")
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/platform/production/state", %{"version" => 4})
+
+      assert conn.status == 423
+    end
+
+    test "unit state push rejected when environment is locked", %{conn: conn, env: env} do
+      Lynx.Module.LockModule.force_lock(env.id, "admin")
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/platform/production/dns/state", %{"version" => 4})
+
+      assert conn.status == 423
+    end
+
+    test "state push works after unlock", %{conn: conn, env: env} do
+      Lynx.Module.LockModule.force_lock(env.id, "admin")
+      Lynx.Module.LockModule.force_unlock(env.id)
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/platform/production/state", %{"version" => 4})
+
+      assert conn.status == 200
+    end
+  end
+
+  describe "cluster lock safety" do
+    test "duplicate active locks rejected by database", %{env: env} do
+      lock_attrs =
+        Lynx.Context.LockContext.new_lock(%{
+          environment_id: env.id,
+          operation: "apply",
+          info: "",
+          who: "node1",
+          version: "1.9",
+          path: "",
+          sub_path: "dns",
+          is_active: true
+        })
+
+      {:ok, _} = Lynx.Context.LockContext.create_lock(lock_attrs)
+
+      duplicate =
+        Lynx.Context.LockContext.new_lock(%{
+          environment_id: env.id,
+          operation: "apply",
+          info: "",
+          who: "node2",
+          version: "1.9",
+          path: "",
+          sub_path: "dns",
+          is_active: true
+        })
+
+      assert {:error, _} = Lynx.Context.LockContext.create_lock(duplicate)
+    end
+  end
 end
