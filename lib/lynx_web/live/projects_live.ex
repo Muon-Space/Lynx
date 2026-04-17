@@ -4,43 +4,53 @@ defmodule LynxWeb.ProjectsLive do
   alias Lynx.Module.ProjectModule
   alias Lynx.Module.TeamModule
   alias Lynx.Module.AuditModule
+  alias Lynx.Context.WorkspaceContext
 
   on_mount {LynxWeb.LiveAuth, :require_auth}
 
   @per_page 10
 
   @impl true
-  def mount(_params, _session, socket) do
-    user = socket.assigns.current_user
+  def mount(%{"workspace_uuid" => ws_uuid}, _session, socket) do
+    case WorkspaceContext.get_workspace_by_uuid(ws_uuid) do
+      nil ->
+        {:ok, redirect(socket, to: "/admin/workspaces")}
 
-    all_teams =
-      if user.role == "super",
-        do: TeamModule.get_teams(0, 10000),
-        else: TeamModule.get_user_teams(user.id, 0, 10000)
+      workspace ->
+        user = socket.assigns.current_user
 
-    socket =
-      socket
-      |> assign(:page, 1)
-      |> assign(:show_add, false)
-      |> assign(:add_slug, "")
-      |> assign(:editing_project, nil)
-      |> assign(:editing_teams, [])
-      |> assign(:all_teams, all_teams)
-      |> assign(:confirm, nil)
-      |> load_projects()
+        all_teams =
+          if user.role == "super",
+            do: TeamModule.get_teams(0, 10000),
+            else: TeamModule.get_user_teams(user.id, 0, 10000)
 
-    {:ok, socket}
+        socket =
+          socket
+          |> assign(:workspace, workspace)
+          |> assign(:page, 1)
+          |> assign(:show_add, false)
+          |> assign(:add_slug, "")
+          |> assign(:editing_project, nil)
+          |> assign(:editing_teams, [])
+          |> assign(:all_teams, all_teams)
+          |> assign(:confirm, nil)
+          |> load_projects()
+
+        {:ok, socket}
+    end
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <.nav current_user={@current_user} active="projects" />
+    <.nav current_user={@current_user} active="workspaces" />
     <div class="max-w-7xl mx-auto px-6">
-      <.page_header title="Projects" subtitle="Manage your Terraform projects and environments" />
+      <.page_header title={@workspace.name} subtitle={@workspace.description} />
       <div class="flex items-center justify-between mb-4">
         <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <span class="text-gray-900 dark:text-white font-medium">Projects</span>
+          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
+          <span>/</span>
+          <span class="text-gray-900 dark:text-white font-medium">{@workspace.name}</span>
         </nav>
         <.button phx-click="show_add" variant="primary">+ Add Project</.button>
       </div>
@@ -126,7 +136,8 @@ defmodule LynxWeb.ProjectsLive do
            name: params["name"],
            slug: params["slug"],
            description: params["description"],
-           team_ids: List.wrap(params["team_ids"])
+           team_ids: List.wrap(params["team_ids"]),
+           workspace_id: socket.assigns.workspace.id
          }) do
       {:ok, project} ->
         AuditModule.log_user(
@@ -213,14 +224,24 @@ defmodule LynxWeb.ProjectsLive do
 
   defp load_projects(socket) do
     user = socket.assigns.current_user
+    workspace = socket.assigns.workspace
     offset = (socket.assigns.page - 1) * @per_page
 
     {projects, total} =
       if user.role == "super" do
-        {ProjectModule.get_projects(offset, @per_page), ProjectModule.count_projects()}
+        {Lynx.Context.ProjectContext.get_projects_by_workspace(workspace.id, offset, @per_page),
+         Lynx.Context.ProjectContext.count_projects_by_workspace(workspace.id)}
       else
-        {ProjectModule.get_projects(user.id, offset, @per_page),
-         ProjectModule.count_projects(user.id)}
+        user_teams = TeamModule.get_user_teams(user.id)
+        team_ids = Enum.map(user_teams, & &1.id)
+
+        {Lynx.Context.ProjectContext.get_projects_by_workspace_and_teams(
+           workspace.id,
+           team_ids,
+           offset,
+           @per_page
+         ),
+         Lynx.Context.ProjectContext.count_projects_by_workspace_and_teams(workspace.id, team_ids)}
       end
 
     assign(socket, projects: projects, total_pages: max(ceil(total / @per_page), 1))

@@ -479,7 +479,7 @@ defmodule LynxWeb.CoreComponents do
             <img src="/images/ico-dark.png" alt="Lynx" class="h-8 hidden dark:block" />
           </a>
           <div :if={@current_user} class="flex items-center gap-1">
-            <.nav_link href="/admin/projects" active={@active == "projects"}>Projects</.nav_link>
+            <.nav_link href="/admin/workspaces" active={@active == "workspaces"}>Workspaces</.nav_link>
             <.nav_link href="/admin/snapshots" active={@active == "snapshots"}>Snapshots</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/teams" active={@active == "teams"}>Teams</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/users" active={@active == "users"}>Users</.nav_link>

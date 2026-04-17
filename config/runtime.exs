@@ -129,8 +129,7 @@ if config_env() == :prod do
       maintenance_database: System.get_env("DB_DATABASE"),
       pool_size: String.to_integer(System.get_env("DB_POOL_SIZE") || "10"),
       socket_options: maybe_ipv6,
-      ssl: true,
-      ssl_opts: [
+      ssl: [
         verify: :verify_peer,
         cacertfile: System.get_env("DB_CA_CERTFILE_PATH") || ""
       ]

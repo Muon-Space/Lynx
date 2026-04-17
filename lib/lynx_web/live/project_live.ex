@@ -18,6 +18,10 @@ defmodule LynxWeb.ProjectLive do
         {:ok, redirect(socket, to: "/admin/projects")}
 
       {:ok, project} ->
+        workspace =
+          if project.workspace_id,
+            do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
+
         teams = ProjectModule.get_project_teams(project.id)
         environments = EnvironmentContext.get_project_envs(project.id, 0, 10000)
 
@@ -43,6 +47,7 @@ defmodule LynxWeb.ProjectLive do
           socket
           |> assign(:project, project)
           |> assign(:project_uuid, uuid)
+          |> assign(:workspace, workspace)
           |> assign(:teams, teams)
           |> assign(:environments, envs_with_info)
           |> assign(:show_add_env, false)
@@ -62,13 +67,15 @@ defmodule LynxWeb.ProjectLive do
   def render(assigns) do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
-    <.nav current_user={@current_user} active="projects" />
+    <.nav current_user={@current_user} active="workspaces" />
     <div class="max-w-7xl mx-auto px-6">
       <.page_header title={@project.name} subtitle={@project.description} />
       <div class="flex items-center justify-between mb-4">
         <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-          <a href="/admin/projects" class="hover:text-gray-700 dark:hover:text-gray-200">Projects</a>
+          <a href="/admin/workspaces" class="hover:text-gray-700 dark:hover:text-gray-200">Workspaces</a>
           <span>/</span>
+          <a :if={@workspace} href={"/admin/workspaces/#{@workspace.uuid}"} class="hover:text-gray-700 dark:hover:text-gray-200">{@workspace.name}</a>
+          <span :if={@workspace}>/</span>
           <span class="text-gray-900 dark:text-white font-medium">{@project.name}</span>
         </nav>
         <.button phx-click="show_add_env" variant="primary">+ Add Environment</.button>

@@ -47,7 +47,8 @@ defmodule LynxWeb.Router do
     live "/admin/audit", AuditLive
     live "/admin/users", UsersLive
     live "/admin/teams", TeamsLive
-    live "/admin/projects", ProjectsLive
+    live "/admin/workspaces", WorkspacesLive
+    live "/admin/workspaces/:workspace_uuid", ProjectsLive
     live "/admin/projects/:uuid", ProjectLive
     live "/admin/projects/:project_uuid/environments/:env_uuid", EnvironmentLive
     live "/admin/snapshots", SnapshotsLive

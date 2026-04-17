@@ -11,7 +11,7 @@ defmodule LynxWeb.HomeLive do
       {:ok, redirect(socket, to: "/install")}
     else
       if socket.assigns.current_user do
-        {:ok, redirect(socket, to: "/admin/projects")}
+        {:ok, redirect(socket, to: "/admin/workspaces")}
       else
         {:ok, redirect(socket, to: "/login")}
       end

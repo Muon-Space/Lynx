@@ -52,7 +52,7 @@ defmodule LynxWeb.SessionController do
             |> render(:token_success, %{message: "User logged in successfully!"})
           else
             conn
-            |> redirect(to: "/admin/projects")
+            |> redirect(to: "/admin/workspaces")
           end
 
         {:error, message} ->
