@@ -39,7 +39,8 @@ defmodule LynxWeb.LoginLive do
       </div>
       <div class="max-w-md w-full space-y-8">
         <div class="text-center">
-          <img src="/images/ico.png" alt="Lynx" class="mx-auto h-12" />
+          <img src="/images/ico.png" alt="Lynx" class="mx-auto h-12 dark:hidden" />
+          <img src="/images/ico-dark.png" alt="Lynx" class="mx-auto h-12 hidden dark:block" />
           <h2 class="mt-6 text-3xl font-bold text-gray-900 dark:text-white">Sign in</h2>
         </div>
 

@@ -475,7 +475,8 @@ defmodule LynxWeb.CoreComponents do
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-8">
           <a href="/" class="flex items-center gap-2">
-            <img src="/images/ico.png" alt="Lynx" class="h-8" />
+            <img src="/images/ico.png" alt="Lynx" class="h-8 dark:hidden" />
+            <img src="/images/ico-dark.png" alt="Lynx" class="h-8 hidden dark:block" />
           </a>
           <div :if={@current_user} class="flex items-center gap-1">
             <.nav_link href="/admin/projects" active={@active == "projects"}>Projects</.nav_link>
