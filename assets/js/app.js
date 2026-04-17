@@ -5,6 +5,19 @@ import topbar from "../vendor/topbar"
 
 let Hooks = {}
 
+Hooks.AutoDismiss = {
+  mounted() {
+    this.timer = setTimeout(() => {
+      this.el.style.transition = "opacity 500ms"
+      this.el.style.opacity = "0"
+      setTimeout(() => { this.el.remove() }, 500)
+    }, 5000)
+  },
+  destroyed() {
+    clearTimeout(this.timer)
+  }
+}
+
 Hooks.CopyToClipboard = {
   mounted() {
     this.el.addEventListener("click", () => {

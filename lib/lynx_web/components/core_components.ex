@@ -18,10 +18,12 @@ defmodule LynxWeb.CoreComponents do
     <div
       :if={msg = Phoenix.Flash.get(@flash, @kind)}
       class={[
-        "fixed top-4 right-4 z-50 rounded-lg px-4 py-3 shadow-lg text-sm max-w-md",
-        @kind == :info && "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
-        @kind == :error && "bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
+        "fixed top-4 right-4 z-[70] rounded-lg px-4 py-3 shadow-lg text-sm max-w-md",
+        @kind == :info && "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
+        @kind == :error && "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800"
       ]}
+      id={"flash-#{@kind}"}
+      phx-hook="AutoDismiss"
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> JS.hide()}
     >
       <div class="flex items-center gap-2">
@@ -248,7 +250,7 @@ defmodule LynxWeb.CoreComponents do
   defp button_size("lg"), do: "px-6 py-3 text-base"
 
   defp button_variant("primary"),
-    do: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500"
+    do: "bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500"
 
   defp button_variant("secondary"),
     do:
@@ -336,7 +338,7 @@ defmodule LynxWeb.CoreComponents do
         <div class="w-10 h-5 bg-gray-200 dark:bg-gray-600 peer-checked:bg-blue-600 rounded-full transition-colors"></div>
         <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white dark:bg-gray-300 rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
       </div>
-      <span :if={@label} class="text-sm font-medium text-gray-700">{@label}</span>
+      <span :if={@label} class="text-sm font-medium text-gray-700 dark:text-gray-300">{@label}</span>
     </label>
     <p :if={@hint} class="mt-1 text-xs text-gray-500 dark:text-gray-400">{@hint}</p>
     """
@@ -444,9 +446,9 @@ defmodule LynxWeb.CoreComponents do
 
   def page_header(assigns) do
     ~H"""
-    <div class="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl px-8 py-10 mb-8">
+    <div class="bg-gradient-to-r from-primary-500 to-primary-600 dark:from-gray-900 dark:to-gray-800 rounded-2xl px-8 py-10 mb-8">
       <h1 class="text-3xl font-bold text-white">{@title}</h1>
-      <p :if={@subtitle} class="mt-2 text-gray-400">{@subtitle}</p>
+      <p :if={@subtitle} class="mt-2 text-primary-100 dark:text-gray-400">{@subtitle}</p>
     </div>
     """
   end
@@ -471,7 +473,7 @@ defmodule LynxWeb.CoreComponents do
 
   def nav(assigns) do
     ~H"""
-    <nav class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 mb-6">
+    <nav class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-3 mb-6 sticky top-0 z-40">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-8">
           <a href="/" class="flex items-center gap-2">
@@ -507,7 +509,7 @@ defmodule LynxWeb.CoreComponents do
       href={@href}
       class={[
         "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-        @active && "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+        @active && "bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400",
         !@active && "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
       ]}
     >

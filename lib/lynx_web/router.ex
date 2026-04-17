@@ -191,8 +191,8 @@ defmodule LynxWeb.Router do
   scope "/tf", LynxWeb do
     pipe_through :client
 
-    get "/:p_slug/:e_slug/*rest", TfController, :handle_get
-    post "/:p_slug/:e_slug/*rest", TfController, :handle_post
+    get "/:w_slug/:p_slug/:e_slug/*rest", TfController, :handle_get
+    post "/:w_slug/:p_slug/:e_slug/*rest", TfController, :handle_post
   end
 
   # Legacy /client/ routes (team slug ignored, backward compat)

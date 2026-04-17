@@ -40,6 +40,9 @@ defmodule Lynx.Model.Environment do
       :secret,
       :project_id
     ])
-    |> unique_constraint([:project_id, :slug])
+    |> unique_constraint(:slug,
+      name: :environments_project_id_slug_index,
+      message: "already exists in this project"
+    )
   end
 end

@@ -82,6 +82,15 @@ defmodule Lynx.Context.ProjectContext do
     |> Repo.one()
   end
 
+  def get_project_by_slug_and_workspace(slug, workspace_id) do
+    from(p in Project,
+      where: p.slug == ^slug,
+      where: p.workspace_id == ^workspace_id
+    )
+    |> limit(1)
+    |> Repo.one()
+  end
+
   def get_project_by_slug_team_id(slug, team_id) do
     from(p in Project,
       join: pt in ProjectTeam,

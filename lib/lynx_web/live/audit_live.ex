@@ -24,7 +24,7 @@ defmodule LynxWeb.AuditLive do
   def render(assigns) do
     ~H"""
     <.nav current_user={@current_user} active="audit" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Audit Log" subtitle="Track who did what and when" />
 
       <.card>

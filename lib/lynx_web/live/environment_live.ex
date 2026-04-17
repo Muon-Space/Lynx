@@ -52,7 +52,7 @@ defmodule LynxWeb.EnvironmentLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="projects" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title={@env.name} subtitle={"Environment in #{@project.name}"} />
 
       <div class="flex items-center justify-between mb-4">
@@ -90,7 +90,7 @@ defmodule LynxWeb.EnvironmentLive do
           <button id="copy-backend-config" phx-hook="CopyToClipboard" data-target="#backend-config-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
         </div>
         <div class="bg-gray-900 text-gray-100 rounded-lg p-4">
-          <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @project.slug, @env), else: terragrunt_config(@app_url, @project.slug, @env)}</pre>
+          <pre id="backend-config-content" class="text-xs font-mono whitespace-pre-wrap">{if @config_tab == "terraform", do: backend_config(@app_url, @workspace, @project.slug, @env), else: terragrunt_config(@app_url, @workspace, @project.slug, @env)}</pre>
         </div>
       </.card>
 
@@ -239,15 +239,17 @@ defmodule LynxWeb.EnvironmentLive do
     assign(socket, :units, units)
   end
 
-  defp backend_config(app_url, project_slug, env) do
+  defp backend_config(app_url, workspace, project_slug, env) do
+    ws_slug = if workspace, do: workspace.slug, else: "default"
+
     """
     terraform {
       backend "http" {
         username       = "#{env.username}"
         password       = "#{env.secret}"
-        address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/state"
-        lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/lock"
-        unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/unlock"
+        address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/state"
+        lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/lock"
+        unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/unlock"
         lock_method    = "POST"
         unlock_method  = "POST"
       }
@@ -255,7 +257,9 @@ defmodule LynxWeb.EnvironmentLive do
     """
   end
 
-  defp terragrunt_config(app_url, project_slug, env) do
+  defp terragrunt_config(app_url, workspace, project_slug, env) do
+    ws_slug = if workspace, do: workspace.slug, else: "default"
+
     """
     # Root terragrunt.hcl
     remote_state {
@@ -269,9 +273,9 @@ defmodule LynxWeb.EnvironmentLive do
       config = {
         username       = "#{env.username}"
         password       = "#{env.secret}"
-        address        = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
-        lock_address   = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
-        unlock_address = "#{app_url}/tf/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"
+        address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
+        lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
+        unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"
         lock_method    = "POST"
         unlock_method  = "POST"
       }

@@ -44,7 +44,7 @@ defmodule LynxWeb.ProjectsLive do
   def render(assigns) do
     ~H"""
     <.nav current_user={@current_user} active="workspaces" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title={@workspace.name} subtitle={@workspace.description} />
       <div class="flex items-center justify-between mb-4">
         <nav class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -88,6 +88,7 @@ defmodule LynxWeb.ProjectsLive do
       <.card>
         <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
           <:col :let={project} label="Name"><span class="font-medium text-blue-600">{project.name}</span></:col>
+          <:col :let={project} label="Slug"><code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{project.slug}</code></:col>
           <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">
             <%= for team <- ProjectModule.get_project_teams(project.id) do %>
@@ -98,7 +99,6 @@ defmodule LynxWeb.ProjectsLive do
             <span class="text-xs text-gray-500">{Calendar.strftime(project.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={project}>
-            <.button phx-click="view_project" phx-value-uuid={project.uuid} variant="ghost" size="sm">View</.button>
             <.button phx-click="edit_project" phx-value-uuid={project.uuid} variant="ghost" size="sm">Edit</.button>
             <.button phx-click="confirm_delete" phx-value-uuid={project.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>

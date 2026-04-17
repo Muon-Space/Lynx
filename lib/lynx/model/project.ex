@@ -36,6 +36,9 @@ defmodule Lynx.Model.Project do
       :slug,
       :description
     ])
-    |> unique_constraint(:slug)
+    |> unique_constraint(:slug,
+      name: :projects_workspace_id_slug_index,
+      message: "already exists in this workspace"
+    )
   end
 end

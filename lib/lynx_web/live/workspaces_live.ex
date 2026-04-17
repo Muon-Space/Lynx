@@ -28,7 +28,7 @@ defmodule LynxWeb.WorkspacesLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="workspaces" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Workspaces" subtitle="Organize projects into workspaces" />
 
       <div class="flex items-center justify-between mb-4">

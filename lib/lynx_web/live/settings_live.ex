@@ -167,8 +167,11 @@ defmodule LynxWeb.SettingsLive do
             </div>
 
             <div :if={@new_token} class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 mb-4">
-              <p class="text-sm font-medium text-emerald-800">New token (copy now, won't be shown again):</p>
-              <code class="text-sm break-all">{@new_token}</code>
+              <p class="text-sm font-medium text-emerald-800 dark:text-emerald-300">New token (copy now, won't be shown again):</p>
+              <code id="scim-token-content" class="text-sm break-all">{@new_token}</code>
+              <div class="mt-2">
+                <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
+              </div>
             </div>
 
             <.table rows={@scim_tokens} empty_message="No tokens generated yet.">
@@ -217,7 +220,9 @@ defmodule LynxWeb.SettingsLive do
         </.table>
 
         <p class="text-xs text-gray-400 mt-3">
-          Common: GitHub Actions: <code>https://token.actions.githubusercontent.com</code> · GitLab CI: <code>https://gitlab.com</code>
+          Common discovery URLs:<br />
+          GitHub Actions: <code>https://token.actions.githubusercontent.com</code><br />
+          GitLab CI: <code>https://gitlab.com</code>
         </p>
       </.card>
     </div>
@@ -238,16 +243,41 @@ defmodule LynxWeb.SettingsLive do
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("save_general", params, socket) do
+    old = %{
+      app_name: socket.assigns.app_name,
+      app_url: socket.assigns.app_url,
+      app_email: socket.assigns.app_email,
+      state_retention: socket.assigns.state_retention
+    }
+
     SettingsModule.update_configs(%{
       app_name: params["app_name"],
       app_url: params["app_url"],
       app_email: params["app_email"]
     })
 
-    retention = params["state_retention"] || "0"
+    retention =
+      case params["state_retention"] do
+        nil -> "0"
+        "" -> "0"
+        v -> v
+      end
+
     SettingsModule.upsert_config("state_retention_count", retention)
 
-    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, "general")
+    changed =
+      []
+      |> then(fn l -> if params["app_name"] != old.app_name, do: ["app_name" | l], else: l end)
+      |> then(fn l -> if params["app_url"] != old.app_url, do: ["app_url" | l], else: l end)
+      |> then(fn l -> if params["app_email"] != old.app_email, do: ["app_email" | l], else: l end)
+      |> then(fn l ->
+        if retention != old.state_retention, do: ["state_retention" | l], else: l
+      end)
+
+    label =
+      if changed == [], do: "general (no changes)", else: "general (#{Enum.join(changed, ", ")})"
+
+    AuditModule.log_user(socket.assigns.current_user, "updated", "settings", nil, label)
 
     {:noreply,
      socket

@@ -24,7 +24,7 @@ defmodule LynxWeb.ProfileLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="profile" />
-    <div class="max-w-3xl mx-auto px-6">
+    <div class="max-w-3xl mx-auto px-6 pb-16">
       <.page_header title="Profile" subtitle="Manage your account and API access" />
 
       <.card class="mb-6">
@@ -40,8 +40,10 @@ defmodule LynxWeb.ProfileLive do
       <.card>
         <h3 class="text-lg font-semibold mb-4">API Key</h3>
         <div class="flex items-center gap-4">
-          <code class="flex-1 bg-gray-100 dark:bg-gray-800 dark:text-gray-100 px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
-          <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm">Show</.button>
+          <code id="api-key-content" class="flex-1 bg-gray-100 dark:bg-gray-800 dark:text-gray-100 px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
+          <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm" class="w-14">Show</.button>
+          <.button :if={@api_key_visible} phx-click="hide_api_key" variant="secondary" size="sm" class="w-14">Hide</.button>
+          <button id="copy-api-key" phx-hook="CopyToClipboard" data-target="#api-key-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
           <.button phx-click="confirm_action" phx-value-event="rotate_api_key" phx-value-message="Rotate API key? The old key will stop working immediately." variant="danger" size="sm">Rotate</.button>
         </div>
       </.card>
@@ -79,6 +81,10 @@ defmodule LynxWeb.ProfileLive do
   def handle_event("show_api_key", _, socket) do
     {:noreply,
      assign(socket, api_key: socket.assigns.current_user.api_key, api_key_visible: true)}
+  end
+
+  def handle_event("hide_api_key", _, socket) do
+    {:noreply, assign(socket, api_key: "••••••••••••••••", api_key_visible: false)}
   end
 
   def handle_event("rotate_api_key", _, socket) do

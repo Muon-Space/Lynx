@@ -30,7 +30,7 @@ defmodule LynxWeb.TeamsLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="teams" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Teams" subtitle="Organize users into teams for project access control" />
 
       <div class="flex justify-end mb-4">

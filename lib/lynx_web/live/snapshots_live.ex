@@ -37,7 +37,7 @@ defmodule LynxWeb.SnapshotsLive do
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="snapshots" />
-    <div class="max-w-7xl mx-auto px-6">
+    <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Snapshots" subtitle="Back up and restore project state" />
 
       <div class="flex justify-end mb-4">

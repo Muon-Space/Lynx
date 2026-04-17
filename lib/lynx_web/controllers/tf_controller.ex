@@ -11,8 +11,11 @@ defmodule LynxWeb.TfController do
 
   defp auth(conn, _opts) do
     with {user, secret} <- Plug.BasicAuth.parse_basic_auth(conn) do
+      w_slug = conn.params["w_slug"] || find_workspace_for_project(conn.params["p_slug"])
+
       result =
         EnvironmentModule.is_access_allowed(%{
+          workspace_slug: w_slug,
           project_slug: conn.params["p_slug"],
           env_slug: conn.params["e_slug"],
           username: user,
@@ -37,36 +40,69 @@ defmodule LynxWeb.TfController do
     end
   end
 
-  def handle_get(conn, %{"p_slug" => p_slug, "e_slug" => e_slug, "rest" => rest}) do
+  def handle_get(conn, %{
+        "w_slug" => w_slug,
+        "p_slug" => p_slug,
+        "e_slug" => e_slug,
+        "rest" => rest
+      }) do
     {sub_path, action} = parse_rest(rest)
 
     case action do
-      "state" -> get_state(conn, p_slug, e_slug, sub_path)
+      "state" -> get_state(conn, w_slug, p_slug, e_slug, sub_path)
       _ -> conn |> send_resp(404, "Not found")
     end
   end
 
-  def handle_post(conn, %{"p_slug" => p_slug, "e_slug" => e_slug, "rest" => rest} = params) do
+  def handle_post(
+        conn,
+        %{"w_slug" => w_slug, "p_slug" => p_slug, "e_slug" => e_slug, "rest" => rest} = params
+      ) do
     {sub_path, action} = parse_rest(rest)
 
     case action do
-      "state" -> push_state(conn, p_slug, e_slug, sub_path, params)
-      "lock" -> lock(conn, p_slug, e_slug, sub_path, params)
-      "unlock" -> unlock(conn, p_slug, e_slug, sub_path)
+      "state" -> push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+      "lock" -> lock(conn, w_slug, p_slug, e_slug, sub_path, params)
+      "unlock" -> unlock(conn, w_slug, p_slug, e_slug, sub_path)
       _ -> conn |> send_resp(404, "Not found")
     end
   end
 
   def legacy_get(conn, %{"t_slug" => _t, "p_slug" => p, "e_slug" => e, "rest" => rest}) do
-    handle_get(conn, %{"p_slug" => p, "e_slug" => e, "rest" => rest})
+    w_slug = find_workspace_for_project(p)
+    handle_get(conn, %{"w_slug" => w_slug, "p_slug" => p, "e_slug" => e, "rest" => rest})
   end
 
   def legacy_post(conn, %{"t_slug" => _t, "p_slug" => p, "e_slug" => e, "rest" => rest} = params) do
-    handle_post(conn, Map.merge(params, %{"p_slug" => p, "e_slug" => e, "rest" => rest}))
+    w_slug = find_workspace_for_project(p)
+
+    handle_post(
+      conn,
+      Map.merge(params, %{"w_slug" => w_slug, "p_slug" => p, "e_slug" => e, "rest" => rest})
+    )
   end
 
-  defp get_state(conn, p_slug, e_slug, sub_path) do
-    case StateModule.get_latest_state(%{p_slug: p_slug, e_slug: e_slug, sub_path: sub_path}) do
+  defp find_workspace_for_project(project_slug) do
+    case Lynx.Context.ProjectContext.get_project_by_slug(project_slug) do
+      nil ->
+        "default"
+
+      project ->
+        case project.workspace_id &&
+               Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id) do
+          nil -> "default"
+          ws -> ws.slug
+        end
+    end
+  end
+
+  defp get_state(conn, w_slug, p_slug, e_slug, sub_path) do
+    case StateModule.get_latest_state(%{
+           w_slug: w_slug,
+           p_slug: p_slug,
+           e_slug: e_slug,
+           sub_path: sub_path
+         }) do
       {:not_found, _} ->
         conn
         |> put_status(:not_found)
@@ -84,8 +120,13 @@ defmodule LynxWeb.TfController do
     end
   end
 
-  defp push_state(conn, p_slug, e_slug, sub_path, params) do
-    case LockModule.is_locked(%{p_slug: p_slug, e_slug: e_slug, sub_path: sub_path}) do
+  defp push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
+    case LockModule.is_locked(%{
+           w_slug: w_slug,
+           p_slug: p_slug,
+           e_slug: e_slug,
+           sub_path: sub_path
+         }) do
       {:locked, _} ->
         conn
         |> put_status(:locked)
@@ -93,14 +134,15 @@ defmodule LynxWeb.TfController do
         |> render(:error, %{message: "Environment is locked"})
 
       _ ->
-        do_push_state(conn, p_slug, e_slug, sub_path, params)
+        do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
     end
   end
 
-  defp do_push_state(conn, p_slug, e_slug, sub_path, params) do
-    body = Map.drop(params, ["p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
+  defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
+    body = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
 
     case StateModule.add_state(%{
+           w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
            sub_path: sub_path,
@@ -128,8 +170,13 @@ defmodule LynxWeb.TfController do
     end
   end
 
-  defp lock(conn, p_slug, e_slug, sub_path, params) do
-    case LockModule.is_locked(%{p_slug: p_slug, e_slug: e_slug, sub_path: sub_path}) do
+  defp lock(conn, w_slug, p_slug, e_slug, sub_path, params) do
+    case LockModule.is_locked(%{
+           w_slug: w_slug,
+           p_slug: p_slug,
+           e_slug: e_slug,
+           sub_path: sub_path
+         }) do
       {:locked, lock} ->
         conn
         |> put_status(:locked)
@@ -145,6 +192,7 @@ defmodule LynxWeb.TfController do
       {:success, _} ->
         action =
           LockModule.lock_action(%{
+            w_slug: w_slug,
             p_slug: p_slug,
             e_slug: e_slug,
             sub_path: sub_path,
@@ -175,8 +223,13 @@ defmodule LynxWeb.TfController do
     end
   end
 
-  defp unlock(conn, p_slug, e_slug, sub_path) do
-    case LockModule.unlock_action(%{p_slug: p_slug, e_slug: e_slug, sub_path: sub_path}) do
+  defp unlock(conn, w_slug, p_slug, e_slug, sub_path) do
+    case LockModule.unlock_action(%{
+           w_slug: w_slug,
+           p_slug: p_slug,
+           e_slug: e_slug,
+           sub_path: sub_path
+         }) do
       {:success, _} ->
         conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:unlock, %{})
 
