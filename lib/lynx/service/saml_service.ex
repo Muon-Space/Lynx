@@ -79,6 +79,76 @@ defmodule Lynx.Service.SAMLService do
   end
 
   @doc """
+  Generate SAML SP metadata XML.
+  """
+  def generate_sp_metadata do
+    app_url =
+      SettingsModule.get_config("app_url", "http://localhost:4000")
+      |> String.trim_trailing("/")
+
+    consume_uri = app_url <> "/auth/sso/saml_callback"
+    configured_entity_id = SettingsModule.get_sso_config("sso_saml_sp_entity_id", "")
+    sp_entity_id = if configured_entity_id == "", do: consume_uri, else: configured_entity_id
+    app_name = SettingsModule.get_config("app_name", "Lynx")
+    app_email = SettingsModule.get_config("app_email", "admin@localhost")
+
+    cert_pem = SettingsModule.get_sso_config("sso_saml_sp_cert", "")
+    sign_requests = SettingsModule.get_sso_config("sso_saml_sign_requests", "false") == "true"
+
+    cert_b64 =
+      if cert_pem != "" do
+        cert_pem
+        |> String.replace("-----BEGIN CERTIFICATE-----", "")
+        |> String.replace("-----END CERTIFICATE-----", "")
+        |> String.replace("\n", "")
+        |> String.trim()
+      else
+        ""
+      end
+
+    key_descriptor =
+      if sign_requests and cert_b64 != "" do
+        """
+            <md:KeyDescriptor use="signing">
+              <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                <ds:X509Data>
+                  <ds:X509Certificate>#{cert_b64}</ds:X509Certificate>
+                </ds:X509Data>
+              </ds:KeyInfo>
+            </md:KeyDescriptor>
+        """
+      else
+        ""
+      end
+
+    xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+                         entityID="#{sp_entity_id}">
+      <md:SPSSODescriptor AuthnRequestsSigned="#{sign_requests}"
+                          WantAssertionsSigned="true"
+                          protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    #{key_descriptor}    <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+        <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                                    Location="#{consume_uri}"
+                                    index="0"
+                                    isDefault="true"/>
+      </md:SPSSODescriptor>
+      <md:Organization>
+        <md:OrganizationName xml:lang="en">#{app_name}</md:OrganizationName>
+        <md:OrganizationDisplayName xml:lang="en">#{app_name}</md:OrganizationDisplayName>
+        <md:OrganizationURL xml:lang="en">#{app_url}</md:OrganizationURL>
+      </md:Organization>
+      <md:ContactPerson contactType="technical">
+        <md:EmailAddress>#{app_email}</md:EmailAddress>
+      </md:ContactPerson>
+    </md:EntityDescriptor>
+    """
+
+    {:ok, String.trim(xml)}
+  end
+
+  @doc """
   Generate a self-signed SP certificate and private key via openssl.
   """
   def generate_sp_certificate do
@@ -295,8 +365,9 @@ defmodule Lynx.Service.SAMLService do
       SettingsModule.get_config("app_url", "http://localhost:4000")
       |> String.trim_trailing("/")
 
-    sp_entity_id = SettingsModule.get_sso_config("sso_saml_sp_entity_id", app_url <> "/sso/sp")
     consume_uri = app_url <> "/auth/sso/saml_callback"
+    configured_entity_id = SettingsModule.get_sso_config("sso_saml_sp_entity_id", "")
+    sp_entity_id = if configured_entity_id == "", do: consume_uri, else: configured_entity_id
     metadata_uri = app_url <> "/auth/sso/metadata"
 
     {key, cert} = load_sp_credentials()

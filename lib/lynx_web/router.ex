@@ -79,6 +79,12 @@ defmodule LynxWeb.Router do
     get "/sso/metadata", SSOController, :metadata
   end
 
+  scope "/saml", LynxWeb do
+    pipe_through :pub
+
+    get "/metadata", SSOController, :metadata
+  end
+
   # SCIM 2.0 routes
   pipeline :scim do
     plug :accepts, ["json"]
