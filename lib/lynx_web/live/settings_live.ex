@@ -130,8 +130,10 @@ defmodule LynxWeb.SettingsLive do
                 </div>
                 <div :if={@saml_sp_cert != ""}>
                   <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SP Certificate (PEM)</label>
-                  <pre class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
+                  <pre id="saml-cert-content" class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
                   <div class="flex gap-2 mt-2">
+                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Copy</button>
+                    <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">Download</a>
                     <.button type="button" phx-click="confirm_action" phx-value-event="regenerate_saml_cert" phx-value-message="Regenerate certificate? The old certificate will be invalidated." phx-value-uuid="" variant="secondary" size="sm">Regenerate</.button>
                   </div>
                 </div>
@@ -259,7 +261,12 @@ defmodule LynxWeb.SettingsLive do
   # -- SSO --
   def handle_event("sso_form_change", params, socket) do
     protocol = params["sso_protocol"] || socket.assigns.sso_protocol
-    {:noreply, assign(socket, :sso_protocol, protocol)}
+    sign_requests = params["sso_saml_sign_requests"] == "true"
+
+    {:noreply,
+     socket
+     |> assign(:sso_protocol, protocol)
+     |> assign(:saml_sign_requests, sign_requests)}
   end
 
   def handle_event("generate_saml_cert", _, socket) do
@@ -268,7 +275,12 @@ defmodule LynxWeb.SettingsLive do
         SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
         SettingsModule.upsert_config("sso_saml_sign_requests", "true")
         AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
-        {:noreply, socket |> assign(:saml_sp_cert, cert_pem) |> assign(:saml_sign_requests, true) |> put_flash(:info, "SP certificate generated")}
+
+        {:noreply,
+         socket
+         |> assign(:saml_sp_cert, cert_pem)
+         |> assign(:saml_sign_requests, true)
+         |> put_flash(:info, "SP certificate generated")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to generate certificate")}
@@ -282,7 +294,11 @@ defmodule LynxWeb.SettingsLive do
       {:ok, %{cert_pem: cert_pem}} ->
         SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
         AuditModule.log_user(socket.assigns.current_user, "generated", "saml_certificate")
-        {:noreply, socket |> assign(:saml_sp_cert, cert_pem) |> put_flash(:info, "SP certificate regenerated")}
+
+        {:noreply,
+         socket
+         |> assign(:saml_sp_cert, cert_pem)
+         |> put_flash(:info, "SP certificate regenerated")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to regenerate certificate")}

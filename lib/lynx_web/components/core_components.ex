@@ -202,11 +202,19 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
-  defp badge_color("green"), do: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+  defp badge_color("green"),
+    do: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+
   defp badge_color("red"), do: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-  defp badge_color("yellow"), do: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+
+  defp badge_color("yellow"),
+    do: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+
   defp badge_color("blue"), do: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-  defp badge_color("purple"), do: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400"
+
+  defp badge_color("purple"),
+    do: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400"
+
   defp badge_color(_), do: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
 
   # -- Button --

@@ -5,6 +5,21 @@ import topbar from "../vendor/topbar"
 
 let Hooks = {}
 
+Hooks.CopyToClipboard = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      let target = document.querySelector(this.el.dataset.target)
+      if (!target) return
+      let text = target.textContent || target.innerText
+      navigator.clipboard.writeText(text).then(() => {
+        let orig = this.el.textContent
+        this.el.textContent = "Copied!"
+        setTimeout(() => { this.el.textContent = orig }, 1500)
+      })
+    })
+  }
+}
+
 Hooks.DarkMode = {
   mounted() {
     this.el.addEventListener("click", () => {
