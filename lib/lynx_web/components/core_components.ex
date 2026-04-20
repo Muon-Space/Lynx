@@ -480,7 +480,10 @@ defmodule LynxWeb.CoreComponents do
         <div :if={@current_user} class="flex items-center gap-4">
           <a href="/admin/profile" class="text-sm text-secondary hover:text-foreground">{@current_user.name}</a>
           <a href="/logout" class="text-sm text-muted hover:text-secondary">Logout</a>
-          <button id="dark-mode-toggle" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode"></button>
+          <button id="dark-mode-toggle" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode">
+            <span class="dark:hidden">{"\u{1F319}"}</span>
+            <span class="hidden dark:inline">{"\u{2600}\u{FE0F}"}</span>
+          </button>
         </div>
       </div>
     </nav>

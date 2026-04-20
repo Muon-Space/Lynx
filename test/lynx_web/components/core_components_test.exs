@@ -407,6 +407,24 @@ defmodule LynxWeb.CoreComponentsTest do
       refute html =~ ~s(href="/admin/workspaces")
       refute html =~ ~s(href="/logout")
     end
+
+    test "dark-mode toggle renders both icons statically (no JS-required content)" do
+      # Regression: previously the toggle button rendered as <button></button>
+      # and the JS hook injected the icon on mount, causing a flash of empty
+      # content (or permanently broken if JS failed to load). Both icons now
+      # ship in the HTML; CSS picks the right one via the .dark class.
+      assigns = %{user: %{name: "Jane", role: "user"}}
+      html = h(~H[<.nav current_user={@user} active="" />])
+
+      # Both icons present
+      assert html =~ "🌙"
+      assert html =~ "☀️"
+
+      # Light-mode icon hidden in dark mode
+      assert html =~ ~r/<span class="dark:hidden">\s*🌙/
+      # Dark-mode icon hidden in light mode (shown in dark via dark:inline)
+      assert html =~ ~r/<span class="hidden dark:inline">\s*☀️/
+    end
   end
 
   defp h(rendered), do: rendered_to_string(rendered)

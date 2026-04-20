@@ -114,16 +114,17 @@ Hooks.CopyApiKey = {
   }
 }
 
+// The button renders both icons (☀️ + 🌙) statically; CSS shows the right
+// one based on the `.dark` class on <html>. The hook only toggles the class
+// and persists the preference — no innerHTML mutation, no flash of empty
+// content before mount, no broken state if JS fails to load.
 Hooks.DarkMode = {
   mounted() {
     this.el.addEventListener("click", () => {
       document.documentElement.classList.toggle("dark")
       let dark = document.documentElement.classList.contains("dark")
       localStorage.setItem("theme", dark ? "dark" : "light")
-      this.el.innerHTML = dark ? "\u2600\uFE0F" : "\uD83C\uDF19"
     })
-    let dark = document.documentElement.classList.contains("dark")
-    this.el.innerHTML = dark ? "\u2600\uFE0F" : "\uD83C\uDF19"
   }
 }
 
