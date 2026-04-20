@@ -378,6 +378,89 @@ defmodule LynxWeb.CoreComponentsTest do
     end
   end
 
+  describe "role_assignments_summary/1" do
+    test "groups projects by role and shows the role badge once per group" do
+      assigns = %{
+        items: [
+          %{project: %{name: "Alpha", uuid: "u1"}, role_name: "applier"},
+          %{project: %{name: "Beta", uuid: "u2"}, role_name: "applier"},
+          %{project: %{name: "Gamma", uuid: "u3"}, role_name: "admin"}
+        ]
+      }
+
+      html = h(~H[<.role_assignments_summary assignments={@items} />])
+
+      # Each role appears exactly once as a badge label.
+      assert length(Regex.scan(~r/Applier/, html)) == 1
+      assert length(Regex.scan(~r/Admin/, html)) == 1
+      # All projects render as links.
+      assert html =~ ~s(href="/admin/projects/u1")
+      assert html =~ "Alpha"
+      assert html =~ "Beta"
+      assert html =~ "Gamma"
+    end
+
+    test "orders role groups admin > applier > planner > custom" do
+      assigns = %{
+        items: [
+          %{project: %{name: "P1", uuid: "u1"}, role_name: "planner"},
+          %{project: %{name: "P2", uuid: "u2"}, role_name: "admin"},
+          %{project: %{name: "P3", uuid: "u3"}, role_name: "applier"}
+        ]
+      }
+
+      html = h(~H[<.role_assignments_summary assignments={@items} />])
+
+      [admin_pos, applier_pos, planner_pos] =
+        Enum.map(["Admin", "Applier", "Planner"], fn label ->
+          {idx, _} = :binary.match(html, label)
+          idx
+        end)
+
+      assert admin_pos < applier_pos
+      assert applier_pos < planner_pos
+    end
+
+    test "shows empty_message when no assignments" do
+      assigns = %{empty: []}
+
+      html =
+        h(~H"""
+        <.role_assignments_summary assignments={@empty} empty_message="Nothing here" />
+        """)
+
+      assert html =~ "Nothing here"
+    end
+
+    test "all_label overrides everything" do
+      assigns = %{
+        items: [%{project: %{name: "P1", uuid: "u1"}, role_name: "applier"}]
+      }
+
+      html =
+        h(~H[<.role_assignments_summary assignments={@items} all_label="All projects (super)" />])
+
+      assert html =~ "All projects (super)"
+      refute html =~ "Applier"
+      refute html =~ "P1"
+    end
+
+    test "renders source list as title attribute when provided" do
+      assigns = %{
+        items: [
+          %{
+            project: %{name: "P1", uuid: "u1"},
+            role_name: "applier",
+            sources: ["direct", "via Infra"]
+          }
+        ]
+      }
+
+      html = h(~H[<.role_assignments_summary assignments={@items} />])
+      assert html =~ ~s(title="direct, via Infra")
+    end
+  end
+
   describe "nav/1" do
     test "shows user-scope links and logout for any logged-in user" do
       assigns = %{user: %{name: "Jane", role: "user"}}

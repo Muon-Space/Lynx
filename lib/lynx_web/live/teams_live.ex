@@ -72,13 +72,7 @@ defmodule LynxWeb.TeamsLive do
           <:col :let={team} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{team.slug}</code></:col>
           <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
           <:col :let={team} label="Projects & Roles">
-            <div :if={team.assignments == []} class="text-xs text-muted">No projects</div>
-            <div :if={team.assignments != []} class="flex flex-wrap gap-1.5">
-              <span :for={a <- team.assignments} class="inline-flex items-center gap-1 rounded-full border border-border bg-inset px-2 py-0.5 text-xs">
-                <a href={"/admin/projects/#{a.project.uuid}"} class="text-clickable hover:text-clickable-hover">{a.project.name}</a>
-                <.badge color={role_badge_color(a.role_name)}>{String.capitalize(a.role_name)}</.badge>
-              </span>
-            </div>
+            <.role_assignments_summary assignments={team.assignments} />
           </:col>
           <:col :let={team} label="Created">
             <span class="text-xs text-muted">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
@@ -212,9 +206,4 @@ defmodule LynxWeb.TeamsLive do
     total = TeamModule.count_teams()
     assign(socket, teams: teams, total_pages: max(ceil(total / @per_page), 1))
   end
-
-  defp role_badge_color("planner"), do: "blue"
-  defp role_badge_color("applier"), do: "green"
-  defp role_badge_color("admin"), do: "purple"
-  defp role_badge_color(_), do: "gray"
 end

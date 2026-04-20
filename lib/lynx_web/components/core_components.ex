@@ -641,6 +641,72 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
+  # -- Role assignments summary --
+  #
+  # Compact rendering of "what does this principal have access to?". Groups
+  # assignments by role so the role badge shows once per group and the
+  # projects line up after — much cleaner than one `[project: role]` pill per
+  # row when many projects share the same role.
+  #
+  # Used by both the Users page and the Teams page so the visualization stays
+  # symmetric across the two views.
+
+  attr :assignments, :list,
+    required: true,
+    doc:
+      "list of `%{project: %Project{}, role_name: \"applier\", sources: [...]}`. " <>
+        "`sources` is optional and used as a hover tooltip on each project."
+
+  attr :empty_message, :string, default: "No projects"
+
+  attr :all_label, :string,
+    default: nil,
+    doc: "if set, display this string instead of the per-role groups (e.g. super-user marker)"
+
+  def role_assignments_summary(assigns) do
+    assigns = assign(assigns, :grouped, group_assignments_by_role(assigns.assignments))
+
+    ~H"""
+    <div :if={@all_label} class="text-xs text-muted">{@all_label}</div>
+    <div :if={is_nil(@all_label) and @assignments == []} class="text-xs text-muted">{@empty_message}</div>
+    <div :if={is_nil(@all_label) and @assignments != []} class="space-y-1">
+      <div :for={{role_name, items} <- @grouped} class="flex items-start gap-2">
+        <div class="shrink-0">
+          <.badge color={role_badge_color_for(role_name)}>{String.capitalize(role_name)}</.badge>
+        </div>
+        <div class="flex flex-wrap gap-x-2 gap-y-0.5 text-xs">
+          <a
+            :for={a <- items}
+            href={"/admin/projects/#{a.project.uuid}"}
+            title={a[:sources] && Enum.join(a.sources, ", ")}
+            class="text-clickable hover:text-clickable-hover"
+          >{a.project.name}</a>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp group_assignments_by_role(assignments) do
+    assignments
+    |> Enum.group_by(& &1.role_name)
+    |> Enum.map(fn {role, items} ->
+      {role, Enum.sort_by(items, & &1.project.name)}
+    end)
+    |> Enum.sort_by(fn {role, _} -> -role_rank(role) end)
+  end
+
+  # Stable rank for ordering role groups (admin first, custom roles last).
+  defp role_rank("admin"), do: 3
+  defp role_rank("applier"), do: 2
+  defp role_rank("planner"), do: 1
+  defp role_rank(_), do: 0
+
+  defp role_badge_color_for("planner"), do: "blue"
+  defp role_badge_color_for("applier"), do: "green"
+  defp role_badge_color_for("admin"), do: "purple"
+  defp role_badge_color_for(_), do: "gray"
+
   # -- Dark mode toggle --
   #
   # Both 🌙 and ☀️ ship in the rendered HTML; CSS picks the right one via the

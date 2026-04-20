@@ -71,14 +71,10 @@ defmodule LynxWeb.UsersLive do
             <.badge color={if user.role == "super", do: "purple", else: "gray"}>{user.role}</.badge>
           </:col>
           <:col :let={user} label="Projects & Roles">
-            <div :if={user.role == "super"} class="text-xs text-muted">All projects (super)</div>
-            <div :if={user.role != "super" and user.assignments == []} class="text-xs text-muted">No projects</div>
-            <div :if={user.role != "super" and user.assignments != []} class="flex flex-wrap gap-1.5">
-              <span :for={a <- user.assignments} class="inline-flex items-center gap-1 rounded-full border border-border bg-inset px-2 py-0.5 text-xs" title={Enum.join(a.sources, ", ")}>
-                <a href={"/admin/projects/#{a.project.uuid}"} class="text-clickable hover:text-clickable-hover">{a.project.name}</a>
-                <.badge color={role_badge_color(a.role_name)}>{String.capitalize(a.role_name)}</.badge>
-              </span>
-            </div>
+            <.role_assignments_summary
+              assignments={user.assignments}
+              all_label={if user.role == "super", do: "All projects (super)"}
+            />
           </:col>
           <:col :let={user} label="Status">
             <.badge color={if user.is_active, do: "green", else: "gray"}>
@@ -212,9 +208,4 @@ defmodule LynxWeb.UsersLive do
 
   defp format_datetime(nil), do: "-"
   defp format_datetime(dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M")
-
-  defp role_badge_color("planner"), do: "blue"
-  defp role_badge_color("applier"), do: "green"
-  defp role_badge_color("admin"), do: "purple"
-  defp role_badge_color(_), do: "gray"
 end
