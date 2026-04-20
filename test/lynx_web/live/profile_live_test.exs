@@ -77,7 +77,10 @@ defmodule LynxWeb.ProfileLiveTest do
     test "copy button is wired to the CopyApiKey hook (not data-target)", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/admin/profile")
       assert html =~ ~s(id="copy-api-key")
-      assert html =~ ~s(phx-hook="CopyApiKey")
+      # Colocated hooks render the dot-prefixed name resolved to the fully
+      # qualified `<Module>.<HookName>` form — that's the contract LV uses
+      # to look the hook up in the colocated manifest.
+      assert html =~ ~s(phx-hook="LynxWeb.ProfileLive.CopyApiKey")
       assert html =~ ~s(phx-click="copy_api_key")
       # The old vulnerable target attribute should be gone
       refute html =~ "data-target=\"#api-key-real\""

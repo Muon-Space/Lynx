@@ -131,7 +131,7 @@ defmodule LynxWeb.SettingsLive do
                   <label class="block text-sm font-medium text-secondary mb-1">SP Certificate (PEM)</label>
                   <pre id="saml-cert-content" class="bg-inset rounded-lg p-3 text-xs font-mono whitespace-pre-wrap break-all max-h-40 overflow-auto">{@saml_sp_cert}</pre>
                   <div class="flex gap-2 mt-2">
-                    <button type="button" id="copy-cert" phx-hook="CopyToClipboard" data-target="#saml-cert-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+                    <.copy_button id="copy-cert" target="#saml-cert-content">Copy</.copy_button>
                     <a href={"data:application/x-pem-file;base64,#{Base.encode64(@saml_sp_cert)}"} download="lynx-sp-cert.pem" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Download</a>
                     <.button type="button" phx-click="confirm_action" phx-value-event="regenerate_saml_cert" phx-value-message="Regenerate certificate? The old certificate will be invalidated." phx-value-uuid="" variant="secondary" size="sm">Regenerate</.button>
                   </div>
@@ -169,7 +169,7 @@ defmodule LynxWeb.SettingsLive do
               <p class="text-sm font-medium text-flash-success-text">New token (copy now, won't be shown again):</p>
               <code id="scim-token-content" class="text-sm break-all">{@new_token}</code>
               <div class="mt-2">
-                <button id="copy-scim-token" phx-hook="CopyToClipboard" data-target="#scim-token-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+                <.copy_button id="copy-scim-token" target="#scim-token-content">Copy</.copy_button>
               </div>
             </div>
 

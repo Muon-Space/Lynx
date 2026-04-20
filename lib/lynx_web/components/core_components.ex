@@ -28,7 +28,7 @@ defmodule LynxWeb.CoreComponents do
         @kind == :error && "bg-flash-error-bg text-flash-error-text border border-flash-error-border"
       ]}
       id={"flash-#{@kind}"}
-      phx-hook="AutoDismiss"
+      phx-hook=".AutoDismiss"
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> JS.hide()}
     >
       <div class="flex items-center gap-2">
@@ -37,6 +37,20 @@ defmodule LynxWeb.CoreComponents do
         <span>{msg}</span>
       </div>
     </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".AutoDismiss">
+      export default {
+        mounted() {
+          this.timer = setTimeout(() => {
+            this.el.style.transition = "opacity 500ms"
+            this.el.style.opacity = "0"
+            setTimeout(() => { this.el.remove() }, 500)
+          }, 5000)
+        },
+        destroyed() {
+          clearTimeout(this.timer)
+        }
+      }
+    </script>
     """
   end
 
@@ -341,7 +355,7 @@ defmodule LynxWeb.CoreComponents do
       <label :if={@label} class="block text-sm font-medium text-secondary mb-1">{@label}</label>
       <div
         id={@id || @name}
-        phx-hook="CustomSelect"
+        phx-hook=".CustomSelect"
         phx-update="ignore"
         data-name={@name}
         data-multiple={to_string(@multiple)}
@@ -364,7 +378,7 @@ defmodule LynxWeb.CoreComponents do
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        <div data-dropdown class="hidden absolute z-50 mt-1 w-full rounded-lg border border-border bg-surface shadow-lg max-h-60 overflow-auto">
+        <div data-dropdown class="hidden fixed z-50 rounded-lg border border-border bg-surface shadow-lg max-h-60 overflow-auto">
           <div :if={@prompt} data-value="" data-label={@prompt} class="px-3 py-2 text-sm text-muted hover:bg-surface-secondary cursor-pointer">{@prompt}</div>
           <div
             :for={{label, value} <- @options}
@@ -381,6 +395,121 @@ defmodule LynxWeb.CoreComponents do
       <p :if={@hint} class="mt-1 text-xs text-muted">{@hint}</p>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CustomSelect">
+      export default {
+        mounted() {
+          this.isOpen = false
+          this.multiple = this.el.dataset.multiple === "true"
+          this.name = this.el.dataset.name
+
+          this.trigger = this.el.querySelector("[data-trigger]")
+          this.dropdown = this.el.querySelector("[data-dropdown]")
+          this.inputs = this.el.querySelector("[data-inputs]")
+          this.labelEl = this.trigger.querySelector("[data-label]")
+
+          this.trigger.addEventListener("click", e => {
+            e.preventDefault()
+            this.isOpen ? this.close() : this.open()
+          })
+
+          this.dropdown.addEventListener("click", e => {
+            let opt = e.target.closest("[data-value]")
+            if (!opt) return
+
+            if (this.multiple) {
+              let wasSelected = opt.dataset.selected === "true"
+              opt.dataset.selected = wasSelected ? "false" : "true"
+              opt.classList.toggle("bg-select-bg", !wasSelected)
+              opt.classList.toggle("text-select-text", !wasSelected)
+              let check = opt.querySelector("[data-check]")
+              if (check) check.textContent = !wasSelected ? "\u2713" : ""
+              this.syncMultiple()
+            } else {
+              this.dropdown.querySelectorAll("[data-value]").forEach(o => {
+                o.classList.remove("bg-select-bg", "text-select-text")
+              })
+              opt.classList.add("bg-select-bg", "text-select-text")
+              this.labelEl.textContent = opt.dataset.label
+              this.inputs.innerHTML = `<input type="hidden" name="${this.name}" value="${this.esc(opt.dataset.value)}" />`
+              this.close()
+              this.notify()
+            }
+          })
+
+          this._close = e => { if (!this.el.contains(e.target)) this.close() }
+          this._esc = e => { if (e.key === "Escape") this.close() }
+          document.addEventListener("click", this._close)
+          document.addEventListener("keydown", this._esc)
+        },
+
+        destroyed() {
+          document.removeEventListener("click", this._close)
+          document.removeEventListener("keydown", this._esc)
+        },
+
+        open() {
+          this.isOpen = true
+          this.position()
+          this.dropdown.classList.remove("hidden")
+          this._reposition = () => this.position()
+          window.addEventListener("scroll", this._reposition, true)
+          window.addEventListener("resize", this._reposition)
+        },
+
+        close() {
+          this.isOpen = false
+          this.dropdown.classList.add("hidden")
+          if (this._reposition) {
+            window.removeEventListener("scroll", this._reposition, true)
+            window.removeEventListener("resize", this._reposition)
+            this._reposition = null
+          }
+        },
+
+        position() {
+          // Anchor the dropdown to the trigger's viewport rect. Using `fixed`
+          // (set in the markup class) lets it escape ancestor `overflow` boxes
+          // — without this, dropdowns inside <.table> get clipped and scroll
+          // the whole table when opened.
+          let r = this.trigger.getBoundingClientRect()
+          let dropdownHeight = Math.min(this.dropdown.scrollHeight, 240) // matches max-h-60
+          let spaceBelow = window.innerHeight - r.bottom
+          let placeAbove = spaceBelow < dropdownHeight + 8 && r.top > dropdownHeight + 8
+
+          this.dropdown.style.left = `${r.left}px`
+          this.dropdown.style.width = `${r.width}px`
+          if (placeAbove) {
+            this.dropdown.style.top = `${r.top - dropdownHeight - 4}px`
+          } else {
+            this.dropdown.style.top = `${r.bottom + 4}px`
+          }
+        },
+
+        syncMultiple() {
+          let selected = this.dropdown.querySelectorAll('[data-selected="true"]')
+          let n = this.name + "[]"
+          let html = ""
+          let labels = []
+          selected.forEach(s => {
+            html += `<input type="hidden" name="${n}" value="${this.esc(s.dataset.value)}" />`
+            labels.push(s.dataset.label)
+          })
+          this.inputs.innerHTML = html
+          this.labelEl.textContent = labels.length ? labels.join(", ") : "Select..."
+        },
+
+        notify() {
+          let input = this.inputs.querySelector("input")
+          if (input) input.dispatchEvent(new Event("input", { bubbles: true }))
+        },
+
+        esc(s) {
+          let d = document.createElement("div")
+          d.textContent = s
+          return d.innerHTML
+        }
+      }
+    </script>
     """
   end
 
@@ -480,10 +609,7 @@ defmodule LynxWeb.CoreComponents do
         <div :if={@current_user} class="flex items-center gap-4">
           <a href="/admin/profile" class="text-sm text-secondary hover:text-foreground">{@current_user.name}</a>
           <a href="/logout" class="text-sm text-muted hover:text-secondary">Logout</a>
-          <button id="dark-mode-toggle" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode">
-            <span class="dark:hidden">{"\u{1F319}"}</span>
-            <span class="hidden dark:inline">{"\u{2600}\u{FE0F}"}</span>
-          </button>
+          <.dark_mode_toggle />
         </div>
       </div>
     </nav>
@@ -506,6 +632,114 @@ defmodule LynxWeb.CoreComponents do
     >
       {render_slot(@inner_block)}
     </a>
+    """
+  end
+
+  # -- Dark mode toggle --
+  #
+  # Both 🌙 and ☀️ ship in the rendered HTML; CSS picks the right one via the
+  # `.dark` class set by the inline <head> script before paint. The hook only
+  # toggles the class and persists the preference — no innerHTML mutation.
+
+  attr :id, :string, default: "dark-mode-toggle"
+
+  def dark_mode_toggle(assigns) do
+    ~H"""
+    <button id={@id} phx-hook=".DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode">
+      <span class="dark:hidden">{"\u{1F319}"}</span>
+      <span class="hidden dark:inline">{"\u{2600}\u{FE0F}"}</span>
+    </button>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".DarkMode">
+      export default {
+        mounted() {
+          this.el.addEventListener("click", () => {
+            document.documentElement.classList.toggle("dark")
+            let dark = document.documentElement.classList.contains("dark")
+            localStorage.setItem("theme", dark ? "dark" : "light")
+          })
+        }
+      }
+    </script>
+    """
+  end
+
+  # -- Copy to clipboard button --
+  #
+  # Wraps a button that copies the textContent of `data-target` into the
+  # clipboard, briefly flashing "Copied!" as feedback. Owns the .CopyButton hook.
+
+  attr :id, :string, required: true
+  attr :target, :string, required: true, doc: "CSS selector for the source element"
+
+  attr :class, :string,
+    default:
+      "px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer"
+
+  slot :inner_block
+
+  def copy_button(assigns) do
+    ~H"""
+    <button id={@id} phx-hook=".CopyButton" data-target={@target} class={@class}>
+      {render_slot(@inner_block) || "Copy"}
+    </button>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyButton">
+      export default {
+        mounted() {
+          this.el.addEventListener("click", () => {
+            let target = document.querySelector(this.el.dataset.target)
+            if (!target) return
+            let text = target.textContent || target.innerText
+            navigator.clipboard.writeText(text).then(() => {
+              let orig = this.el.textContent
+              this.el.textContent = "Copied!"
+              setTimeout(() => { this.el.textContent = orig }, 1500)
+            })
+          })
+        }
+      }
+    </script>
+    """
+  end
+
+  # -- JSON viewer with syntax highlighting --
+  #
+  # Pretty-prints + syntax-highlights JSON content using CSS variables so it
+  # adapts to the active theme. Owns the .JsonViewer hook.
+
+  attr :id, :string, required: true
+  attr :class, :string, default: "text-xs font-mono whitespace-pre-wrap text-state-viewer-text"
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def json_viewer(assigns) do
+    ~H"""
+    <pre id={@id} phx-hook=".JsonViewer" class={@class} {@rest}>{render_slot(@inner_block)}</pre>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".JsonViewer">
+      export default {
+        mounted() { this.highlight() },
+        updated() { this.highlight() },
+        highlight() {
+          let raw = this.el.textContent
+          try {
+            let parsed = JSON.parse(raw)
+            this.el.innerHTML = this.colorize(JSON.stringify(parsed, null, 2))
+          } catch(e) {}
+        },
+        colorize(json) {
+          let s = getComputedStyle(document.documentElement)
+          let ck = s.getPropertyValue('--json-key').trim()
+          let cs = s.getPropertyValue('--json-string').trim()
+          let cn = s.getPropertyValue('--json-number').trim()
+          let cb = s.getPropertyValue('--json-boolean').trim()
+          let cl = s.getPropertyValue('--json-null').trim()
+          return json.replace(/("(?:\\.|[^"\\])*")\s*:/g, `<span style="color:${ck}">$1</span>:`)
+            .replace(/:\s*("(?:\\.|[^"\\])*")/g, `: <span style="color:${cs}">$1</span>`)
+            .replace(/:\s*(\d+\.?\d*)/g, `: <span style="color:${cn}">$1</span>`)
+            .replace(/:\s*(true|false)/g, `: <span style="color:${cb}">$1</span>`)
+            .replace(/:\s*(null)/g, `: <span style="color:${cl}">$1</span>`)
+        }
+      }
+    </script>
     """
   end
 

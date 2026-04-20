@@ -135,11 +135,11 @@ defmodule LynxWeb.StateExplorerLive do
           </div>
         </form>
 
-        <div :if={@compare_version && @compare_version != @selected_version} id={"diff-#{@selected_version}-#{@compare_version}"} phx-hook="DiffHighlight" class="grid grid-cols-2 gap-4">
+        <div :if={@compare_version && @compare_version != @selected_version} id={"diff-#{@selected_version}-#{@compare_version}"} phx-hook=".DiffHighlight" class="grid grid-cols-2 gap-4">
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs text-muted font-medium">v{@selected_version}{if @selected_version == @max_version, do: " (Current)", else: ""}</span>
-              <button id={"copy-left-#{@selected_version}"} phx-hook="CopyToClipboard" data-target={"#state-left-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</button>
+              <.copy_button id={"copy-left-#{@selected_version}"} target={"#state-left-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
             </div>
             <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
               <pre id={"state-left-#{@selected_version}"} data-diff="left" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @selected_version)}</pre>
@@ -148,7 +148,7 @@ defmodule LynxWeb.StateExplorerLive do
           <div>
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs text-muted font-medium">v{@compare_version}{if @compare_version == @max_version, do: " (Current)", else: ""}</span>
-              <button id={"copy-right-#{@compare_version}"} phx-hook="CopyToClipboard" data-target={"#state-right-raw-#{@compare_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</button>
+              <.copy_button id={"copy-right-#{@compare_version}"} target={"#state-right-raw-#{@compare_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
             </div>
             <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
               <pre id={"state-right-#{@compare_version}"} data-diff="right" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @compare_version)}</pre>
@@ -156,14 +156,55 @@ defmodule LynxWeb.StateExplorerLive do
             </div>
           </div>
         </div>
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".DiffHighlight">
+          import {diffLines} from "diff"
+          export default {
+            mounted() { this.diff() },
+            updated() { this.diff() },
+            diff() {
+              let leftEl = document.querySelector('[data-diff="left"]')
+              let rightEl = document.querySelector('[data-diff="right"]')
+              if (!leftEl || !rightEl) return
+
+              let leftText = leftEl.textContent
+              let rightText = rightEl.textContent
+              let s = getComputedStyle(document.documentElement)
+              let addBg = s.getPropertyValue('--diff-highlight').trim() || 'rgba(239,68,68,0.15)'
+              let removeBg = 'rgba(34,197,94,0.12)'
+
+              let changes = diffLines(leftText, rightText)
+
+              let leftHtml = []
+              let rightHtml = []
+
+              changes.forEach(part => {
+                let lines = part.value.replace(/\n$/, '').split('\n')
+                lines.forEach(line => {
+                  let escaped = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  if (part.added) {
+                    rightHtml.push(`<span style="background:${addBg};display:inline-block;width:100%">${escaped}</span>`)
+                  } else if (part.removed) {
+                    leftHtml.push(`<span style="background:${removeBg};display:inline-block;width:100%">${escaped}</span>`)
+                  } else {
+                    leftHtml.push(escaped)
+                    rightHtml.push(escaped)
+                  }
+                })
+              })
+
+              leftEl.innerHTML = leftHtml.join('\n')
+              rightEl.innerHTML = rightHtml.join('\n')
+            }
+          }
+        </script>
 
         <div :if={!@compare_version || @compare_version == @selected_version}>
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-muted font-medium">v{@selected_version}{if @selected_version == @max_version, do: " (Current)", else: ""}</span>
-            <button id={"copy-single-#{@selected_version}"} phx-hook="CopyToClipboard" data-target={"#state-viewer-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</button>
+            <.copy_button id={"copy-single-#{@selected_version}"} target={"#state-viewer-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
           </div>
           <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
-            <pre id={"state-viewer-#{@selected_version}"} phx-hook="JsonHighlight" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @selected_version)}</pre>
+            <.json_viewer id={"state-viewer-#{@selected_version}"}>{get_version_state(@versions, @selected_version)}</.json_viewer>
           </div>
         </div>
       </.card>

@@ -125,10 +125,10 @@ defmodule LynxWeb.SnapshotLive do
               </div>
               <div :if={@viewing_state == "#{env.uuid}:#{unit.sub_path}"} class="mt-1">
                 <div class="flex justify-end mb-1">
-                  <button id={"copy-snap-#{env.uuid}-#{unit.sub_path}"} phx-hook="CopyToClipboard" data-target={"#state-#{env.uuid}-#{unit.sub_path}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</button>
+                  <.copy_button id={"copy-snap-#{env.uuid}-#{unit.sub_path}"} target={"#state-#{env.uuid}-#{unit.sub_path}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
                 </div>
                 <div class="bg-state-viewer rounded-lg p-4 max-h-96 overflow-auto border border-border">
-                  <pre id={"state-#{env.uuid}-#{unit.sub_path}"} phx-hook="JsonHighlight" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{format_unit_state(@snapshot, env, unit.sub_path)}</pre>
+                  <.json_viewer id={"state-#{env.uuid}-#{unit.sub_path}"}>{format_unit_state(@snapshot, env, unit.sub_path)}</.json_viewer>
                 </div>
               </div>
             </div>
