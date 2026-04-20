@@ -4,6 +4,8 @@ defmodule LynxWeb.TeamsLive do
   alias Lynx.Module.TeamModule
   alias Lynx.Module.UserModule
   alias Lynx.Module.AuditModule
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.RoleContext
 
   @per_page 10
 
@@ -17,6 +19,7 @@ defmodule LynxWeb.TeamsLive do
       |> assign(:editing_team, nil)
       |> assign(:editing_members, [])
       |> assign(:all_users, UserModule.get_users(0, 10000))
+      |> assign(:roles, RoleContext.list_roles())
       |> assign(:confirm, nil)
       |> load_teams()
 
@@ -68,7 +71,15 @@ defmodule LynxWeb.TeamsLive do
           <:col :let={team} label="Name">{team.name}</:col>
           <:col :let={team} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{team.slug}</code></:col>
           <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
-          <:col :let={team} label="Projects">{Lynx.Module.ProjectModule.count_projects_by_team(team.id)}</:col>
+          <:col :let={team} label="Projects & Roles">
+            <div :if={team.assignments == []} class="text-xs text-muted">No projects</div>
+            <div :if={team.assignments != []} class="flex flex-wrap gap-1.5">
+              <span :for={a <- team.assignments} class="inline-flex items-center gap-1 rounded-full border border-border bg-inset px-2 py-0.5 text-xs">
+                <a href={"/admin/projects/#{a.project.uuid}"} class="text-clickable hover:text-clickable-hover">{a.project.name}</a>
+                <.badge color={role_badge_color(a.role_name)}>{String.capitalize(a.role_name)}</.badge>
+              </span>
+            </div>
+          </:col>
           <:col :let={team} label="Created">
             <span class="text-xs text-muted">{Calendar.strftime(team.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
@@ -184,7 +195,26 @@ defmodule LynxWeb.TeamsLive do
   defp load_teams(socket) do
     offset = (socket.assigns.page - 1) * @per_page
     teams = TeamModule.get_teams(offset, @per_page)
+    roles_by_id = Map.new(socket.assigns[:roles] || RoleContext.list_roles(), &{&1.id, &1.name})
+
+    teams =
+      Enum.map(teams, fn team ->
+        assignments =
+          team.id
+          |> ProjectContext.list_team_project_assignments()
+          |> Enum.map(fn {project, pt} ->
+            %{project: project, role_name: Map.get(roles_by_id, pt.role_id, "unknown")}
+          end)
+
+        Map.put(team, :assignments, assignments)
+      end)
+
     total = TeamModule.count_teams()
     assign(socket, teams: teams, total_pages: max(ceil(total / @per_page), 1))
   end
+
+  defp role_badge_color("planner"), do: "blue"
+  defp role_badge_color("applier"), do: "green"
+  defp role_badge_color("admin"), do: "purple"
+  defp role_badge_color(_), do: "gray"
 end

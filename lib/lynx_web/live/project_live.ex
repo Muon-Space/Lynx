@@ -207,11 +207,15 @@ defmodule LynxWeb.ProjectLive do
             <.table rows={@team_assignments} empty_message="No teams attached to this project.">
               <:col :let={a} label="Team">{a.team.name}</:col>
               <:col :let={a} label="Role">
-                <form phx-change="change_team_role" class="inline">
+                <form phx-change="change_team_role" class="inline-block w-40">
                   <input type="hidden" name="team_id" value={a.team.id} />
-                  <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-1 text-sm">
-                    <option :for={r <- @roles} value={r.id} selected={r.id == a.role_id}>{String.capitalize(r.name)}</option>
-                  </select>
+                  <.input
+                    id={"team-role-#{a.team.id}"}
+                    name="role_id"
+                    type="select"
+                    options={role_options(@roles)}
+                    value={to_string(a.role_id)}
+                  />
                 </form>
               </:col>
               <:action :let={a}>
@@ -221,17 +225,25 @@ defmodule LynxWeb.ProjectLive do
 
             <form phx-submit="add_team_access" phx-change="add_team_form_change" class="mt-3 flex items-end gap-2">
               <div class="flex-1">
-                <label class="block text-xs text-muted mb-1">Add team</label>
-                <select name="team_id" class="w-full rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
-                  <option value="">Select a team</option>
-                  <option :for={t <- unattached_teams(@all_teams, @team_assignments)} value={t.uuid} selected={t.uuid == @add_team_id}>{t.name}</option>
-                </select>
+                <.input
+                  id="add-team-id"
+                  name="team_id"
+                  type="select"
+                  label="Add team"
+                  prompt="Select a team"
+                  options={Enum.map(unattached_teams(@all_teams, @team_assignments), &{&1.name, &1.uuid})}
+                  value={@add_team_id}
+                />
               </div>
-              <div>
-                <label class="block text-xs text-muted mb-1">Role</label>
-                <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
-                  <option :for={r <- @roles} value={r.id} selected={r.id == @add_team_role_id}>{String.capitalize(r.name)}</option>
-                </select>
+              <div class="w-40">
+                <.input
+                  id="add-team-role"
+                  name="role_id"
+                  type="select"
+                  label="Role"
+                  options={role_options(@roles)}
+                  value={to_string(@add_team_role_id)}
+                />
               </div>
               <.button type="submit" variant="primary" size="sm" disabled={@add_team_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>
@@ -242,11 +254,15 @@ defmodule LynxWeb.ProjectLive do
             <.table rows={@user_assignments} empty_message="No individual user grants on this project.">
               <:col :let={a} label="User">{a.user.name} <span class="text-xs text-muted">({a.user.email})</span></:col>
               <:col :let={a} label="Role">
-                <form phx-change="change_user_role" class="inline">
+                <form phx-change="change_user_role" class="inline-block w-40">
                   <input type="hidden" name="user_id" value={a.user.id} />
-                  <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-1 text-sm">
-                    <option :for={r <- @roles} value={r.id} selected={r.id == a.role_id}>{String.capitalize(r.name)}</option>
-                  </select>
+                  <.input
+                    id={"user-role-#{a.user.id}"}
+                    name="role_id"
+                    type="select"
+                    options={role_options(@roles)}
+                    value={to_string(a.role_id)}
+                  />
                 </form>
               </:col>
               <:action :let={a}>
@@ -256,17 +272,25 @@ defmodule LynxWeb.ProjectLive do
 
             <form phx-submit="add_user_access" phx-change="add_user_form_change" class="mt-3 flex items-end gap-2">
               <div class="flex-1">
-                <label class="block text-xs text-muted mb-1">Add user</label>
-                <select name="user_id" class="w-full rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
-                  <option value="">Select a user</option>
-                  <option :for={u <- unattached_users(@all_users, @user_assignments)} value={u.uuid} selected={u.uuid == @add_user_id}>{u.name} ({u.email})</option>
-                </select>
+                <.input
+                  id="add-user-id"
+                  name="user_id"
+                  type="select"
+                  label="Add user"
+                  prompt="Select a user"
+                  options={Enum.map(unattached_users(@all_users, @user_assignments), &{"#{&1.name} (#{&1.email})", &1.uuid})}
+                  value={@add_user_id}
+                />
               </div>
-              <div>
-                <label class="block text-xs text-muted mb-1">Role</label>
-                <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
-                  <option :for={r <- @roles} value={r.id} selected={r.id == @add_user_role_id}>{String.capitalize(r.name)}</option>
-                </select>
+              <div class="w-40">
+                <.input
+                  id="add-user-role"
+                  name="role_id"
+                  type="select"
+                  label="Role"
+                  options={role_options(@roles)}
+                  value={to_string(@add_user_role_id)}
+                />
               </div>
               <.button type="submit" variant="primary" size="sm" disabled={@add_user_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>

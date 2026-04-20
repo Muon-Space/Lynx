@@ -347,6 +347,22 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
+  List `{project, project_team_row}` pairs for a team — powers the Teams page
+  "Projects & Roles" column so admins can see which projects a team is
+  attached to and the role it holds on each.
+  """
+  def list_team_project_assignments(team_id) do
+    from(pt in ProjectTeam,
+      join: p in Project,
+      on: p.id == pt.project_id,
+      where: pt.team_id == ^team_id,
+      order_by: [asc: p.name],
+      select: {p, pt}
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Get project by UUID accessible by a set of team IDs
   """
   def get_project_by_uuid_teams(uuid, teams_ids) do
