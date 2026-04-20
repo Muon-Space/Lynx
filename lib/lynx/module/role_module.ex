@@ -6,6 +6,15 @@ defmodule Lynx.Module.RoleModule do
   permissions and are stored in the database so they can be customized
   in the future. The seeded system roles are `planner`, `applier`, `admin`.
 
+  Default role bundles (after migration `20260421000008`):
+
+    * `planner` — `state:read`, `state:lock`, `state:unlock`. Lock + unlock
+      are included because Terraform's `plan` always acquires a state lock
+      by default; without them, planner can't actually run `terraform plan`.
+    * `applier` — planner's set + `state:write`, `snapshot:create`.
+    * `admin`   — applier's set + `snapshot:restore`, `env:manage`,
+      `project:manage`, `access:manage`, `oidc_rule:manage`.
+
   Effective permission resolution for a user on a project unions:
     1. Permissions from every team the user belongs to that is attached to
        the project (each `project_teams` row carries its own role).

@@ -66,10 +66,14 @@ defmodule Lynx.Module.RoleModuleTest do
   end
 
   describe "can?/2 (role + permission lookup)" do
-    test "planner can state:read but not state:write" do
+    test "planner can read state and lock/unlock (so `terraform plan` works) but not write" do
       assert RoleModule.can?("planner", "state:read")
+      # plan needs to acquire a lock; planner must be allowed to do so
+      assert RoleModule.can?("planner", "state:lock")
+      assert RoleModule.can?("planner", "state:unlock")
+      # the meaningful applier-only differentiator:
       refute RoleModule.can?("planner", "state:write")
-      refute RoleModule.can?("planner", "state:lock")
+      refute RoleModule.can?("planner", "snapshot:create")
     end
 
     test "applier can state operations and snapshot:create but not snapshot:restore" do
@@ -117,7 +121,7 @@ defmodule Lynx.Module.RoleModuleTest do
       ProjectContext.add_project_to_team(project.id, team.id, planner.id)
 
       perms = RoleModule.effective_permissions(user, project)
-      assert MapSet.equal?(perms, MapSet.new(["state:read"]))
+      assert MapSet.equal?(perms, MapSet.new(["state:read", "state:lock", "state:unlock"]))
     end
 
     test "individual user grant unions with team grants (no override semantics)" do
@@ -184,7 +188,7 @@ defmodule Lynx.Module.RoleModuleTest do
 
       assert MapSet.equal?(
                RoleModule.permissions_for_oidc_rule(%{role_id: planner.id}),
-               MapSet.new(["state:read"])
+               MapSet.new(["state:read", "state:lock", "state:unlock"])
              )
     end
 

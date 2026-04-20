@@ -465,15 +465,18 @@ defmodule LynxWeb.TfControllerTest do
       assert Jason.decode!(conn.resp_body)["message"] =~ "state:write"
     end
 
-    test "planner cannot lock or unlock (403)", %{conn: conn, planner: planner} do
+    test "planner can lock and unlock (so `terraform plan` works)", %{
+      conn: conn,
+      planner: planner
+    } do
+      # Plan acquires a lock by default; planner must be allowed to.
       lock_conn =
         conn
         |> basic_auth(planner.email, planner.api_key)
         |> put_req_header("content-type", "application/json")
-        |> post("/tf/aws-govcloud/platform/production/lock", %{"ID" => "abc"})
+        |> post("/tf/aws-govcloud/platform/production/lock", %{"ID" => Ecto.UUID.generate()})
 
-      assert lock_conn.status == 403
-      assert Jason.decode!(lock_conn.resp_body)["message"] =~ "state:lock"
+      assert lock_conn.status == 200
 
       unlock_conn =
         build_conn()
@@ -481,7 +484,7 @@ defmodule LynxWeb.TfControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post("/tf/aws-govcloud/platform/production/unlock", %{})
 
-      assert unlock_conn.status == 403
+      assert unlock_conn.status == 200
     end
 
     test "applier can both GET and POST state", %{conn: conn, applier: applier} do
