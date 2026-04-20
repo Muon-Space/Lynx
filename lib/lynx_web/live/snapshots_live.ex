@@ -5,8 +5,6 @@ defmodule LynxWeb.SnapshotsLive do
   alias Lynx.Module.ProjectModule
   alias Lynx.Module.AuditModule
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @per_page 10
 
   @impl true

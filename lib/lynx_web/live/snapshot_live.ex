@@ -4,8 +4,6 @@ defmodule LynxWeb.SnapshotLive do
   alias Lynx.Module.SnapshotModule
   alias Lynx.Module.AuditModule
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
     case SnapshotModule.get_snapshot_by_uuid(uuid) do

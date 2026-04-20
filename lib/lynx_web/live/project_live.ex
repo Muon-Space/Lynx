@@ -9,8 +9,6 @@ defmodule LynxWeb.ProjectLive do
   alias Lynx.Module.AuditModule
   alias Lynx.Context.EnvironmentContext
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
     case ProjectModule.get_project_by_uuid(uuid) do
@@ -57,6 +55,7 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:oidc_rules, [])
           |> assign(:oidc_providers, OIDCBackendModule.list_providers())
           |> assign(:show_add_rule, false)
+          |> assign(:rule_provider_id, "")
 
         socket = assign(socket, :confirm, nil)
         {:ok, socket}
@@ -116,12 +115,12 @@ defmodule LynxWeb.ProjectLive do
         <h3 class="text-lg font-semibold mb-4">OIDC Access Rules — {@show_oidc_rules.name}</h3>
 
         <div :if={@show_add_rule} class="border border-border rounded-lg p-4 mb-4">
-          <form phx-submit="create_rule" class="space-y-3">
-            <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value="" required />
+          <form phx-submit="create_rule" phx-change="rule_form_change" class="space-y-3">
+            <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value={@rule_provider_id} required hint={if @rule_provider_id == "", do: "Provider is required."} />
             <.input name="rule_name" label="Rule Name" value="" required placeholder="prod-deploy" />
             <.input name="claims" label="Claims (claim=value, comma separated)" value="" required placeholder="repository=myorg/infra,environment=production" hint="All claims must match (AND logic)" />
             <div class="flex gap-3">
-              <.button type="submit" variant="primary" size="sm">Save Rule</.button>
+              <.button type="submit" variant="primary" size="sm" disabled={@rule_provider_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Save Rule</.button>
               <.button phx-click="hide_add_rule" variant="secondary" size="sm">Cancel</.button>
             </div>
           </form>
@@ -133,6 +132,9 @@ defmodule LynxWeb.ProjectLive do
 
         <.table rows={@oidc_rules} empty_message="No OIDC access rules for this environment.">
           <:col :let={r} label="Name">{r.name}</:col>
+          <:col :let={r} label="Provider">
+            <.badge color="blue">{provider_name_for(@oidc_providers, r.provider_id)}</.badge>
+          </:col>
           <:col :let={r} label="Claims">
             <div :for={cr <- Jason.decode!(r.claim_rules)}>
               <code class="text-xs">{cr["claim"]} {cr["operator"]} {cr["value"]}</code>
@@ -318,10 +320,14 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("show_add_rule", _, socket),
-    do: {:noreply, assign(socket, :show_add_rule, true)}
+    do: {:noreply, socket |> assign(:show_add_rule, true) |> assign(:rule_provider_id, "")}
 
   def handle_event("hide_add_rule", _, socket),
-    do: {:noreply, assign(socket, :show_add_rule, false)}
+    do: {:noreply, socket |> assign(:show_add_rule, false) |> assign(:rule_provider_id, "")}
+
+  def handle_event("rule_form_change", params, socket) do
+    {:noreply, assign(socket, :rule_provider_id, params["provider_id"] || "")}
+  end
 
   def handle_event("create_rule", params, socket) do
     provider = Lynx.Context.OIDCProviderContext.get_provider_by_uuid(params["provider_id"])
@@ -360,6 +366,7 @@ defmodule LynxWeb.ProjectLive do
            socket
            |> assign(:oidc_rules, rules)
            |> assign(:show_add_rule, false)
+           |> assign(:rule_provider_id, "")
            |> put_flash(:info, "Rule created")}
 
         {:error, _} ->
@@ -407,5 +414,12 @@ defmodule LynxWeb.ProjectLive do
     :crypto.strong_rand_bytes(length)
     |> Base.url_encode64(padding: false)
     |> binary_part(0, length)
+  end
+
+  defp provider_name_for(providers, provider_id) do
+    case Enum.find(providers, &(&1.id == provider_id)) do
+      nil -> "(unknown)"
+      provider -> provider.name
+    end
   end
 end

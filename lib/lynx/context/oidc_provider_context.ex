@@ -30,6 +30,8 @@ defmodule Lynx.Context.OIDCProviderContext do
 
   def get_provider_by_id(id), do: Repo.get(OIDCProvider, id)
 
+  def get_provider_by_uuid(uuid) when uuid in [nil, ""], do: nil
+
   def get_provider_by_uuid(uuid) do
     from(p in OIDCProvider, where: p.uuid == ^uuid)
     |> limit(1)

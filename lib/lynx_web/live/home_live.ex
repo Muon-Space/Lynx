@@ -3,8 +3,6 @@ defmodule LynxWeb.HomeLive do
 
   alias Lynx.Module.InstallModule
 
-  on_mount {LynxWeb.LiveAuth, :optional_auth}
-
   @impl true
   def mount(_params, _session, socket) do
     if not InstallModule.is_installed() do

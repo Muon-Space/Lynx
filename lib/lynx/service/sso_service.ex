@@ -91,36 +91,50 @@ defmodule Lynx.Service.SSOService do
     client_secret = SettingsModule.get_sso_config("sso_client_secret", "")
     redirect_uri = build_redirect_uri()
 
-    with {:ok, doc} <- fetch_discovery_document(issuer),
-         {:ok, tokens} <-
-           exchange_code_for_tokens(
-             doc["token_endpoint"],
-             code,
-             client_id,
-             client_secret,
-             redirect_uri
-           ),
-         {:ok, claims} <- decode_id_token(tokens["id_token"]) do
-      {:ok, extract_oidc_claims(claims)}
+    if issuer == "" or client_id == "" or client_secret == "" do
+      {:error, "OIDC Issuer URL, Client ID, and Client Secret must be configured"}
     else
-      {:error, reason} ->
-        Logger.error("OIDC callback (DB config) failed: #{inspect(reason)}")
-        {:error, "SSO authentication failed"}
+      with {:ok, doc} <- fetch_discovery_document(issuer),
+           {:ok, tokens} <-
+             exchange_code_for_tokens(
+               doc["token_endpoint"],
+               code,
+               client_id,
+               client_secret,
+               redirect_uri
+             ),
+           {:ok, claims} <- decode_id_token(tokens["id_token"]) do
+        {:ok, extract_oidc_claims(claims)}
+      else
+        {:error, reason} ->
+          Logger.error("OIDC callback (DB config) failed: #{inspect(reason)}")
+          {:error, "SSO authentication failed"}
+      end
     end
+  end
+
+  defp fetch_discovery_document(issuer) when issuer in ["", nil] do
+    {:error, "Issuer URL is not configured"}
   end
 
   defp fetch_discovery_document(issuer) do
     url = "#{issuer}/.well-known/openid-configuration"
 
-    case Finch.build(:get, url) |> Finch.request(Lynx.Finch) do
-      {:ok, %{status: 200, body: body}} ->
-        {:ok, Jason.decode!(body)}
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in [nil, ""] or host in [nil, ""] ->
+        {:error, "Invalid issuer URL: #{inspect(issuer)}"}
 
-      {:ok, %{status: status}} ->
-        {:error, "Discovery document fetch failed with status #{status}"}
+      _ ->
+        case Finch.build(:get, url) |> Finch.request(Lynx.Finch) do
+          {:ok, %{status: 200, body: body}} ->
+            {:ok, Jason.decode!(body)}
 
-      {:error, reason} ->
-        {:error, "Discovery document fetch failed: #{inspect(reason)}"}
+          {:ok, %{status: status}} ->
+            {:error, "Discovery document fetch failed with status #{status}"}
+
+          {:error, reason} ->
+            {:error, "Discovery document fetch failed: #{inspect(reason)}"}
+        end
     end
   end
 

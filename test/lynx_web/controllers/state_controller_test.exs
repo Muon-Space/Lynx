@@ -1,21 +1,15 @@
-# Copyright 2023 Clivern. All rights reserved.
-# Use of this source code is governed by the MIT
-# license that can be found in the LICENSE file.
-
 defmodule LynxWeb.StateControllerTest do
   use LynxWeb.ConnCase
 
-  setup %{conn: conn} do
-    params = %{
-      app_name: "Lynx",
-      app_url: "https://lynx.com",
-      app_email: "hello@lynx.com",
-      admin_name: "John Doe",
-      admin_email: "john@example.com",
-      admin_password: "password123"
-    }
+  # NOTE: StateController is not currently mapped to any route in router.ex
+  # — Terraform requests are handled by TfController instead. Remove the
+  # file (and the controller module) if the legacy controller stays unused.
 
-    conn = post(conn, "/action/install", params)
-    {:ok, conn: conn}
+  describe "module is loadable" do
+    test "module exists and exports the action functions" do
+      functions = LynxWeb.StateController.__info__(:functions)
+      assert Keyword.has_key?(functions, :create)
+      assert Keyword.has_key?(functions, :index)
+    end
   end
 end

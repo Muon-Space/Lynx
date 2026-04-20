@@ -38,6 +38,20 @@ test:
 	@$(mix) test --trace
 
 
+## coverage: Run tests with coverage report (enforces threshold from coveralls.json)
+.PHONY: coverage
+coverage:
+	@echo ">> ============= Test coverage ============= <<"
+	@$(mix) coveralls
+
+
+## coverage_html: Run tests with coverage and generate HTML report at cover/excoveralls.html
+.PHONY: coverage_html
+coverage_html:
+	@echo ">> ============= Coverage HTML report ============= <<"
+	@$(mix) coveralls.html
+
+
 ## build: Build code
 .PHONY: build
 build:
@@ -80,6 +94,6 @@ v:
 	@$(mix) version
 
 
-## ci: Run ci
+## ci: Run ci (tests + coverage gate)
 .PHONY: ci
-ci: test
+ci: coverage

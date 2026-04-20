@@ -4,8 +4,6 @@ defmodule LynxWeb.ProfileLive do
   alias Lynx.Module.UserModule
   alias Lynx.Service.AuthService
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @impl true
   def mount(_params, _session, socket) do
     _user = socket.assigns.current_user
@@ -43,7 +41,7 @@ defmodule LynxWeb.ProfileLive do
           <code id="api-key-content" class="flex-1 bg-inset text-foreground px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
           <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm" class="w-14">Show</.button>
           <.button :if={@api_key_visible} phx-click="hide_api_key" variant="secondary" size="sm" class="w-14">Hide</.button>
-          <button id="copy-api-key" phx-hook="CopyToClipboard" data-target="#api-key-content" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+          <button id="copy-api-key" phx-hook="CopyApiKey" phx-click="copy_api_key" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
           <.button phx-click="confirm_action" phx-value-event="rotate_api_key" phx-value-message="Rotate API key? The old key will stop working immediately." variant="danger" size="sm">Rotate</.button>
         </div>
       </.card>
@@ -81,6 +79,13 @@ defmodule LynxWeb.ProfileLive do
   def handle_event("show_api_key", _, socket) do
     {:noreply,
      assign(socket, api_key: socket.assigns.current_user.api_key, api_key_visible: true)}
+  end
+
+  def handle_event("copy_api_key", _, socket) do
+    # Send the key over the LV socket on demand instead of embedding it in
+    # the rendered HTML; the CopyApiKey hook receives it and writes to the
+    # clipboard. The key still crosses the wire, but never sits in the DOM.
+    {:noreply, push_event(socket, "copy_api_key", %{value: socket.assigns.current_user.api_key})}
   end
 
   def handle_event("hide_api_key", _, socket) do
