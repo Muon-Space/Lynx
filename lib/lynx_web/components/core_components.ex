@@ -449,8 +449,14 @@ defmodule LynxWeb.CoreComponents do
 
         open() {
           this.isOpen = true
-          this.position()
+          // Reveal first so the dropdown has measurable dimensions
+          // (display:none returns scrollHeight 0, defeating the flip-above
+          // logic). Use visibility:hidden during the measurement to avoid a
+          // flash at the wrong position before position() runs.
+          this.dropdown.style.visibility = "hidden"
           this.dropdown.classList.remove("hidden")
+          this.position()
+          this.dropdown.style.visibility = ""
           this._reposition = () => this.position()
           window.addEventListener("scroll", this._reposition, true)
           window.addEventListener("resize", this._reposition)
