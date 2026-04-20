@@ -134,6 +134,83 @@ defmodule Lynx.Module.RoleModule do
     |> Repo.all()
   end
 
+  @doc """
+  List every project a user has access to and their effective role on it.
+
+  Aggregates two paths:
+    * Direct grants in `user_projects`
+    * Indirect grants via teams the user belongs to (`user_teams` -> `project_teams`)
+
+  Returns `[%{project: %Project{}, role_name: "applier", sources: ["direct", "via Team A"]}]`,
+  one entry per project, with the role determined by the highest-permission-count
+  role across all paths (so an admin team grant + a planner direct grant => admin).
+
+  Sorted by project name. Returns `[]` for super users (their access is global,
+  not enumerable from this table). Caller can decide how to render that case.
+  """
+  def list_user_project_access(%User{role: "super"}), do: []
+  def list_user_project_access(%User{id: user_id}), do: list_user_project_access(user_id)
+
+  def list_user_project_access(user_id) when is_integer(user_id) do
+    alias Lynx.Model.{Role, Team}
+
+    direct =
+      from(up in Lynx.Model.UserProject,
+        join: p in Project,
+        on: p.id == up.project_id,
+        join: r in Role,
+        on: r.id == up.role_id,
+        where: up.user_id == ^user_id,
+        select: %{project: p, role: r, source: "direct"}
+      )
+      |> Repo.all()
+
+    via_teams =
+      from(pt in ProjectTeam,
+        join: ut in UserTeam,
+        on: ut.team_id == pt.team_id,
+        join: p in Project,
+        on: p.id == pt.project_id,
+        join: r in Role,
+        on: r.id == pt.role_id,
+        join: t in Team,
+        on: t.id == pt.team_id,
+        where: ut.user_id == ^user_id,
+        select: %{project: p, role: r, source: t.name}
+      )
+      |> Repo.all()
+
+    role_rank_cache = build_role_rank_cache(direct, via_teams)
+
+    (direct ++ via_teams)
+    |> Enum.group_by(& &1.project.id)
+    |> Enum.map(fn {_pid, entries} ->
+      winner =
+        Enum.max_by(entries, fn e -> Map.get(role_rank_cache, e.role.id, 0) end)
+
+      sources =
+        entries
+        |> Enum.map(fn
+          %{source: "direct"} -> "direct"
+          %{source: team_name} -> "via #{team_name}"
+        end)
+        |> Enum.uniq()
+
+      %{project: winner.project, role_name: winner.role.name, sources: sources}
+    end)
+    |> Enum.sort_by(& &1.project.name)
+  end
+
+  # Build a {role_id => permission_count} map so a single role's "weight" is
+  # cached across the dedup loop. Permission count is a stable proxy for role
+  # rank that also handles future custom roles without hard-coding names.
+  defp build_role_rank_cache(direct, via_teams) do
+    (direct ++ via_teams)
+    |> Enum.map(& &1.role.id)
+    |> Enum.uniq()
+    |> Map.new(fn role_id -> {role_id, MapSet.size(RoleContext.permissions_for(role_id))} end)
+  end
+
   defp union_permissions([]), do: MapSet.new()
 
   defp union_permissions(role_ids) do

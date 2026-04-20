@@ -3,6 +3,7 @@ defmodule LynxWeb.UsersLive do
 
   alias Lynx.Module.UserModule
   alias Lynx.Module.AuditModule
+  alias Lynx.Module.RoleModule
 
   @per_page 10
 
@@ -68,6 +69,16 @@ defmodule LynxWeb.UsersLive do
           <:col :let={user} label="Email">{user.email}</:col>
           <:col :let={user} label="Role">
             <.badge color={if user.role == "super", do: "purple", else: "gray"}>{user.role}</.badge>
+          </:col>
+          <:col :let={user} label="Projects & Roles">
+            <div :if={user.role == "super"} class="text-xs text-muted">All projects (super)</div>
+            <div :if={user.role != "super" and user.assignments == []} class="text-xs text-muted">No projects</div>
+            <div :if={user.role != "super" and user.assignments != []} class="flex flex-wrap gap-1.5">
+              <span :for={a <- user.assignments} class="inline-flex items-center gap-1 rounded-full border border-border bg-inset px-2 py-0.5 text-xs" title={Enum.join(a.sources, ", ")}>
+                <a href={"/admin/projects/#{a.project.uuid}"} class="text-clickable hover:text-clickable-hover">{a.project.name}</a>
+                <.badge color={role_badge_color(a.role_name)}>{String.capitalize(a.role_name)}</.badge>
+              </span>
+            </div>
           </:col>
           <:col :let={user} label="Status">
             <.badge color={if user.is_active, do: "green", else: "gray"}>
@@ -184,7 +195,13 @@ defmodule LynxWeb.UsersLive do
 
   defp load_users(socket) do
     offset = (socket.assigns.page - 1) * socket.assigns.per_page
-    users = UserModule.get_users(offset, socket.assigns.per_page)
+
+    users =
+      UserModule.get_users(offset, socket.assigns.per_page)
+      |> Enum.map(fn user ->
+        Map.put(user, :assignments, RoleModule.list_user_project_access(user))
+      end)
+
     total = UserModule.count_users()
     total_pages = max(ceil(total / socket.assigns.per_page), 1)
 
@@ -195,4 +212,9 @@ defmodule LynxWeb.UsersLive do
 
   defp format_datetime(nil), do: "-"
   defp format_datetime(dt), do: Calendar.strftime(dt, "%Y-%m-%d %H:%M")
+
+  defp role_badge_color("planner"), do: "blue"
+  defp role_badge_color("applier"), do: "green"
+  defp role_badge_color("admin"), do: "purple"
+  defp role_badge_color(_), do: "gray"
 end

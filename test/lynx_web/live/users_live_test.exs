@@ -112,6 +112,53 @@ defmodule LynxWeb.UsersLiveTest do
     end
   end
 
+  describe "Projects & Roles column" do
+    alias Lynx.Context.{ProjectContext, RoleContext, UserProjectContext}
+
+    test "shows direct user_project grants with project link + role badge", %{conn: conn} do
+      target = create_user(%{name: "Grace", email: "grace@x.test"})
+      workspace = create_workspace()
+      project = create_project(%{name: "Atlas", workspace_id: workspace.id})
+      planner = RoleContext.get_role_by_name("planner")
+      UserProjectContext.assign_role(target.id, project.id, planner.id)
+
+      {:ok, _view, html} = live(conn, "/admin/users")
+      assert html =~ "Projects &amp; Roles"
+      assert html =~ "Atlas"
+      assert html =~ "Planner"
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}")
+    end
+
+    test "shows team-derived grants alongside direct ones", %{conn: conn} do
+      target = create_user(%{name: "Hugo", email: "hugo@x.test"})
+      workspace = create_workspace()
+      project = create_project(%{name: "Beacon", workspace_id: workspace.id})
+
+      {:ok, team} =
+        Lynx.Module.TeamModule.create_team(%{name: "Infra", slug: "infra-x", description: "x"})
+
+      {:ok, _} = Lynx.Context.UserContext.add_user_to_team(target.id, team.id)
+      applier = RoleContext.get_role_by_name("applier")
+      ProjectContext.add_project_to_team(project.id, team.id, applier.id)
+
+      {:ok, _view, html} = live(conn, "/admin/users")
+      assert html =~ "Beacon"
+      assert html =~ "Applier"
+    end
+
+    test "super users show 'All projects (super)' instead of enumerating", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/users")
+      # The setup user is a super; the row for them should show the marker.
+      assert html =~ "All projects (super)"
+    end
+
+    test "users without grants show 'No projects'", %{conn: conn} do
+      _ = create_user(%{name: "Lonely", email: "lonely@x.test"})
+      {:ok, _view, html} = live(conn, "/admin/users")
+      assert html =~ "No projects"
+    end
+  end
+
   describe "Delete User" do
     test "delete_user removes the user", %{conn: conn} do
       target = create_user(%{name: "ToDelete", email: "del@x.test"})

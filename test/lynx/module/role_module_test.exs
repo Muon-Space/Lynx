@@ -200,6 +200,115 @@ defmodule Lynx.Module.RoleModuleTest do
     end
   end
 
+  describe "list_user_project_access/1" do
+    test "returns empty list for super users (their access is global)" do
+      user = create_user("super")
+      assert RoleModule.list_user_project_access(user) == []
+    end
+
+    test "returns nothing for users with no grants" do
+      user = create_user()
+      assert RoleModule.list_user_project_access(user) == []
+    end
+
+    test "lists direct user_projects grants with source 'direct'" do
+      user = create_user()
+      project = create_project()
+      planner = RoleContext.get_role_by_name("planner")
+      UserProjectContext.assign_role(user.id, project.id, planner.id)
+
+      [entry] = RoleModule.list_user_project_access(user)
+      assert entry.project.id == project.id
+      assert entry.role_name == "planner"
+      assert entry.sources == ["direct"]
+    end
+
+    test "lists team-derived grants with source labelled 'via TeamName'" do
+      user = create_user()
+      project = create_project()
+      team = create_team_with_user(user)
+      applier = RoleContext.get_role_by_name("applier")
+      ProjectContext.add_project_to_team(project.id, team.id, applier.id)
+
+      [entry] = RoleModule.list_user_project_access(user)
+      assert entry.project.id == project.id
+      assert entry.role_name == "applier"
+      assert ["via " <> team_name] = entry.sources
+      assert team_name == team.name
+    end
+
+    test "merges direct + team grants and picks highest-permission role" do
+      user = create_user()
+      project = create_project()
+      team = create_team_with_user(user)
+
+      planner = RoleContext.get_role_by_name("planner")
+      admin = RoleContext.get_role_by_name("admin")
+
+      ProjectContext.add_project_to_team(project.id, team.id, planner.id)
+      UserProjectContext.assign_role(user.id, project.id, admin.id)
+
+      [entry] = RoleModule.list_user_project_access(user)
+      assert entry.role_name == "admin"
+      assert "direct" in entry.sources
+      assert Enum.any?(entry.sources, &String.starts_with?(&1, "via "))
+    end
+
+    test "returns one row per project even if user reaches it through multiple teams" do
+      user = create_user()
+      project = create_project()
+      team_a = create_team_with_user(user)
+      team_b = create_team_with_user(user)
+
+      planner = RoleContext.get_role_by_name("planner")
+      applier = RoleContext.get_role_by_name("applier")
+
+      ProjectContext.add_project_to_team(project.id, team_a.id, planner.id)
+      ProjectContext.add_project_to_team(project.id, team_b.id, applier.id)
+
+      [entry] = RoleModule.list_user_project_access(user)
+      assert entry.role_name == "applier"
+      assert length(entry.sources) == 2
+    end
+
+    test "results are sorted by project name" do
+      user = create_user()
+      p_alpha = create_project()
+      p_zeta = create_project()
+      planner = RoleContext.get_role_by_name("planner")
+
+      # Force deterministic names independent of System.unique_integer.
+      {:ok, p_alpha} =
+        ProjectContext.update_project(
+          p_alpha,
+          Lynx.Context.ProjectContext.new_project(%{
+            name: "Alpha",
+            slug: p_alpha.slug,
+            description: "x",
+            workspace_id: nil
+          })
+        )
+
+      {:ok, p_zeta} =
+        ProjectContext.update_project(
+          p_zeta,
+          Lynx.Context.ProjectContext.new_project(%{
+            name: "Zeta",
+            slug: p_zeta.slug,
+            description: "x",
+            workspace_id: nil
+          })
+        )
+
+      UserProjectContext.assign_role(user.id, p_zeta.id, planner.id)
+      UserProjectContext.assign_role(user.id, p_alpha.id, planner.id)
+
+      [first, second] = RoleModule.list_user_project_access(user)
+      assert first.project.name == "Alpha"
+      assert second.project.name == "Zeta"
+    end
+  end
+
   describe "has?/2" do
     test "works with both MapSet and list inputs" do
       assert RoleModule.has?(MapSet.new(["a", "b"]), "a")
