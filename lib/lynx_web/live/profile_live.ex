@@ -41,10 +41,24 @@ defmodule LynxWeb.ProfileLive do
           <code id="api-key-content" class="flex-1 bg-inset text-foreground px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
           <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm" class="w-14">Show</.button>
           <.button :if={@api_key_visible} phx-click="hide_api_key" variant="secondary" size="sm" class="w-14">Hide</.button>
-          <button id="copy-api-key" phx-hook="CopyApiKey" phx-click="copy_api_key" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+          <button id="copy-api-key" phx-hook=".CopyApiKey" phx-click="copy_api_key" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
           <.button phx-click="confirm_action" phx-value-event="rotate_api_key" phx-value-message="Rotate API key? The old key will stop working immediately." variant="danger" size="sm">Rotate</.button>
         </div>
       </.card>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyApiKey">
+        export default {
+          mounted() {
+            this.handleEvent("copy_api_key", ({value}) => {
+              if (!value) return
+              navigator.clipboard.writeText(value).then(() => {
+                let orig = this.el.textContent
+                this.el.textContent = "Copied!"
+                setTimeout(() => { this.el.textContent = orig }, 1500)
+              })
+            })
+          }
+        }
+      </script>
     </div>
     """
   end

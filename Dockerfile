@@ -55,12 +55,14 @@ COPY lib lib
 COPY assets assets
 RUN cd assets && npm install
 
-# Compile assets
+# Compile Elixir code first so the LiveView mix compiler writes the
+# `_build/$MIX_ENV/phoenix-colocated/lynx/` manifest. esbuild needs that
+# directory to resolve `import {hooks} from "phoenix-colocated/lynx"`.
+RUN mix compile
+
+# Bundle assets (consumes the colocated hooks manifest emitted above).
 RUN mix esbuild lynx --minify
 RUN mix tailwind lynx --minify
-
-# Compile the release
-RUN mix compile
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/

@@ -144,11 +144,16 @@ defmodule Lynx.Module.EnvironmentModule do
   end
 
   @doc """
-  Validate Auth Data for environment
+  Validate Auth Data for environment.
+
+  Returns `{:ok, project, env, permissions :: MapSet.t(String.t())}` on
+  success or `{:error, reason}`. The permission set is the effective set
+  granted by whichever auth path matched (OIDC rule's role, user's role on
+  the project, or the static env credentials' implicit full access).
   """
   def is_access_allowed(data \\ %{}) do
     alias Lynx.Module.OIDCBackendModule
-    alias Lynx.Module.PermissionModule
+    alias Lynx.Module.RoleModule
     alias Lynx.Context.UserContext
     alias Lynx.Context.WorkspaceContext
 
@@ -175,7 +180,7 @@ defmodule Lynx.Module.EnvironmentModule do
               # OIDC provider auth
               OIDCBackendModule.is_oidc_provider?(data[:username]) ->
                 case OIDCBackendModule.validate_access(data[:username], data[:secret], env.id) do
-                  :ok -> {:ok, project, env}
+                  {:ok, permissions} -> {:ok, project, env, permissions}
                   {:error, _reason} -> {:error, "Invalid environment credentials"}
                 end
 
@@ -193,23 +198,21 @@ defmodule Lynx.Module.EnvironmentModule do
                       user.api_key != data[:secret] ->
                         {:error, "Invalid API key"}
 
-                      not PermissionModule.can_access_project_id(
-                        :project,
-                        String.to_atom(user.role),
-                        project.id,
-                        user.id
-                      ) ->
-                        {:error, "User does not have access to this environment"}
-
                       true ->
-                        {:ok, project, env}
+                        permissions = RoleModule.effective_permissions(user, project)
+
+                        if MapSet.size(permissions) == 0 do
+                          {:error, "User does not have access to this environment"}
+                        else
+                          {:ok, project, env, permissions}
+                        end
                     end
                 end
 
-              # Environment username/secret auth
+              # Environment username/secret auth (legacy full-access path)
               true ->
                 if env.username == data[:username] and env.secret == data[:secret] do
-                  {:ok, project, env}
+                  {:ok, project, env, RoleModule.permissions_for_env_credentials()}
                 else
                   {:error, "Invalid environment credentials"}
                 end

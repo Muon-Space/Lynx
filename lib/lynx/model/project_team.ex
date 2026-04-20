@@ -14,6 +14,7 @@ defmodule Lynx.Model.ProjectTeam do
     field :uuid, Ecto.UUID
     field :project_id, :id
     field :team_id, :id
+    field :role_id, :id
 
     timestamps()
   end
@@ -21,8 +22,8 @@ defmodule Lynx.Model.ProjectTeam do
   @doc false
   def changeset(project_team, attrs) do
     project_team
-    |> cast(attrs, [:uuid, :project_id, :team_id])
-    |> validate_required([:uuid, :project_id, :team_id])
+    |> cast(attrs, [:uuid, :project_id, :team_id, :role_id])
+    |> validate_required([:uuid, :project_id, :team_id, :role_id])
     |> unique_constraint([:project_id, :team_id])
   end
 end

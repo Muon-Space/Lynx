@@ -5,7 +5,8 @@ defmodule LynxWeb.ProjectLiveTest do
   alias Lynx.Context.EnvironmentContext
 
   setup %{conn: conn} do
-    user = create_user()
+    # Project mutation tests need full access; super bypasses per-project role checks.
+    user = create_super()
     workspace = create_workspace()
     project = create_project(%{workspace_id: workspace.id})
     {:ok, conn: log_in_user(conn, user), user: user, workspace: workspace, project: project}
@@ -332,6 +333,110 @@ defmodule LynxWeb.ProjectLiveTest do
       html = render(view)
       assert html =~ "Environment deleted"
       refute html =~ "ToDelete"
+    end
+  end
+
+  describe "Project Access card" do
+    alias Lynx.Context.RoleContext
+    alias Lynx.Context.ProjectContext
+    alias Lynx.Context.UserProjectContext
+
+    test "super sees the access card", %{conn: conn, project: project} do
+      {:ok, _view, html} = live(conn, project_path(project))
+      assert html =~ "Project Access"
+    end
+
+    test "regular user without access:manage does NOT see the card" do
+      user = create_user()
+      workspace = create_workspace()
+      project = create_project(%{workspace_id: workspace.id})
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{})
+        |> log_in_user(user)
+
+      {:ok, _view, html} = live(conn, project_path(project))
+      refute html =~ "Project Access"
+    end
+
+    test "admin role grants access to the card" do
+      user = create_user()
+      workspace = create_workspace()
+      project = create_project(%{workspace_id: workspace.id})
+
+      admin_role = RoleContext.get_role_by_name("admin")
+      UserProjectContext.assign_role(user.id, project.id, admin_role.id)
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{})
+        |> log_in_user(user)
+
+      {:ok, _view, html} = live(conn, project_path(project))
+      assert html =~ "Project Access"
+    end
+
+    test "add_team_access attaches the team with chosen role", %{
+      conn: conn,
+      project: project
+    } do
+      {:ok, team} =
+        Lynx.Module.TeamModule.create_team(%{name: "T1", slug: "t1", description: "d"})
+
+      planner = RoleContext.get_role_by_name("planner")
+
+      {:ok, view, _html} = live(conn, project_path(project))
+
+      view
+      |> element("form[phx-submit='add_team_access']")
+      |> render_submit(%{"team_id" => team.uuid, "role_id" => Integer.to_string(planner.id)})
+
+      assignments = ProjectContext.list_project_team_assignments(project.id)
+
+      assert Enum.any?(assignments, fn {t, pt} -> t.id == team.id and pt.role_id == planner.id end)
+    end
+
+    test "add_user_access creates an individual user grant", %{conn: conn, project: project} do
+      target_user = create_user()
+      applier = RoleContext.get_role_by_name("applier")
+
+      {:ok, view, _html} = live(conn, project_path(project))
+
+      view
+      |> element("form[phx-submit='add_user_access']")
+      |> render_submit(%{
+        "user_id" => target_user.uuid,
+        "role_id" => Integer.to_string(applier.id)
+      })
+
+      assert UserProjectContext.get_role_id_for(target_user.id, project.id) == applier.id
+    end
+
+    test "OIDC rule create form persists the chosen role", %{conn: conn, project: project} do
+      env = create_env(project, %{name: "Prod", slug: "prod"})
+      provider = create_provider!()
+      planner = RoleContext.get_role_by_name("planner")
+
+      {:ok, view, _html} = live(conn, project_path(project))
+
+      view
+      |> element("button", "OIDC")
+      |> render_click(%{"uuid" => env.uuid})
+
+      view |> element("button", "Add Rule") |> render_click()
+
+      view
+      |> element("form[phx-submit='create_rule']")
+      |> render_submit(%{
+        "provider_id" => provider.uuid,
+        "rule_name" => "deploy",
+        "role_id" => Integer.to_string(planner.id),
+        "claims" => "repository=org/repo"
+      })
+
+      [rule] = OIDCBackendModule.list_rules_by_environment(env.id)
+      assert rule.role_id == planner.id
     end
   end
 

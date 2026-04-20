@@ -16,6 +16,7 @@ defmodule Lynx.Module.OIDCBackendModule do
 
   alias Lynx.Context.OIDCProviderContext
   alias Lynx.Context.OIDCAccessRuleContext
+  alias Lynx.Context.RoleContext
   alias Lynx.Service.JWTService
 
   @doc """
@@ -27,7 +28,8 @@ defmodule Lynx.Module.OIDCBackendModule do
 
   @doc """
   Validate an OIDC token for access to a specific environment.
-  Returns :ok or {:error, reason}.
+  Returns `{:ok, permissions :: MapSet.t(String.t())}` on success, or
+  `{:error, reason}`. The permission set comes from the matched rule's role.
   """
   def validate_access(provider_name, jwt, environment_id) do
     case OIDCProviderContext.get_provider_by_name(provider_name) do
@@ -60,7 +62,7 @@ defmodule Lynx.Module.OIDCBackendModule do
         end)
 
       if matching_rule do
-        :ok
+        {:ok, RoleContext.permissions_for(matching_rule.role_id)}
       else
         {:error, "Token claims do not match any access rule"}
       end
@@ -153,12 +155,15 @@ defmodule Lynx.Module.OIDCBackendModule do
   # -- Access Rule CRUD --
 
   def create_rule(attrs) do
+    role_id = attrs[:role_id] || default_role_id()
+
     rule =
       OIDCAccessRuleContext.new_rule(%{
         name: attrs[:name],
         claim_rules: attrs[:claim_rules],
         provider_id: attrs[:provider_id],
-        environment_id: attrs[:environment_id]
+        environment_id: attrs[:environment_id],
+        role_id: role_id
       })
 
     OIDCAccessRuleContext.create_rule(rule)
@@ -173,10 +178,18 @@ defmodule Lynx.Module.OIDCBackendModule do
         new_attrs = %{
           name: attrs[:name] || rule.name,
           claim_rules: attrs[:claim_rules] || rule.claim_rules,
-          is_active: Map.get(attrs, :is_active, rule.is_active)
+          is_active: Map.get(attrs, :is_active, rule.is_active),
+          role_id: attrs[:role_id] || rule.role_id
         }
 
         OIDCAccessRuleContext.update_rule(rule, new_attrs)
+    end
+  end
+
+  defp default_role_id do
+    case RoleContext.get_role_by_name("applier") do
+      nil -> raise "Seeded 'applier' role not found — run `mix ecto.migrate`"
+      role -> role.id
     end
   end
 

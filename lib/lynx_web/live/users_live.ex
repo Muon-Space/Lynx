@@ -3,6 +3,7 @@ defmodule LynxWeb.UsersLive do
 
   alias Lynx.Module.UserModule
   alias Lynx.Module.AuditModule
+  alias Lynx.Module.RoleModule
 
   @per_page 10
 
@@ -68,6 +69,12 @@ defmodule LynxWeb.UsersLive do
           <:col :let={user} label="Email">{user.email}</:col>
           <:col :let={user} label="Role">
             <.badge color={if user.role == "super", do: "purple", else: "gray"}>{user.role}</.badge>
+          </:col>
+          <:col :let={user} label="Projects & Roles">
+            <.role_assignments_summary
+              assignments={user.assignments}
+              all_label={if user.role == "super", do: "All projects (super)"}
+            />
           </:col>
           <:col :let={user} label="Status">
             <.badge color={if user.is_active, do: "green", else: "gray"}>
@@ -184,7 +191,13 @@ defmodule LynxWeb.UsersLive do
 
   defp load_users(socket) do
     offset = (socket.assigns.page - 1) * socket.assigns.per_page
-    users = UserModule.get_users(offset, socket.assigns.per_page)
+
+    users =
+      UserModule.get_users(offset, socket.assigns.per_page)
+      |> Enum.map(fn user ->
+        Map.put(user, :assignments, RoleModule.list_user_project_access(user))
+      end)
+
     total = UserModule.count_users()
     total_pages = max(ceil(total / socket.assigns.per_page), 1)
 

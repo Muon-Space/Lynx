@@ -99,6 +99,33 @@ defmodule LynxWeb.TeamsLiveTest do
     end
   end
 
+  describe "Projects & Roles column" do
+    alias Lynx.Context.{ProjectContext, RoleContext}
+
+    test "shows attached project name and role badge", %{conn: conn} do
+      {:ok, team} = TeamModule.create_team(%{name: "Infra", slug: "infra", description: "x"})
+
+      workspace = create_workspace()
+      project = create_project(%{name: "Platform", workspace_id: workspace.id})
+      planner = RoleContext.get_role_by_name("planner")
+
+      ProjectContext.add_project_to_team(project.id, team.id, planner.id)
+
+      {:ok, _view, html} = live(conn, "/admin/teams")
+      assert html =~ "Projects &amp; Roles"
+      assert html =~ "Platform"
+      assert html =~ "Planner"
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}")
+    end
+
+    test "shows 'No projects' when team has no project assignments", %{conn: conn} do
+      {:ok, _team} = TeamModule.create_team(%{name: "Lonely", slug: "lonely", description: "x"})
+
+      {:ok, _view, html} = live(conn, "/admin/teams")
+      assert html =~ "No projects"
+    end
+  end
+
   describe "Delete Team" do
     test "delete_team removes the team", %{conn: conn} do
       {:ok, team} = TeamModule.create_team(%{name: "ToDelete", slug: "td", description: "x"})

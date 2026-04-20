@@ -37,7 +37,7 @@ defmodule LynxWeb.StateController do
           })
           |> halt
 
-        {:ok, _, _} ->
+        {:ok, _, _, _} ->
           conn
       end
     else

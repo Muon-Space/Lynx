@@ -35,10 +35,7 @@ defmodule LynxWeb.LoginLive do
     ~H"""
     <div class="min-h-screen flex items-center justify-center bg-page py-12 px-4">
       <div class="absolute top-4 right-4">
-        <button id="dark-mode-toggle-login" phx-hook="DarkMode" class="text-lg cursor-pointer leading-none" title="Toggle dark mode">
-          <span class="dark:hidden">{"\u{1F319}"}</span>
-          <span class="hidden dark:inline">{"\u{2600}\u{FE0F}"}</span>
-        </button>
+        <.dark_mode_toggle id="dark-mode-toggle-login" />
       </div>
       <div class="max-w-md w-full space-y-8">
         <div class="text-center">
