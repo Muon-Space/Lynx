@@ -510,14 +510,27 @@ defmodule LynxWeb.CoreComponents do
   end
 
   # -- Logo --
+  #
+  # Inlined as a base64 data URI at compile time so the brand mark renders
+  # synchronously with the page HTML — no second network roundtrip, no flash
+  # on slow connections. Source is the white silhouette (`ico-dark.png`); the
+  # `invert dark:invert-0` classes flip it to black on light backgrounds and
+  # leave it white on dark backgrounds. The CSS visibility decision still
+  # resolves before first paint thanks to the inline `<head>` script that sets
+  # the `.dark` class.
+
+  @external_resource Path.expand("../../../priv/static/images/ico-dark.png", __DIR__)
+  @logo_data_uri "data:image/png;base64," <>
+                   Base.encode64(File.read!(@external_resource))
 
   attr :class, :string, default: "h-8"
 
   def logo(assigns) do
+    assigns = assign(assigns, :data_uri, @logo_data_uri)
+
     ~H"""
     <span class="inline-flex">
-      <img src="/images/ico.png" alt="Lynx" class={"#{@class} dark:hidden"} />
-      <img src="/images/ico-dark.png" alt="Lynx" class={"#{@class} hidden dark:block"} />
+      <img src={@data_uri} alt="Lynx" class={"#{@class} invert dark:invert-0"} />
     </span>
     """
   end

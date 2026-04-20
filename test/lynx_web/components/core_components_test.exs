@@ -408,6 +408,24 @@ defmodule LynxWeb.CoreComponentsTest do
       refute html =~ ~s(href="/logout")
     end
 
+    test "logo renders as inline base64 data URI (no external network roundtrip)" do
+      # Regression: previously two <img src="/images/ico*.png"> tags required a
+      # second network roundtrip per page, causing a logo flash on slow loads.
+      # The brand mark is now inlined as a base64 data URI at compile time.
+      assigns = %{user: %{name: "Jane", role: "user"}}
+      html = h(~H[<.nav current_user={@user} active="" />])
+
+      # Inlined data URI present in source
+      assert html =~ ~s(src="data:image/png;base64,)
+
+      # Light/dark inversion via CSS filter (single <img>, no second network call)
+      assert html =~ "invert dark:invert-0"
+
+      # No external image references for the logo itself
+      refute html =~ ~s(src="/images/ico.png")
+      refute html =~ ~s(src="/images/ico-dark.png")
+    end
+
     test "dark-mode toggle renders both icons statically (no JS-required content)" do
       # Regression: previously the toggle button rendered as <button></button>
       # and the JS hook injected the icon on mount, causing a flash of empty

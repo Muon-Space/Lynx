@@ -37,7 +37,7 @@ defmodule LynxWeb.LockController do
           })
           |> halt
 
-        {:ok, _, _} ->
+        {:ok, _, _, _} ->
           conn
       end
     else

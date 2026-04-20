@@ -400,6 +400,134 @@ defmodule LynxWeb.TfControllerTest do
     end
   end
 
+  describe "per-permission gating (planner / applier roles)" do
+    alias Lynx.Context.RoleContext
+    alias Lynx.Context.UserProjectContext
+    alias Lynx.Service.AuthService
+
+    setup %{project: project} do
+      planner_role = RoleContext.get_role_by_name("planner")
+      applier_role = RoleContext.get_role_by_name("applier")
+
+      planner = create_regular_user("planner@example.com")
+      applier = create_regular_user("applier@example.com")
+      no_grant = create_regular_user("nogrant@example.com")
+
+      UserProjectContext.assign_role(planner.id, project.id, planner_role.id)
+      UserProjectContext.assign_role(applier.id, project.id, applier_role.id)
+
+      {:ok, planner: planner, applier: applier, no_grant: no_grant}
+    end
+
+    defp create_regular_user(email) do
+      salt = AuthService.get_random_salt()
+
+      {:ok, user} =
+        UserContext.new_user(%{
+          email: email,
+          name: "User",
+          password_hash: AuthService.hash_password("password123", salt),
+          verified: true,
+          last_seen: DateTime.utc_now() |> DateTime.truncate(:second),
+          role: "user",
+          api_key: AuthService.get_random_salt(20),
+          uuid: Ecto.UUID.generate(),
+          is_active: true
+        })
+        |> UserContext.create_user()
+
+      user
+    end
+
+    test "planner can GET state", %{conn: conn, env: env, planner: planner} do
+      # Seed state via legacy env creds first
+      conn
+      |> basic_auth(env.username, env.secret)
+      |> put_req_header("content-type", "application/json")
+      |> post("/tf/aws-govcloud/platform/production/state", %{"v" => 1})
+
+      get_conn =
+        build_conn()
+        |> basic_auth(planner.email, planner.api_key)
+        |> get("/tf/aws-govcloud/platform/production/state")
+
+      assert get_conn.status == 200
+    end
+
+    test "planner cannot POST state (403)", %{conn: conn, planner: planner} do
+      conn =
+        conn
+        |> basic_auth(planner.email, planner.api_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state", %{"v" => 1})
+
+      assert conn.status == 403
+      assert Jason.decode!(conn.resp_body)["message"] =~ "state:write"
+    end
+
+    test "planner cannot lock or unlock (403)", %{conn: conn, planner: planner} do
+      lock_conn =
+        conn
+        |> basic_auth(planner.email, planner.api_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/lock", %{"ID" => "abc"})
+
+      assert lock_conn.status == 403
+      assert Jason.decode!(lock_conn.resp_body)["message"] =~ "state:lock"
+
+      unlock_conn =
+        build_conn()
+        |> basic_auth(planner.email, planner.api_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/unlock", %{})
+
+      assert unlock_conn.status == 403
+    end
+
+    test "applier can both GET and POST state", %{conn: conn, applier: applier} do
+      post_conn =
+        conn
+        |> basic_auth(applier.email, applier.api_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state", %{"v" => 2})
+
+      assert post_conn.status == 200
+
+      get_conn =
+        build_conn()
+        |> basic_auth(applier.email, applier.api_key)
+        |> get("/tf/aws-govcloud/platform/production/state")
+
+      assert get_conn.status == 200
+    end
+
+    test "user with no grant on the project is denied", %{conn: conn, no_grant: user} do
+      get_conn =
+        conn
+        |> basic_auth(user.email, user.api_key)
+        |> get("/tf/aws-govcloud/platform/production/state")
+
+      assert get_conn.status == 403
+    end
+
+    test "static env credentials retain full access (legacy path)", %{conn: conn, env: env} do
+      post_conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state", %{"v" => 3})
+
+      assert post_conn.status == 200
+
+      get_conn =
+        build_conn()
+        |> basic_auth(env.username, env.secret)
+        |> get("/tf/aws-govcloud/platform/production/state")
+
+      assert get_conn.status == 200
+    end
+  end
+
   describe "cluster lock safety" do
     test "duplicate active locks rejected by database", %{env: env} do
       lock_attrs =

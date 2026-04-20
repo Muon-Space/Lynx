@@ -7,7 +7,13 @@ defmodule LynxWeb.ProjectLive do
   alias Lynx.Module.LockModule
   alias Lynx.Module.OIDCBackendModule
   alias Lynx.Module.AuditModule
+  alias Lynx.Module.RoleModule
+  alias Lynx.Module.TeamModule
+  alias Lynx.Module.UserModule
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.RoleContext
+  alias Lynx.Context.UserProjectContext
 
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
@@ -20,7 +26,6 @@ defmodule LynxWeb.ProjectLive do
           if project.workspace_id,
             do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
 
-        teams = ProjectModule.get_project_teams(project.id)
         environments = EnvironmentContext.get_project_envs(project.id, 0, 10000)
 
         envs_with_info =
@@ -41,12 +46,14 @@ defmodule LynxWeb.ProjectLive do
             }
           end)
 
+        roles = RoleContext.list_roles()
+        viewer_perms = RoleModule.effective_permissions(socket.assigns.current_user, project)
+
         socket =
           socket
           |> assign(:project, project)
           |> assign(:project_uuid, uuid)
           |> assign(:workspace, workspace)
-          |> assign(:teams, teams)
           |> assign(:environments, envs_with_info)
           |> assign(:show_add_env, false)
           |> assign(:add_env_slug, "")
@@ -56,8 +63,18 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:oidc_providers, OIDCBackendModule.list_providers())
           |> assign(:show_add_rule, false)
           |> assign(:rule_provider_id, "")
+          |> assign(:rule_role_id, default_role_id(roles, "applier"))
+          |> assign(:roles, roles)
+          |> assign(:viewer_perms, viewer_perms)
+          |> assign(:all_teams, TeamModule.get_teams(0, 10000))
+          |> assign(:all_users, UserModule.get_users(0, 10000))
+          |> assign(:add_team_id, "")
+          |> assign(:add_team_role_id, default_role_id(roles, "applier"))
+          |> assign(:add_user_id, "")
+          |> assign(:add_user_role_id, default_role_id(roles, "planner"))
+          |> assign(:confirm, nil)
+          |> reload_access()
 
-        socket = assign(socket, :confirm, nil)
         {:ok, socket}
     end
   end
@@ -118,6 +135,7 @@ defmodule LynxWeb.ProjectLive do
           <form phx-submit="create_rule" phx-change="rule_form_change" class="space-y-3">
             <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value={@rule_provider_id} required hint={if @rule_provider_id == "", do: "Provider is required."} />
             <.input name="rule_name" label="Rule Name" value="" required placeholder="prod-deploy" />
+            <.input name="role_id" label="Role" type="select" options={role_options(@roles)} value={to_string(@rule_role_id)} required hint="Permissions granted when this rule matches" />
             <.input name="claims" label="Claims (claim=value, comma separated)" value="" required placeholder="repository=myorg/infra,environment=production" hint="All claims must match (AND logic)" />
             <div class="flex gap-3">
               <.button type="submit" variant="primary" size="sm" disabled={@rule_provider_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Save Rule</.button>
@@ -134,6 +152,9 @@ defmodule LynxWeb.ProjectLive do
           <:col :let={r} label="Name">{r.name}</:col>
           <:col :let={r} label="Provider">
             <.badge color="blue">{provider_name_for(@oidc_providers, r.provider_id)}</.badge>
+          </:col>
+          <:col :let={r} label="Role">
+            <.badge color="purple">{role_name_for(@roles, r.role_id)}</.badge>
           </:col>
           <:col :let={r} label="Claims">
             <div :for={cr <- Jason.decode!(r.claim_rules)}>
@@ -174,6 +195,84 @@ defmodule LynxWeb.ProjectLive do
           </:action>
         </.table>
       </.card>
+
+      <%!-- Project Access --%>
+      <div :if={can_manage_access?(@viewer_perms, @current_user)} class="mt-6">
+        <.card>
+          <h3 class="text-base font-semibold mb-1">Project Access</h3>
+          <p class="text-sm text-muted mb-4">Roles cascade to every environment in this project. OIDC rules carry their own role per-environment.</p>
+
+          <div class="mb-6">
+            <h4 class="text-sm font-medium mb-2">Teams</h4>
+            <.table rows={@team_assignments} empty_message="No teams attached to this project.">
+              <:col :let={a} label="Team">{a.team.name}</:col>
+              <:col :let={a} label="Role">
+                <form phx-change="change_team_role" class="inline">
+                  <input type="hidden" name="team_id" value={a.team.id} />
+                  <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-1 text-sm">
+                    <option :for={r <- @roles} value={r.id} selected={r.id == a.role_id}>{String.capitalize(r.name)}</option>
+                  </select>
+                </form>
+              </:col>
+              <:action :let={a}>
+                <.button phx-click="confirm_action" phx-value-event="remove_team_access" phx-value-message={"Remove team " <> a.team.name <> " from this project?"} phx-value-uuid={a.team.uuid} variant="ghost" size="sm">Remove</.button>
+              </:action>
+            </.table>
+
+            <form phx-submit="add_team_access" phx-change="add_team_form_change" class="mt-3 flex items-end gap-2">
+              <div class="flex-1">
+                <label class="block text-xs text-muted mb-1">Add team</label>
+                <select name="team_id" class="w-full rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
+                  <option value="">Select a team</option>
+                  <option :for={t <- unattached_teams(@all_teams, @team_assignments)} value={t.uuid} selected={t.uuid == @add_team_id}>{t.name}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-muted mb-1">Role</label>
+                <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
+                  <option :for={r <- @roles} value={r.id} selected={r.id == @add_team_role_id}>{String.capitalize(r.name)}</option>
+                </select>
+              </div>
+              <.button type="submit" variant="primary" size="sm" disabled={@add_team_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
+            </form>
+          </div>
+
+          <div>
+            <h4 class="text-sm font-medium mb-2">Individual users</h4>
+            <.table rows={@user_assignments} empty_message="No individual user grants on this project.">
+              <:col :let={a} label="User">{a.user.name} <span class="text-xs text-muted">({a.user.email})</span></:col>
+              <:col :let={a} label="Role">
+                <form phx-change="change_user_role" class="inline">
+                  <input type="hidden" name="user_id" value={a.user.id} />
+                  <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-1 text-sm">
+                    <option :for={r <- @roles} value={r.id} selected={r.id == a.role_id}>{String.capitalize(r.name)}</option>
+                  </select>
+                </form>
+              </:col>
+              <:action :let={a}>
+                <.button phx-click="confirm_action" phx-value-event="remove_user_access" phx-value-message={"Remove " <> a.user.email <> " from this project?"} phx-value-uuid={a.user.uuid} variant="ghost" size="sm">Remove</.button>
+              </:action>
+            </.table>
+
+            <form phx-submit="add_user_access" phx-change="add_user_form_change" class="mt-3 flex items-end gap-2">
+              <div class="flex-1">
+                <label class="block text-xs text-muted mb-1">Add user</label>
+                <select name="user_id" class="w-full rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
+                  <option value="">Select a user</option>
+                  <option :for={u <- unattached_users(@all_users, @user_assignments)} value={u.uuid} selected={u.uuid == @add_user_id}>{u.name} ({u.email})</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-muted mb-1">Role</label>
+                <select name="role_id" class="rounded border border-border bg-surface text-foreground px-2 py-2 text-sm">
+                  <option :for={r <- @roles} value={r.id} selected={r.id == @add_user_role_id}>{String.capitalize(r.name)}</option>
+                </select>
+              </div>
+              <.button type="submit" variant="primary" size="sm" disabled={@add_user_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
+            </form>
+          </div>
+        </.card>
+      </div>
     </div>
     """
   end
@@ -326,7 +425,15 @@ defmodule LynxWeb.ProjectLive do
     do: {:noreply, socket |> assign(:show_add_rule, false) |> assign(:rule_provider_id, "")}
 
   def handle_event("rule_form_change", params, socket) do
-    {:noreply, assign(socket, :rule_provider_id, params["provider_id"] || "")}
+    socket =
+      socket
+      |> assign(:rule_provider_id, params["provider_id"] || socket.assigns.rule_provider_id)
+      |> assign(
+        :rule_role_id,
+        parse_role_id(params["role_id"], socket.assigns.rule_role_id)
+      )
+
+    {:noreply, socket}
   end
 
   def handle_event("create_rule", params, socket) do
@@ -344,45 +451,206 @@ defmodule LynxWeb.ProjectLive do
       |> Enum.filter(& &1)
       |> Jason.encode!()
 
-    if provider do
-      case OIDCBackendModule.create_rule(%{
-             name: params["rule_name"],
-             claim_rules: claim_rules,
-             provider_id: provider.id,
-             environment_id: socket.assigns.show_oidc_rules.id
-           }) do
-        {:ok, rule} ->
-          AuditModule.log_user(
-            socket.assigns.current_user,
-            "created",
-            "oidc_rule",
-            rule.uuid,
-            params["rule_name"]
-          )
+    role_id = parse_role_id(params["role_id"], socket.assigns.rule_role_id)
 
-          rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+    cond do
+      provider == nil ->
+        {:noreply, put_flash(socket, :error, "Provider not found")}
 
-          {:noreply,
-           socket
-           |> assign(:oidc_rules, rules)
-           |> assign(:show_add_rule, false)
-           |> assign(:rule_provider_id, "")
-           |> put_flash(:info, "Rule created")}
+      not can_manage_oidc_rules?(socket.assigns) ->
+        {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to create rule")}
-      end
-    else
-      {:noreply, put_flash(socket, :error, "Provider not found")}
+      true ->
+        case OIDCBackendModule.create_rule(%{
+               name: params["rule_name"],
+               claim_rules: claim_rules,
+               provider_id: provider.id,
+               environment_id: socket.assigns.show_oidc_rules.id,
+               role_id: role_id
+             }) do
+          {:ok, rule} ->
+            AuditModule.log_user(
+              socket.assigns.current_user,
+              "created",
+              "oidc_rule",
+              rule.uuid,
+              params["rule_name"]
+            )
+
+            rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+
+            {:noreply,
+             socket
+             |> assign(:oidc_rules, rules)
+             |> assign(:show_add_rule, false)
+             |> assign(:rule_provider_id, "")
+             |> assign(:rule_role_id, default_role_id(socket.assigns.roles, "applier"))
+             |> put_flash(:info, "Rule created")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to create rule")}
+        end
     end
   end
 
   def handle_event("delete_rule", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
-    AuditModule.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
-    OIDCBackendModule.delete_rule(uuid)
-    rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
-    {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}
+
+    if can_manage_oidc_rules?(socket.assigns) do
+      AuditModule.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
+      OIDCBackendModule.delete_rule(uuid)
+      rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+      {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
+    end
+  end
+
+  # -- Project Access (teams + users) --
+  def handle_event("add_team_form_change", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:add_team_id, params["team_id"] || "")
+     |> assign(
+       :add_team_role_id,
+       parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
+     )}
+  end
+
+  def handle_event("add_user_form_change", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:add_user_id, params["user_id"] || "")
+     |> assign(
+       :add_user_role_id,
+       parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
+     )}
+  end
+
+  def handle_event("add_team_access", params, socket) do
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = team <- find_team_by_uuid(socket.assigns.all_teams, params["team_id"]) do
+      role_id = parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
+      ProjectContext.add_project_to_team(socket.assigns.project.id, team.id, role_id)
+
+      AuditModule.log_user(
+        socket.assigns.current_user,
+        "granted",
+        "project_team",
+        team.uuid,
+        team.name
+      )
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Team access granted")
+       |> assign(:add_team_id, "")
+       |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "Team not found")}
+    end
+  end
+
+  def handle_event("change_team_role", %{"team_id" => team_id, "role_id" => role_id}, socket) do
+    case ensure_can_manage_access(socket) do
+      :ok ->
+        ProjectContext.set_project_team_role(
+          socket.assigns.project.id,
+          String.to_integer(team_id),
+          String.to_integer(role_id)
+        )
+
+        {:noreply, socket |> put_flash(:info, "Team role updated") |> reload_access()}
+
+      {:error, msg} ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("remove_team_access", %{"uuid" => team_uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
+
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = team <- find_team_by_uuid(socket.assigns.all_teams, team_uuid) do
+      ProjectContext.remove_project_from_team(socket.assigns.project.id, team.id)
+
+      AuditModule.log_user(
+        socket.assigns.current_user,
+        "revoked",
+        "project_team",
+        team.uuid,
+        team.name
+      )
+
+      {:noreply, socket |> put_flash(:info, "Team removed") |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "Team not found")}
+    end
+  end
+
+  def handle_event("add_user_access", params, socket) do
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = user <- find_user_by_uuid(socket.assigns.all_users, params["user_id"]) do
+      role_id = parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
+      UserProjectContext.assign_role(user.id, socket.assigns.project.id, role_id)
+
+      AuditModule.log_user(
+        socket.assigns.current_user,
+        "granted",
+        "user_project",
+        user.uuid,
+        user.email
+      )
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "User access granted")
+       |> assign(:add_user_id, "")
+       |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "User not found")}
+    end
+  end
+
+  def handle_event("change_user_role", %{"user_id" => user_id, "role_id" => role_id}, socket) do
+    case ensure_can_manage_access(socket) do
+      :ok ->
+        UserProjectContext.assign_role(
+          String.to_integer(user_id),
+          socket.assigns.project.id,
+          String.to_integer(role_id)
+        )
+
+        {:noreply, socket |> put_flash(:info, "User role updated") |> reload_access()}
+
+      {:error, msg} ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("remove_user_access", %{"uuid" => user_uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
+
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = user <- find_user_by_uuid(socket.assigns.all_users, user_uuid) do
+      UserProjectContext.remove(user.id, socket.assigns.project.id)
+
+      AuditModule.log_user(
+        socket.assigns.current_user,
+        "revoked",
+        "user_project",
+        user.uuid,
+        user.email
+      )
+
+      {:noreply, socket |> put_flash(:info, "User removed") |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "User not found")}
+    end
   end
 
   # -- Helpers --
@@ -421,5 +689,86 @@ defmodule LynxWeb.ProjectLive do
       nil -> "(unknown)"
       provider -> provider.name
     end
+  end
+
+  defp role_name_for(roles, role_id) do
+    case Enum.find(roles, &(&1.id == role_id)) do
+      nil -> "(unknown)"
+      role -> String.capitalize(role.name)
+    end
+  end
+
+  defp role_options(roles) do
+    Enum.map(roles, fn r -> {String.capitalize(r.name), r.id} end)
+  end
+
+  defp default_role_id(roles, name) do
+    case Enum.find(roles, &(&1.name == name)) do
+      nil -> nil
+      r -> r.id
+    end
+  end
+
+  defp parse_role_id(nil, fallback), do: fallback
+  defp parse_role_id("", fallback), do: fallback
+
+  defp parse_role_id(role_id, fallback) when is_binary(role_id) do
+    case Integer.parse(role_id) do
+      {id, ""} -> id
+      _ -> fallback
+    end
+  end
+
+  defp parse_role_id(_, fallback), do: fallback
+
+  defp can_manage_access?(_viewer_perms, %{role: "super"}), do: true
+
+  defp can_manage_access?(viewer_perms, _user) do
+    RoleModule.has?(viewer_perms || MapSet.new(), "access:manage")
+  end
+
+  defp can_manage_oidc_rules?(%{current_user: %{role: "super"}}), do: true
+
+  defp can_manage_oidc_rules?(%{viewer_perms: perms}) do
+    RoleModule.has?(perms || MapSet.new(), "oidc_rule:manage")
+  end
+
+  defp ensure_can_manage_access(socket) do
+    if can_manage_access?(socket.assigns.viewer_perms, socket.assigns.current_user) do
+      :ok
+    else
+      {:error, "You do not have permission to manage project access"}
+    end
+  end
+
+  defp unattached_teams(all_teams, assignments) do
+    attached_ids = MapSet.new(assignments, & &1.team.id)
+    Enum.reject(all_teams, &MapSet.member?(attached_ids, &1.id))
+  end
+
+  defp unattached_users(all_users, assignments) do
+    attached_ids = MapSet.new(assignments, & &1.user.id)
+    Enum.reject(all_users, &MapSet.member?(attached_ids, &1.id))
+  end
+
+  defp find_team_by_uuid(teams, uuid), do: Enum.find(teams, &(&1.uuid == uuid))
+  defp find_user_by_uuid(users, uuid), do: Enum.find(users, &(&1.uuid == uuid))
+
+  defp reload_access(socket) do
+    project_id = socket.assigns.project.id
+
+    team_assignments =
+      project_id
+      |> ProjectContext.list_project_team_assignments()
+      |> Enum.map(fn {team, pt} -> %{team: team, role_id: pt.role_id} end)
+
+    user_assignments =
+      project_id
+      |> UserProjectContext.list_user_assignments_for_project()
+      |> Enum.map(fn {user, up} -> %{user: user, role_id: up.role_id} end)
+
+    socket
+    |> assign(:team_assignments, team_assignments)
+    |> assign(:user_assignments, user_assignments)
   end
 end

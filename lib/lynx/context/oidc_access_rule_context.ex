@@ -18,6 +18,7 @@ defmodule Lynx.Context.OIDCAccessRuleContext do
       claim_rules: attrs.claim_rules,
       provider_id: attrs.provider_id,
       environment_id: attrs.environment_id,
+      role_id: attrs.role_id,
       is_active: Map.get(attrs, :is_active, true),
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }

@@ -246,16 +246,51 @@ defmodule Lynx.Context.ProjectContext do
   # -- Project-Team membership --
 
   @doc """
-  Add a project to a team
+  Add a project to a team. If `role_id` is omitted, the seeded "applier" role
+  is used so existing call sites preserve their full-access behavior.
   """
-  def add_project_to_team(project_id, team_id) do
+  def add_project_to_team(project_id, team_id, role_id \\ nil) do
+    role_id = role_id || default_applier_role_id()
+
     %ProjectTeam{}
     |> ProjectTeam.changeset(%{
       project_id: project_id,
       team_id: team_id,
+      role_id: role_id,
       uuid: Ecto.UUID.generate()
     })
     |> Repo.insert(on_conflict: :nothing)
+  end
+
+  @doc """
+  Update the role for a (project, team) membership.
+  """
+  def set_project_team_role(project_id, team_id, role_id) do
+    from(pt in ProjectTeam,
+      where: pt.project_id == ^project_id and pt.team_id == ^team_id,
+      update: [set: [role_id: ^role_id, updated_at: ^DateTime.utc_now()]]
+    )
+    |> Repo.update_all([])
+  end
+
+  @doc """
+  Look up the role assignments for every team a user belongs to on this project.
+  Returns a list of role_id integers (may contain duplicates if the user
+  belongs to multiple teams attached to the same project).
+  """
+  def list_team_role_ids_for_user(project_id, user_team_ids) do
+    from(pt in ProjectTeam,
+      where: pt.project_id == ^project_id and pt.team_id in ^user_team_ids,
+      select: pt.role_id
+    )
+    |> Repo.all()
+  end
+
+  defp default_applier_role_id do
+    case Lynx.Context.RoleContext.get_role_by_name("applier") do
+      nil -> raise "Seeded 'applier' role not found — run `mix ecto.migrate`"
+      role -> role.id
+    end
   end
 
   @doc """
@@ -290,6 +325,23 @@ defmodule Lynx.Context.ProjectContext do
       join: pt in ProjectTeam,
       on: pt.team_id == t.id,
       where: pt.project_id == ^project_id
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  List `{team, project_team_row}` pairs for a project — used to render the
+  Access card with each team's current role.
+  """
+  def list_project_team_assignments(project_id) do
+    alias Lynx.Model.Team
+
+    from(pt in ProjectTeam,
+      join: t in Team,
+      on: t.id == pt.team_id,
+      where: pt.project_id == ^project_id,
+      order_by: [asc: t.name],
+      select: {t, pt}
     )
     |> Repo.all()
   end

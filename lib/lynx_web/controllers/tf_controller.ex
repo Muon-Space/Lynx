@@ -6,6 +6,7 @@ defmodule LynxWeb.TfController do
   alias Lynx.Module.StateModule
   alias Lynx.Module.LockModule
   alias Lynx.Module.EnvironmentModule
+  alias Lynx.Module.RoleModule
 
   plug :auth
 
@@ -32,8 +33,10 @@ defmodule LynxWeb.TfController do
           |> render(:error, %{message: "Access is forbidden"})
           |> halt
 
-        {:ok, _, _} ->
-          assign(conn, :tf_username, user)
+        {:ok, _project, _env, permissions} ->
+          conn
+          |> assign(:tf_username, user)
+          |> assign(:tf_permissions, permissions)
       end
     else
       _ -> conn |> Plug.BasicAuth.request_basic_auth() |> halt()
@@ -49,8 +52,13 @@ defmodule LynxWeb.TfController do
     {sub_path, action} = parse_rest(rest)
 
     case action do
-      "state" -> get_state(conn, w_slug, p_slug, e_slug, sub_path)
-      _ -> conn |> send_resp(404, "Not found")
+      "state" ->
+        require_permission(conn, "state:read", fn conn ->
+          get_state(conn, w_slug, p_slug, e_slug, sub_path)
+        end)
+
+      _ ->
+        conn |> send_resp(404, "Not found")
     end
   end
 
@@ -61,10 +69,37 @@ defmodule LynxWeb.TfController do
     {sub_path, action} = parse_rest(rest)
 
     case action do
-      "state" -> push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
-      "lock" -> lock(conn, w_slug, p_slug, e_slug, sub_path, params)
-      "unlock" -> unlock(conn, w_slug, p_slug, e_slug, sub_path)
-      _ -> conn |> send_resp(404, "Not found")
+      "state" ->
+        require_permission(conn, "state:write", fn conn ->
+          push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+        end)
+
+      "lock" ->
+        require_permission(conn, "state:lock", fn conn ->
+          lock(conn, w_slug, p_slug, e_slug, sub_path, params)
+        end)
+
+      "unlock" ->
+        require_permission(conn, "state:unlock", fn conn ->
+          unlock(conn, w_slug, p_slug, e_slug, sub_path)
+        end)
+
+      _ ->
+        conn |> send_resp(404, "Not found")
+    end
+  end
+
+  defp require_permission(conn, permission, then_fn) do
+    if RoleModule.has?(conn.assigns[:tf_permissions] || MapSet.new(), permission) do
+      then_fn.(conn)
+    else
+      Logger.info("tf access denied: user=#{conn.assigns[:tf_username]} missing #{permission}")
+
+      conn
+      |> put_status(:forbidden)
+      |> put_view(LynxWeb.LockJSON)
+      |> render(:error, %{message: "Insufficient role for #{permission}"})
+      |> halt()
     end
   end
 

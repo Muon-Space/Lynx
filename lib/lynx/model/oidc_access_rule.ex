@@ -17,6 +17,7 @@ defmodule Lynx.Model.OIDCAccessRule do
     field :is_active, :boolean, default: true
     field :provider_id, :id
     field :environment_id, :id
+    field :role_id, :id
 
     timestamps()
   end
@@ -24,7 +25,22 @@ defmodule Lynx.Model.OIDCAccessRule do
   @doc false
   def changeset(rule, attrs) do
     rule
-    |> cast(attrs, [:uuid, :name, :claim_rules, :is_active, :provider_id, :environment_id])
-    |> validate_required([:uuid, :name, :claim_rules, :provider_id, :environment_id])
+    |> cast(attrs, [
+      :uuid,
+      :name,
+      :claim_rules,
+      :is_active,
+      :provider_id,
+      :environment_id,
+      :role_id
+    ])
+    |> validate_required([
+      :uuid,
+      :name,
+      :claim_rules,
+      :provider_id,
+      :environment_id,
+      :role_id
+    ])
   end
 end
