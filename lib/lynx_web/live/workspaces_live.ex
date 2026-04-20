@@ -5,8 +5,6 @@ defmodule LynxWeb.WorkspacesLive do
   alias Lynx.Context.ProjectContext
   alias Lynx.Module.AuditModule
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @per_page 10
 
   @impl true

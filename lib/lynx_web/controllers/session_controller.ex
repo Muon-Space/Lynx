@@ -19,6 +19,7 @@ defmodule LynxWeb.SessionController do
     if not SSOModule.is_password_enabled?() do
       conn
       |> put_status(:bad_request)
+      |> put_view(LynxWeb.MiscJSON)
       |> render(:error, %{message: "Password authentication is disabled. Please use SSO."})
     else
       auth_with_password(conn, params)

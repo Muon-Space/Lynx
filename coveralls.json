@@ -1,0 +1,17 @@
+{
+  "coverage_options": {
+    "treat_no_relevant_lines_as_covered": true,
+    "minimum_coverage": 90
+  },
+  "skip_files": [
+    "test/",
+    "deps/",
+    "lib/lynx_web/telemetry.ex",
+    "lib/lynx_web/gettext.ex",
+    "lib/lynx_web/endpoint.ex",
+    "lib/lynx/application.ex",
+    "lib/lynx/repo.ex",
+    "lib/lynx/mailer.ex",
+    "priv/"
+  ]
+}

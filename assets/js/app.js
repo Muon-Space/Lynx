@@ -98,6 +98,22 @@ Hooks.CopyToClipboard = {
   }
 }
 
+// CopyApiKey listens for a server-pushed `copy_api_key` event and writes
+// the value to the clipboard. The key is never embedded in the DOM — it
+// only crosses the LV socket when the user clicks Copy.
+Hooks.CopyApiKey = {
+  mounted() {
+    this.handleEvent("copy_api_key", ({value}) => {
+      if (!value) return
+      navigator.clipboard.writeText(value).then(() => {
+        let orig = this.el.textContent
+        this.el.textContent = "Copied!"
+        setTimeout(() => { this.el.textContent = orig }, 1500)
+      })
+    })
+  }
+}
+
 Hooks.DarkMode = {
   mounted() {
     this.el.addEventListener("click", () => {

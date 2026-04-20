@@ -39,23 +39,35 @@ defmodule LynxWeb.Router do
   scope "/", LynxWeb do
     pipe_through :browser
 
-    # LiveView pages
-    live "/", HomeLive
-    live "/install", InstallLive
-    live "/login", LoginLive
-    live "/admin/profile", ProfileLive
-    live "/admin/audit", AuditLive
-    live "/admin/users", UsersLive
-    live "/admin/teams", TeamsLive
-    live "/admin/workspaces", WorkspacesLive
-    live "/admin/workspaces/:workspace_uuid", ProjectsLive
-    live "/admin/projects/:uuid", ProjectLive
-    live "/admin/projects/:project_uuid/environments/:env_uuid", EnvironmentLive
-    live "/admin/projects/:project_uuid/environments/:env_uuid/state", StateExplorerLive
-    live "/admin/projects/:project_uuid/environments/:env_uuid/state/:sub_path", StateExplorerLive
-    live "/admin/snapshots", SnapshotsLive
-    live "/admin/snapshots/:uuid", SnapshotLive
-    live "/admin/settings", SettingsLive
+    live_session :public, on_mount: [{LynxWeb.LiveAuth, :optional_auth}] do
+      live "/", HomeLive
+      live "/install", InstallLive
+      live "/login", LoginLive
+    end
+
+    live_session :authenticated, on_mount: [{LynxWeb.LiveAuth, :require_auth}] do
+      live "/admin/profile", ProfileLive
+      live "/admin/workspaces", WorkspacesLive
+      live "/admin/workspaces/:workspace_uuid", ProjectsLive
+      live "/admin/projects/:uuid", ProjectLive
+      live "/admin/projects/:project_uuid/environments/:env_uuid", EnvironmentLive
+
+      live "/admin/projects/:project_uuid/environments/:env_uuid/state",
+           StateExplorerLive
+
+      live "/admin/projects/:project_uuid/environments/:env_uuid/state/:sub_path",
+           StateExplorerLive
+
+      live "/admin/snapshots", SnapshotsLive
+      live "/admin/snapshots/:uuid", SnapshotLive
+    end
+
+    live_session :super, on_mount: [{LynxWeb.LiveAuth, :require_super}] do
+      live "/admin/audit", AuditLive
+      live "/admin/users", UsersLive
+      live "/admin/teams", TeamsLive
+      live "/admin/settings", SettingsLive
+    end
 
     get "/logout", SessionController, :logout
     get "/admin/state/download/:uuid", DownloadController, :state

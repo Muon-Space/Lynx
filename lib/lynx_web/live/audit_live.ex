@@ -3,8 +3,6 @@ defmodule LynxWeb.AuditLive do
 
   alias Lynx.Module.AuditModule
 
-  on_mount {LynxWeb.LiveAuth, :require_super}
-
   @per_page 50
 
   @impl true

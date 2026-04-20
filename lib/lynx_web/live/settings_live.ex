@@ -6,8 +6,6 @@ defmodule LynxWeb.SettingsLive do
   alias Lynx.Module.OIDCBackendModule
   alias Lynx.Module.AuditModule
 
-  on_mount {LynxWeb.LiveAuth, :require_super}
-
   @impl true
   def mount(_params, _session, socket) do
     app_url =

@@ -9,8 +9,6 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Context.StateContext
   alias Lynx.Context.LockContext
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid}, _session, socket) do
     case ProjectModule.get_project_by_uuid(project_uuid) do

@@ -222,7 +222,7 @@ defmodule LynxWeb.CoreComponents do
   attr :variant, :string, default: "primary"
   attr :size, :string, default: "md"
   attr :class, :string, default: ""
-  attr :rest, :global
+  attr :rest, :global, include: ~w(disabled form name value autofocus)
   slot :inner_block, required: true
 
   def button(assigns) do

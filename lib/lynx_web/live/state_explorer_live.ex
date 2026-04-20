@@ -5,8 +5,6 @@ defmodule LynxWeb.StateExplorerLive do
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.StateContext
 
-  on_mount {LynxWeb.LiveAuth, :require_auth}
-
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid} = params, _session, socket) do
     sub_path = params["sub_path"] || ""
