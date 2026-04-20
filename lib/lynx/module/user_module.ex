@@ -75,7 +75,7 @@ defmodule Lynx.Module.UserModule do
 
       {:error, changeset} ->
         messages =
-          changeset.errors()
+          changeset.errors
           |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
         {:error, Enum.at(messages, 0)}
@@ -118,7 +118,7 @@ defmodule Lynx.Module.UserModule do
 
           {:error, changeset} ->
             messages =
-              changeset.errors()
+              changeset.errors
               |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
             {:error, Enum.at(messages, 0)}
@@ -143,7 +143,7 @@ defmodule Lynx.Module.UserModule do
 
           {:error, changeset} ->
             messages =
-              changeset.errors()
+              changeset.errors
               |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
             {:error, Enum.at(messages, 0)}
@@ -175,7 +175,7 @@ defmodule Lynx.Module.UserModule do
 
       {:error, changeset} ->
         messages =
-          changeset.errors()
+          changeset.errors
           |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
         {:error, Enum.at(messages, 0)}

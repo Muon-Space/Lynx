@@ -42,7 +42,7 @@ defmodule Lynx.Module.LockModule do
 
               {:error, changeset} ->
                 :sleeplocks.release(:lynx_lock)
-                messages = changeset.errors() |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end)
+                messages = changeset.errors |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end)
                 {:error, Enum.at(messages, 0)}
             end
 
@@ -97,7 +97,7 @@ defmodule Lynx.Module.LockModule do
 
               {:error, changeset} ->
                 messages =
-                  changeset.errors()
+                  changeset.errors
                   |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
 
                 {:error, Enum.at(messages, 0)}
