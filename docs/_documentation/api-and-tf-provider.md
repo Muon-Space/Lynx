@@ -137,9 +137,12 @@ DELETE /api/v1/action/scim_token/:uuid      # revoke
 
 ```
 GET    /api/v1/audit
+GET    /admin/audit/export.csv      # super only — streams CSV (UI route)
 ```
 
-Query params: `action`, `resource_type`, `actor_id`, `offset`, `limit`. Returns `{ events, total }`.
+Query params (all optional, AND-combined): `action`, `resource_type`, `resource_id`, `actor_id`, `actor`, `offset`, `limit`. Returns `{ events, total }`.
+
+The `actor` filter is a substring match across the actor's name, joined user email, AND `actor_type` — so `?actor=system` matches background events that have `actor_id: nil`. The CSV endpoint accepts the same filter set plus `from`/`to` (ISO 8601 dates or datetimes; bare dates expand to start/end of day UTC).
 
 ## Terraform HTTP backend — `/tf/*`
 

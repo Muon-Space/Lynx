@@ -79,8 +79,8 @@ defmodule LynxWeb.AuditLive do
           ]} />
           <.input name="resource_id" type="text" label="Resource ID" value={@filters.resource_id} placeholder="UUID or path" />
           <.input name="actor" type="text" label="Actor" value={@filters.actor} placeholder="Name, email, or 'system'…" phx-debounce="300" />
-          <.input name="from" type="date" label="From (UTC)" value={@filters.from} />
-          <.input name="to" type="date" label="To (UTC)" value={@filters.to} />
+          <.date_input id="audit-filter-from" name="from" label="From (UTC)" value={@filters.from} />
+          <.date_input id="audit-filter-to" name="to" label="To (UTC)" value={@filters.to} />
         </form>
 
         <div class="flex justify-between items-center mb-3">
