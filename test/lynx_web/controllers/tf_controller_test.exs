@@ -400,6 +400,72 @@ defmodule LynxWeb.TfControllerTest do
     end
   end
 
+  describe "lock holder semantics on state push" do
+    # Regression: previously any locked env returned 423 on state push, even
+    # for the holder of the active lock. That broke `terraform apply` and
+    # `terraform import` (the canonical lock → push → unlock flow). The push
+    # must succeed when the caller presents the active lock's UUID via `?ID=`.
+
+    test "caller holding the active lock can push state", %{conn: conn, env: env} do
+      lock_id = Ecto.UUID.generate()
+
+      acquire =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/lock", %{
+          "ID" => lock_id,
+          "Operation" => "OperationTypeApply"
+        })
+
+      assert acquire.status == 200
+
+      push =
+        build_conn()
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state?ID=#{lock_id}", %{"version" => 4})
+
+      assert push.status == 200
+    end
+
+    test "caller presenting a stale lock id is rejected with 423", %{conn: conn, env: env} do
+      real_id = Ecto.UUID.generate()
+      stale_id = Ecto.UUID.generate()
+
+      acquire =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/lock", %{"ID" => real_id})
+
+      assert acquire.status == 200
+
+      push =
+        build_conn()
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state?ID=#{stale_id}", %{"version" => 4})
+
+      assert push.status == 423
+    end
+
+    test "caller presenting no lock id against a locked env is rejected with 423", %{
+      conn: conn,
+      env: env
+    } do
+      Lynx.Module.LockModule.force_lock(env.id, "admin")
+
+      push =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/aws-govcloud/platform/production/state", %{"version" => 4})
+
+      assert push.status == 423
+    end
+  end
+
   describe "per-permission gating (planner / applier roles)" do
     alias Lynx.Context.RoleContext
     alias Lynx.Context.UserProjectContext
