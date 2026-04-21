@@ -842,8 +842,14 @@ defmodule LynxWeb.ProjectLive do
       |> UserProjectContext.list_user_assignments_for_project()
       |> Enum.map(fn {user, up} -> %{user: user, role_id: up.role_id} end)
 
+    # Pre-populate the combobox option lists so opening the dropdown shows the
+    # top results immediately — without this the user sees "No matches" until
+    # they type. Re-runs after every add/remove to keep the attached-set
+    # exclusion fresh.
     socket
     |> assign(:team_assignments, team_assignments)
     |> assign(:user_assignments, user_assignments)
+    |> assign(:add_team_options, team_search_results("", team_assignments))
+    |> assign(:add_user_options, user_search_results("", user_assignments))
   end
 end

@@ -622,7 +622,7 @@ defmodule LynxWeb.CoreComponents do
         </div>
 
         <div data-dropdown class="hidden fixed z-50 rounded-lg border border-border bg-surface shadow-lg w-full">
-          <div class="p-2 border-b border-border">
+          <div class="p-2 border-b border-border" phx-update="ignore" id={"#{@id}-search-wrap"}>
             <input
               data-search
               type="text"
@@ -714,7 +714,12 @@ defmodule LynxWeb.CoreComponents do
         },
 
         updated() {
-          // Re-sync result option visual state with current selection
+          // Server re-renders reset our class list — re-apply open state and
+          // re-sync option highlighting with the current selection.
+          if (this.isOpen) {
+            this.dropdown.classList.remove("hidden")
+            this.position()
+          }
           this.markSelectedOptions()
         },
 
