@@ -29,6 +29,10 @@ defmodule LynxWeb.ProjectController do
   plug :regular_user when action in [:list, :index, :create, :update, :delete]
   plug :access_check when action in [:index, :update, :delete]
 
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "project:manage", from: :project_uuid]
+       when action in [:update, :delete]
+
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")
 

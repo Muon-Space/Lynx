@@ -7,6 +7,7 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Context.AuditContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.StateContext
+  alias Lynx.Context.RoleContext
   alias Lynx.Context.LockContext
 
   @impl true
@@ -29,6 +30,8 @@ defmodule LynxWeb.EnvironmentLive do
               Settings.get_config("app_url", "http://localhost:4000")
               |> String.trim_trailing("/")
 
+            viewer_perms = RoleContext.effective_permissions(socket.assigns.current_user, project)
+
             socket =
               socket
               |> assign(:project, project)
@@ -38,6 +41,7 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:env_locked, LockContext.is_environment_locked(env.id))
               |> assign(:confirm, nil)
               |> assign(:config_tab, "terraform")
+              |> assign(:viewer_perms, viewer_perms)
               |> load_units()
 
             {:ok, socket}
@@ -64,9 +68,11 @@ defmodule LynxWeb.EnvironmentLive do
           <span class="text-foreground font-medium">{@env.name}</span>
         </nav>
         <div class="flex items-center gap-3">
+          <% can_act = if @env_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
           <span
-            class="cursor-pointer"
-            phx-click="confirm_action"
+            class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
+            title={unless can_act, do: if(@env_locked, do: "Requires the admin role to force-unlock", else: "Requires the planner role to lock"), else: nil}
+            phx-click={if can_act, do: "confirm_action"}
             phx-value-event={if @env_locked, do: "env_force_unlock", else: "env_force_lock"}
             phx-value-uuid={@env.uuid}
             phx-value-message={if @env_locked, do: "Unlock all units in this environment?", else: "Lock all units in this environment? This blocks all Terraform operations."}
@@ -105,9 +111,11 @@ defmodule LynxWeb.EnvironmentLive do
             <span class="font-medium text-clickable"><code class="text-xs px-1.5 py-0.5">{if unit.sub_path == "", do: "(root)", else: unit.sub_path}</code></span>
           </:col>
           <:col :let={unit} label="Lock Status">
+            <% can_act = if unit.is_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
             <span
-              class="cursor-pointer"
-              phx-click="confirm_action"
+              class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
+              title={unless can_act, do: if(unit.is_locked, do: "Requires the admin role to force-unlock", else: "Requires the planner role to lock"), else: nil}
+              phx-click={if can_act, do: "confirm_action"}
               phx-value-event={if unit.is_locked, do: "unlock_unit", else: "lock_unit"}
               phx-value-uuid={unit.sub_path}
               phx-value-message={if unit.is_locked, do: "Force unlock this unit?", else: "Lock this unit?"}
@@ -154,77 +162,97 @@ defmodule LynxWeb.EnvironmentLive do
     do: {:noreply, assign(socket, :config_tab, "terragrunt")}
 
   def handle_event("env_force_lock", _, socket) do
-    socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
-    LockContext.force_lock(env.id, socket.assigns.current_user.name)
+    with_perm(socket, "state:lock", fn socket ->
+      env = socket.assigns.env
+      LockContext.force_lock(env.id, socket.assigns.current_user.name)
 
-    AuditContext.log_user(
-      socket.assigns.current_user,
-      "locked",
-      "environment",
-      env.uuid,
-      env.name
-    )
+      AuditContext.log_user(
+        socket.assigns.current_user,
+        "locked",
+        "environment",
+        env.uuid,
+        env.name
+      )
 
-    {:noreply,
-     socket |> assign(:env_locked, true) |> put_flash(:info, "Environment locked") |> load_units()}
+      {:noreply,
+       socket
+       |> assign(:env_locked, true)
+       |> put_flash(:info, "Environment locked")
+       |> load_units()}
+    end)
   end
 
   def handle_event("env_force_unlock", _, socket) do
-    socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
-    LockContext.force_unlock(env.id)
+    with_perm(socket, "state:force_unlock", fn socket ->
+      env = socket.assigns.env
+      LockContext.force_unlock(env.id)
 
-    AuditContext.log_user(
-      socket.assigns.current_user,
-      "unlocked",
-      "environment",
-      env.uuid,
-      env.name
-    )
+      AuditContext.log_user(
+        socket.assigns.current_user,
+        "unlocked",
+        "environment",
+        env.uuid,
+        env.name
+      )
 
-    {:noreply,
-     socket
-     |> assign(:env_locked, false)
-     |> put_flash(:info, "Environment unlocked")
-     |> load_units()}
+      {:noreply,
+       socket
+       |> assign(:env_locked, false)
+       |> put_flash(:info, "Environment unlocked")
+       |> load_units()}
+    end)
   end
 
   def handle_event("lock_unit", %{"uuid" => sub_path}, socket) do
-    socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
+    with_perm(socket, "state:lock", fn socket ->
+      env = socket.assigns.env
 
-    lock =
-      LockContext.new_lock(%{
-        environment_id: env.id,
-        operation: "manual",
-        info: "Locked via UI",
-        who: socket.assigns.current_user.name,
-        version: "",
-        path: "",
-        sub_path: sub_path,
-        uuid: Ecto.UUID.generate(),
-        is_active: true
-      })
+      lock =
+        LockContext.new_lock(%{
+          environment_id: env.id,
+          operation: "manual",
+          info: "Locked via UI",
+          who: socket.assigns.current_user.name,
+          version: "",
+          path: "",
+          sub_path: sub_path,
+          uuid: Ecto.UUID.generate(),
+          is_active: true
+        })
 
-    LockContext.create_lock(lock)
-    label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditContext.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
-    {:noreply, socket |> put_flash(:info, "Unit locked") |> load_units()}
+      LockContext.create_lock(lock)
+      label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
+      AuditContext.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
+      {:noreply, socket |> put_flash(:info, "Unit locked") |> load_units()}
+    end)
   end
 
   def handle_event("unlock_unit", %{"uuid" => sub_path}, socket) do
+    with_perm(socket, "state:force_unlock", fn socket ->
+      env = socket.assigns.env
+
+      case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
+        nil -> :ok
+        lock -> LockContext.update_lock(lock, %{is_active: false})
+      end
+
+      label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
+      AuditContext.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
+      {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
+    end)
+  end
+
+  # Server-side permission re-check for destructive event handlers. UI also
+  # disables the buttons when the viewer lacks the perm — this is defense in
+  # depth for clients that bypass the disabled state (replay, devtools).
+  defp with_perm(socket, perm, fun) do
     socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
 
-    case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
-      nil -> :ok
-      lock -> LockContext.update_lock(lock, %{is_active: false})
+    if RoleContext.has?(socket.assigns.viewer_perms, perm) do
+      fun.(socket)
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission for #{perm}")}
     end
-
-    label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditContext.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
-    {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
   end
 
   defp load_units(socket) do

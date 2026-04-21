@@ -27,6 +27,10 @@ defmodule LynxWeb.SnapshotController do
   plug :regular_user when action in [:list, :index, :create, :delete, :restore]
   plug :access_check when action in [:index, :delete, :restore]
 
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "snapshot:restore", from: :snapshot_uuid]
+       when action == :restore
+
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")
 

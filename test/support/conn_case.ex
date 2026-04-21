@@ -71,4 +71,41 @@ defmodule LynxWeb.ConnCase do
   def with_api_key(conn, api_key) do
     Plug.Conn.put_req_header(conn, "x-api-key", api_key)
   end
+
+  @doc """
+  Creates a regular (non-super) user with an API key. Useful for testing
+  per-permission gates: the user is authenticated but has no project grants
+  unless the test explicitly adds them.
+  """
+  def create_regular_user_with_api_key(opts \\ %{}) do
+    n = System.unique_integer([:positive])
+
+    defaults = %{
+      email: "regular-#{n}@example.com",
+      name: "Regular User #{n}",
+      password: "password123"
+    }
+
+    attrs = Map.merge(defaults, opts)
+    app_key = Lynx.Service.Settings.get_config("app_key", "")
+    api_key = Lynx.Service.AuthService.get_random_salt(20)
+
+    {:ok, user} =
+      Lynx.Context.UserContext.create_user(
+        Lynx.Context.UserContext.new_user(%{
+          # `"regular"` is the canonical non-super DB value — the API auth
+          # middleware does `String.to_atom(user.role)` and downstream
+          # `Lynx.Service.Permission` matches on `:regular`.
+          email: attrs.email,
+          name: attrs.name,
+          password_hash: Lynx.Service.AuthService.hash_password(attrs.password, app_key),
+          verified: true,
+          last_seen: DateTime.utc_now() |> DateTime.truncate(:second),
+          role: "regular",
+          api_key: api_key
+        })
+      )
+
+    {user, api_key}
+  end
 end

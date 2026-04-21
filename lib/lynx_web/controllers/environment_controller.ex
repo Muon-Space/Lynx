@@ -31,6 +31,18 @@ defmodule LynxWeb.EnvironmentController do
   plug :regular_user when action in [:list, :index, :create, :update, :delete]
   plug :access_check when action in [:list, :index, :create, :update, :delete]
 
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "env:manage", from: :project_p_uuid]
+       when action in [:create, :update, :delete]
+
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "state:lock", from: :env_uuid]
+       when action == :force_lock
+
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "state:force_unlock", from: :env_uuid]
+       when action == :force_unlock
+
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")
 

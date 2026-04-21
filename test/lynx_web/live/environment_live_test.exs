@@ -4,7 +4,10 @@ defmodule LynxWeb.EnvironmentLiveTest do
   alias Lynx.Context.LockContext
 
   setup %{conn: conn} do
-    user = create_user()
+    # super bypasses per-project RBAC so existing happy-path tests still
+    # exercise the underlying lock + env behavior. Permission-denial cases
+    # live in their own describe blocks below.
+    user = create_super()
     workspace = create_workspace()
     project = create_project(%{workspace_id: workspace.id})
     env = create_env(project, %{name: "Production", slug: "prod"})
@@ -164,6 +167,90 @@ defmodule LynxWeb.EnvironmentLiveTest do
 
       assert render(view) =~ "Unit unlocked"
       assert LockContext.get_active_lock_by_environment_and_path(env.id, "api") == nil
+    end
+  end
+
+  describe "permission gates" do
+    alias Lynx.Context.{ProjectContext, RoleContext, TeamContext, UserContext}
+
+    # Set up a non-super user with a single role on the project. Returns a
+    # logged-in conn for that user. Lynx's permission inputs come from the
+    # composable team membership + role assignment path, so we wire that up
+    # rather than poking RoleContext directly.
+    defp logged_in_with_role(project, role_name) do
+      user = create_user()
+
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{
+          name: "T-#{System.unique_integer([:positive])}",
+          slug: "t-#{System.unique_integer([:positive])}",
+          description: "x"
+        })
+
+      {:ok, _} = UserContext.add_user_to_team(user.id, team.id)
+      role = RoleContext.get_role_by_name(role_name)
+      {:ok, _} = ProjectContext.add_project_to_team(project.id, team.id, role.id)
+
+      Phoenix.ConnTest.build_conn()
+      |> Plug.Test.init_test_session(%{})
+      |> log_in_user(user)
+    end
+
+    test "planner cannot env_force_lock; flash shows missing permission", %{
+      project: project,
+      env: env
+    } do
+      conn = logged_in_with_role(project, "planner")
+      {:ok, view, _} = live(conn, env_path(project, env))
+
+      # planner has state:lock so env_force_lock should succeed.
+      render_click(view, "env_force_lock", %{"uuid" => env.uuid})
+      assert render(view) =~ "Environment locked"
+
+      # ...but lacks state:force_unlock — the unlock should be blocked.
+      render_click(view, "env_force_unlock", %{"uuid" => env.uuid})
+      html = render(view)
+      assert html =~ "permission for state:force_unlock"
+      # Env is still locked.
+      assert LockContext.is_environment_locked(env.id)
+    end
+
+    test "applier cannot force-unlock either; flash shows the gate", %{
+      project: project,
+      env: env
+    } do
+      _ = LockContext.force_lock(env.id, "tester")
+      conn = logged_in_with_role(project, "applier")
+      {:ok, view, _} = live(conn, env_path(project, env))
+
+      render_click(view, "env_force_unlock", %{"uuid" => env.uuid})
+      assert render(view) =~ "permission for state:force_unlock"
+      assert LockContext.is_environment_locked(env.id)
+    end
+
+    test "admin can force-unlock", %{project: project, env: env} do
+      _ = LockContext.force_lock(env.id, "tester")
+      conn = logged_in_with_role(project, "admin")
+      {:ok, view, _} = live(conn, env_path(project, env))
+
+      render_click(view, "env_force_unlock", %{"uuid" => env.uuid})
+      assert render(view) =~ "Environment unlocked"
+      refute LockContext.is_environment_locked(env.id)
+    end
+
+    test "lock badge is rendered with cursor-not-allowed for planner", %{
+      project: project,
+      env: env
+    } do
+      _ = LockContext.force_lock(env.id, "tester")
+      conn = logged_in_with_role(project, "planner")
+      {:ok, _view, html} = live(conn, env_path(project, env))
+
+      # Env is locked → unlock would be the action → planner lacks
+      # state:force_unlock → badge gets the disabled affordance class +
+      # title attribute.
+      assert html =~ "cursor-not-allowed"
+      assert html =~ "Requires the admin role to force-unlock"
     end
   end
 end

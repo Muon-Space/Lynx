@@ -274,7 +274,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       assert body["errorMessage"] =~ "Invalid"
     end
 
-    test "returns 400 when environment_id is unknown", %{conn: conn, api_key: api_key} do
+    test "returns 404 when environment_id is unknown", %{conn: conn, api_key: api_key} do
       provider = create_test_provider()
 
       conn =
@@ -287,8 +287,11 @@ defmodule LynxWeb.OIDCProviderControllerTest do
           claim_rules: []
         })
 
-      body = json_response(conn, 400)
-      assert body["errorMessage"] =~ "Invalid"
+      # The RequirePerm plug runs before the controller body and rejects
+      # missing-env requests at the auth layer with 404 (more accurate than
+      # the previous 400 from the controller's downstream nil check).
+      body = json_response(conn, 404)
+      assert body["errorMessage"] =~ "Environment not found"
     end
   end
 
