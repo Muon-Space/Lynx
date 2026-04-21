@@ -1,5 +1,118 @@
 {
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
-        "config:recommended"
-    ]
+        "config:recommended",
+        ":semanticCommits",
+        ":dependencyDashboard",
+        "helpers:pinGitHubActionDigests"
+    ],
+    "timezone": "Europe/London",
+    "schedule": [
+        "before 10am on monday"
+    ],
+    "prHourlyLimit": 4,
+    "prConcurrentLimit": 6,
+    "labels": [
+        "dependencies"
+    ],
+    "dependencyDashboardTitle": "Renovate dependency dashboard",
+    "packageRules": [
+        {
+            "description": "Group the Phoenix ecosystem so a stack-wide bump is one PR",
+            "matchPackageNames": [
+                "phoenix",
+                "phoenix_ecto",
+                "phoenix_html",
+                "phoenix_live_dashboard",
+                "phoenix_live_reload",
+                "phoenix_live_view",
+                "plug_cowboy",
+                "bandit"
+            ],
+            "groupName": "phoenix"
+        },
+        {
+            "description": "Group the Ecto/Postgres family",
+            "matchPackageNames": [
+                "ecto",
+                "ecto_sql",
+                "postgrex"
+            ],
+            "groupName": "ecto"
+        },
+        {
+            "description": "Group the asset toolchain (esbuild + tailwind)",
+            "matchPackageNames": [
+                "esbuild",
+                "tailwind",
+                "heroicons"
+            ],
+            "groupName": "assets toolchain"
+        },
+        {
+            "description": "Group test-only Elixir tooling — these never affect prod and the suite gates them",
+            "matchManagers": [
+                "mix"
+            ],
+            "matchDepTypes": [
+                "test",
+                "dev"
+            ],
+            "groupName": "elixir test/dev"
+        },
+        {
+            "description": "Auto-merge patch-level Mix dep updates if CI passes — low risk, high noise",
+            "matchManagers": [
+                "mix"
+            ],
+            "matchUpdateTypes": [
+                "patch"
+            ],
+            "automerge": true,
+            "automergeType": "pr",
+            "platformAutomerge": true
+        },
+        {
+            "description": "Group GitHub Actions; auto-merge minor/patch/digest after CI passes",
+            "matchManagers": [
+                "github-actions"
+            ],
+            "groupName": "github actions",
+            "matchUpdateTypes": [
+                "patch",
+                "minor",
+                "digest"
+            ],
+            "automerge": true,
+            "automergeType": "pr",
+            "platformAutomerge": true
+        },
+        {
+            "description": "Major updates always need a human eye — flag clearly, never automerge",
+            "matchUpdateTypes": [
+                "major"
+            ],
+            "automerge": false,
+            "addLabels": [
+                "needs-review"
+            ]
+        }
+    ],
+    "vulnerabilityAlerts": {
+        "labels": [
+            "security"
+        ],
+        "automerge": false,
+        "schedule": [
+            "at any time"
+        ]
+    },
+    "lockFileMaintenance": {
+        "enabled": true,
+        "schedule": [
+            "before 10am on monday"
+        ],
+        "automerge": true,
+        "platformAutomerge": true
+    }
 }
