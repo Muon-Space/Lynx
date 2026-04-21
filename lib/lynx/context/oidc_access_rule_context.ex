@@ -49,7 +49,8 @@ defmodule Lynx.Context.OIDCAccessRuleContext do
     from(r in OIDCAccessRule,
       where: r.provider_id == ^provider_id,
       where: r.environment_id == ^environment_id,
-      where: r.is_active == true
+      where: r.is_active == true,
+      order_by: [asc: r.name]
     )
     |> Repo.all()
   end

@@ -21,10 +21,15 @@ defmodule Lynx.Application do
         {Phoenix.PubSub, name: Lynx.PubSub},
         # HTTP client for OIDC discovery/token exchange
         {Finch, name: Lynx.Finch},
+        # Single-slot named lock used by LockModule to serialize lock
+        # acquisition across concurrent TF requests. Owned by the supervisor
+        # so it's created once at boot rather than re-initialized per call.
+        %{
+          id: :lynx_lock,
+          start: {:sleeplocks, :start_link, [1, [name: :lynx_lock]]}
+        },
         # Start the Endpoint (http/https)
         LynxWeb.Endpoint
-        # Start a worker by calling: Lynx.Worker.start_link(arg)
-        # {Lynx.Workers, %{}}
       ] ++ sso_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html

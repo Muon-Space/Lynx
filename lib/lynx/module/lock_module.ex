@@ -13,8 +13,6 @@ defmodule Lynx.Module.LockModule do
   alias Lynx.Context.WorkspaceContext
 
   def lock_action(params \\ %{}) do
-    :sleeplocks.new(1, name: :lynx_lock)
-
     case resolve_env(params) do
       {:error, msg} ->
         {:not_found, msg}
@@ -129,8 +127,6 @@ defmodule Lynx.Module.LockModule do
   end
 
   def force_lock(environment_id, who \\ "admin") do
-    :sleeplocks.new(1, name: :lynx_lock)
-
     case LockContext.get_active_lock_by_environment_id(environment_id) do
       nil ->
         lock =

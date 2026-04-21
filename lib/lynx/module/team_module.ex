@@ -180,14 +180,10 @@ defmodule Lynx.Module.TeamModule do
   Get teams
   """
   def get_user_teams(user_id, offset, limit) do
-    user_teams = get_user_teams(user_id)
-
-    teams_ids = []
-
     teams_ids =
-      for user_team <- user_teams do
-        teams_ids ++ user_team.id
-      end
+      user_id
+      |> get_user_teams()
+      |> Enum.map(& &1.id)
 
     TeamContext.get_teams(teams_ids, offset, limit)
   end
