@@ -57,20 +57,51 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:oidc_signout_uri, app_url <> "/logout")
       |> assign(:saml_acs_url, app_url <> "/auth/sso/saml_callback")
 
-    socket = assign(socket, :confirm, nil)
+    socket = socket |> assign(:confirm, nil) |> assign(:tab, "general")
     {:ok, socket}
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    {:noreply, assign(socket, :tab, normalize_tab(params["tab"]))}
+  end
+
+  defp normalize_tab(tab) when tab in ~w(general sso scim oidc), do: tab
+  defp normalize_tab(_), do: "general"
+
+  @tabs [
+    {"general", "General"},
+    {"sso", "SSO"},
+    {"scim", "SCIM"},
+    {"oidc", "OIDC Providers"}
+  ]
+
+  @impl true
   def render(assigns) do
+    assigns = assign(assigns, :tabs, @tabs)
+
     ~H"""
     <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="settings" />
     <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header title="Settings" subtitle="Configure authentication, SSO, and system preferences" />
 
+      <div class="border-b border-border mb-6 flex gap-1">
+        <.link
+          :for={{id, label} <- @tabs}
+          patch={"/admin/settings?tab=#{id}"}
+          class={[
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            @tab == id && "border-accent text-foreground",
+            @tab != id && "border-transparent text-secondary hover:text-foreground hover:border-border"
+          ]}
+        >
+          {label}
+        </.link>
+      </div>
+
       <%!-- General Settings --%>
-      <.card class="mb-6">
+      <.card :if={@tab == "general"} class="mb-6">
         <h3 class="text-lg font-semibold mb-4">General</h3>
         <form phx-submit="save_general" class="space-y-4">
           <.input name="app_name" label="Application Name" value={@app_name} required />
@@ -82,7 +113,7 @@ defmodule LynxWeb.SettingsLive do
       </.card>
 
       <%!-- SSO Settings --%>
-      <.card class="mb-6">
+      <.card :if={@tab == "sso"} class="mb-6">
         <h3 class="text-lg font-semibold mb-4">Single Sign-On (SSO)</h3>
         <form phx-submit="save_sso" phx-change="sso_form_change" class="space-y-4">
           <.input name="auth_password_enabled" type="checkbox" label="Password Login Enabled" checked={@password_enabled} />
@@ -145,7 +176,7 @@ defmodule LynxWeb.SettingsLive do
       </.card>
 
       <%!-- SCIM Settings --%>
-      <.card class="mb-6">
+      <.card :if={@tab == "scim"} class="mb-6">
         <h3 class="text-lg font-semibold mb-4">SCIM Provisioning</h3>
         <div class="space-y-4">
           <label class="flex items-center gap-3 cursor-pointer" phx-click="toggle_scim">
@@ -189,7 +220,7 @@ defmodule LynxWeb.SettingsLive do
       </.card>
 
       <%!-- OIDC Providers --%>
-      <.card>
+      <.card :if={@tab == "oidc"}>
         <h3 class="text-lg font-semibold mb-2">OIDC Providers (Terraform Backend Auth)</h3>
         <p class="text-sm text-muted mb-4">The provider name is used as the HTTP Basic Auth username, and the OIDC JWT token is the password.</p>
 

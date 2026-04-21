@@ -12,18 +12,43 @@ defmodule LynxWeb.SettingsLiveTest do
   end
 
   describe "mount" do
-    test "renders Settings title and key sections", %{conn: conn} do
+    test "renders Settings title and tab nav for all sections", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/admin/settings")
       assert html =~ "Settings"
-      assert html =~ "General"
-      assert html =~ "Single Sign-On"
-      assert html =~ "OIDC"
+      # Tab nav lists every section so admins can navigate
+      for label <- ["General", "SSO", "SCIM", "OIDC Providers"] do
+        assert html =~ label
+      end
+
+      # Default tab is general — its form is rendered
+      assert html =~ "Application Name"
     end
 
     test "non-super user is redirected", %{conn: conn} do
       regular = create_user()
       conn = log_in_user(conn, regular)
       assert {:error, {:redirect, %{to: "/login"}}} = live(conn, "/admin/settings")
+    end
+
+    test "?tab=sso shows the SSO section, not General", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/settings?tab=sso")
+      assert html =~ "Single Sign-On"
+      refute html =~ "Application Name"
+    end
+
+    test "?tab=oidc shows the OIDC providers section", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/settings?tab=oidc")
+      assert html =~ "OIDC Providers (Terraform Backend Auth)"
+    end
+
+    test "?tab=scim shows the SCIM section", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/settings?tab=scim")
+      assert html =~ "SCIM Provisioning"
+    end
+
+    test "unknown ?tab= falls back to general", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/settings?tab=bogus")
+      assert html =~ "Application Name"
     end
   end
 
@@ -85,7 +110,7 @@ defmodule LynxWeb.SettingsLiveTest do
     end
 
     test "sso_form_change toggles protocol display in real time", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/admin/settings")
+      {:ok, view, _} = live(conn, "/admin/settings?tab=sso")
 
       # Default protocol is oidc — OIDC fields visible
       assert render(view) =~ "Issuer URL"
@@ -103,7 +128,7 @@ defmodule LynxWeb.SettingsLiveTest do
 
   describe "OIDC providers" do
     test "show_add_provider opens form", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/admin/settings")
+      {:ok, view, _} = live(conn, "/admin/settings?tab=oidc")
 
       render_click(view, "show_add_provider", %{})
       assert has_element?(view, "form[phx-submit=\"create_provider\"]")
@@ -113,7 +138,7 @@ defmodule LynxWeb.SettingsLiveTest do
     end
 
     test "create_provider persists and shows in table", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/admin/settings")
+      {:ok, view, _} = live(conn, "/admin/settings?tab=oidc")
       render_click(view, "show_add_provider", %{})
 
       render_submit(view, "create_provider", %{
