@@ -122,7 +122,7 @@ Lynx.Application
 ├── Finch                    # HTTP client (OIDC discovery, JWKS)
 ├── :sleeplocks              # named single-slot lock used by LockContext
 ├── LynxWeb.Endpoint         # Phoenix HTTP endpoint
-└── OpenIDConnect.Worker     # only started if AUTH_SSO_ENABLED=true and SSO_PROTOCOL=oidc
+└── (none — OIDC config is DB-driven; no separate worker)
 ```
 
 `:sleeplocks` is registered with the supervisor so it survives across requests; serializes lock-acquisition attempts to avoid races between concurrent TF clients.

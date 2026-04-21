@@ -6,9 +6,10 @@ defmodule Lynx.Service.SSOService do
   @moduledoc """
   SSO Service - encapsulates OIDC and SAML protocol logic.
 
-  Supports two modes:
-  - Boot-time configured via env vars (uses OpenIDConnect library worker)
-  - Runtime configured via UI/DB (builds URLs and exchanges tokens directly)
+  Configuration lives in the DB (Settings tab). The `OpenIDConnect`
+  library exists as a dep for JWT verification helpers, but the OIDC
+  authorize/callback path is implemented directly so it can be reconfigured
+  at runtime through the admin UI without an app restart.
   """
 
   require Logger
@@ -18,21 +19,10 @@ defmodule Lynx.Service.SSOService do
   # -- OIDC --
 
   @doc """
-  Build the OIDC authorization URL.
-  Tries the OpenIDConnect worker first (env var config), falls back to
-  building the URL from DB config.
+  Build the OIDC authorization URL from DB-stored SSO config.
   """
   def oidc_authorize_url(state) do
-    try do
-      case OpenIDConnect.authorization_uri(:lynx, state) do
-        {:ok, uri} -> {:ok, uri}
-        {:error, reason} -> {:error, "Failed to build authorization URL: #{inspect(reason)}"}
-      end
-    rescue
-      _ -> oidc_authorize_url_from_db(state)
-    catch
-      _, _ -> oidc_authorize_url_from_db(state)
-    end
+    oidc_authorize_url_from_db(state)
   end
 
   defp oidc_authorize_url_from_db(state) do
@@ -65,24 +55,10 @@ defmodule Lynx.Service.SSOService do
   end
 
   @doc """
-  Handle OIDC callback - exchange code for tokens and extract claims.
-  Tries the OpenIDConnect worker first, falls back to direct HTTP exchange.
+  Handle OIDC callback — exchange code for tokens against DB-stored SSO config.
   """
   def oidc_callback(code) do
-    try do
-      with {:ok, tokens} <- OpenIDConnect.fetch_tokens(:lynx, %{code: code}),
-           {:ok, claims} <- OpenIDConnect.verify(:lynx, tokens["id_token"]) do
-        {:ok, extract_oidc_claims(claims)}
-      else
-        {:error, reason} ->
-          Logger.error("OIDC callback failed: #{inspect(reason)}")
-          {:error, "SSO authentication failed"}
-      end
-    rescue
-      _ -> oidc_callback_from_db(code)
-    catch
-      _, _ -> oidc_callback_from_db(code)
-    end
+    oidc_callback_from_db(code)
   end
 
   defp oidc_callback_from_db(code) do

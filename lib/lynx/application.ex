@@ -30,22 +30,12 @@ defmodule Lynx.Application do
         },
         # Start the Endpoint (http/https)
         LynxWeb.Endpoint
-      ] ++ sso_children()
+      ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Lynx.Supervisor]
     Supervisor.start_link(children, opts)
-  end
-
-  defp sso_children do
-    if Application.get_env(:lynx, :auth_sso_enabled, false) and
-         Application.get_env(:lynx, :sso_protocol, "oidc") == "oidc" do
-      providers = Application.get_env(:lynx, :openid_connect_providers, [])
-      [{OpenIDConnect.Worker, providers}]
-    else
-      []
-    end
   end
 
   # Tell Phoenix to update the endpoint configuration
