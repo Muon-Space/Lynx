@@ -8,6 +8,7 @@ defmodule LynxWeb.ProfileController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
@@ -17,8 +18,35 @@ defmodule LynxWeb.ProfileController do
   alias Lynx.Service.AuthService
   alias Lynx.Context.UserContext
   alias Lynx.Service.ValidatorService
+  alias LynxWeb.Schemas
 
   plug :regular_user when action in [:update, :fetch_api_key, :rotate_api_key]
+
+  tags(["Profile"])
+  security([%{"api_key" => []}])
+
+  operation(:update,
+    summary: "Update the current user's profile",
+    request_body: {"Profile fields", "application/json", Schemas.ProfileUpdate},
+    responses: [
+      ok: {"Updated", "application/json", Schemas.Success},
+      bad_request: {"Validation error", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:fetch_api_key,
+    summary: "Fetch the current user's API key",
+    responses: [
+      ok: {"API key", "application/json", Schemas.ApiKey}
+    ]
+  )
+
+  operation(:rotate_api_key,
+    summary: "Rotate the current user's API key",
+    responses: [
+      ok: {"New API key", "application/json", Schemas.ApiKey}
+    ]
+  )
 
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")

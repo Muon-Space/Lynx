@@ -8,6 +8,7 @@ defmodule LynxWeb.SnapshotController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
@@ -15,6 +16,7 @@ defmodule LynxWeb.SnapshotController do
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.Permission
+  alias LynxWeb.Schemas
 
   @title_min_length 2
   @title_max_length 60
@@ -30,6 +32,73 @@ defmodule LynxWeb.SnapshotController do
   plug LynxWeb.Plug.RequirePerm,
        [permission: "snapshot:restore", from: :snapshot_uuid]
        when action == :restore
+
+  tags(["Snapshots"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List snapshots",
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Default 10"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Snapshots", "application/json", Schemas.SnapshotList}
+    ]
+  )
+
+  operation(:create,
+    summary: "Create a snapshot",
+    request_body: {"Snapshot", "application/json", Schemas.SnapshotCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.Snapshot},
+      bad_request: {"Validation error", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:index,
+    summary: "Get a snapshot by UUID",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Snapshot", "application/json", Schemas.Snapshot},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update,
+    summary: "Update a snapshot",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    request_body: {"Snapshot", "application/json", Schemas.SnapshotUpdate},
+    responses: [
+      ok: {"Snapshot", "application/json", Schemas.Snapshot},
+      bad_request: {"Validation error", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete,
+    summary: "Delete a snapshot",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      no_content: "Deleted",
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:restore,
+    summary: "Restore a snapshot (admin only)",
+    description: """
+    Re-creates environments and replays state versions from the snapshot.
+    Requires the `snapshot:restore` permission (admin role) on the
+    snapshot's owning project.
+    """,
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Restored", "application/json", Schemas.Success},
+      bad_request: {"Bad request", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
 
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")

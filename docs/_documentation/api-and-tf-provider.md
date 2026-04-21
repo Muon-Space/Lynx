@@ -12,13 +12,15 @@ hero:
 
 ## REST API — `/api/v1/*`
 
-JSON API for managing every resource in Lynx. All endpoints require a Bearer token in the `Authorization` header:
+JSON API for managing every resource in Lynx. All endpoints require an API key in the `x-api-key` header:
 
 ```
-Authorization: Bearer <your-api-key>
+x-api-key: <your-api-key>
 ```
 
 Find your API key on `/admin/profile` (Show → Copy). The key is never embedded in the rendered HTML; it's pushed over the LiveView socket on demand.
+
+The OpenAPI 3.0 spec is published at `/api/v1/openapi.yml` on every running instance — feed it to Swagger UI, Postman, or any OpenAPI-aware tool. The spec at the repo root (`api.yml`) is the same file.
 
 ### Response conventions
 

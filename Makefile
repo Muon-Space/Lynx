@@ -94,6 +94,20 @@ v:
 	@$(mix) version
 
 
-## ci: Run ci (tests + coverage gate)
+## openapi_dump: Regenerate api.yml from controller @operation annotations
+.PHONY: openapi_dump
+openapi_dump:
+	@echo ">> ============= Dump OpenAPI spec ============= <<"
+	@$(mix) lynx.openapi.dump
+
+
+## openapi_check: Fail if api.yml has drifted from controllers (CI)
+.PHONY: openapi_check
+openapi_check:
+	@echo ">> ============= Check OpenAPI spec drift ============= <<"
+	@$(mix) lynx.openapi.dump --check
+
+
+## ci: Run ci (tests + coverage gate + OpenAPI drift check)
 .PHONY: ci
-ci: coverage
+ci: coverage openapi_check

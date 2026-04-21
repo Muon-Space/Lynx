@@ -8,10 +8,31 @@ defmodule LynxWeb.AuditController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   alias Lynx.Context.AuditContext
+  alias LynxWeb.Schemas
 
   plug :super_user
+
+  tags(["Audit"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List audit events (super only)",
+    description: "All filter params are optional and AND-combined.",
+    parameters: [
+      action: [in: :query, type: :string, description: "Exact action match"],
+      resource_type: [in: :query, type: :string, description: "Exact resource type match"],
+      actor_id: [in: :query, type: :integer, description: "Exact actor PK"],
+      limit: [in: :query, type: :integer, description: "Default 50"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Events", "application/json", Schemas.AuditEventList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
 
   defp super_user(conn, _opts) do
     if not conn.assigns[:is_super] do

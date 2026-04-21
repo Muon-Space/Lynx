@@ -8,6 +8,7 @@ defmodule LynxWeb.EnvironmentController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
@@ -15,6 +16,7 @@ defmodule LynxWeb.EnvironmentController do
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.Permission
+  alias LynxWeb.Schemas
 
   @name_min_length 2
   @name_max_length 60
@@ -42,6 +44,110 @@ defmodule LynxWeb.EnvironmentController do
   plug LynxWeb.Plug.RequirePerm,
        [permission: "state:force_unlock", from: :env_uuid]
        when action == :force_unlock
+
+  tags(["Environments"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List environments in a project",
+    parameters: [
+      p_uuid: [in: :path, required: true, type: :string, description: "Project UUID"],
+      limit: [in: :query, type: :integer, description: "Default 10"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Environments", "application/json", Schemas.EnvironmentList},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create,
+    summary: "Create an environment",
+    description: "Requires `env:manage` (admin) on the project.",
+    parameters: [
+      p_uuid: [in: :path, required: true, type: :string, description: "Project UUID"]
+    ],
+    request_body: {"Environment", "application/json", Schemas.EnvironmentCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.Environment},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:index,
+    summary: "Get an environment by UUID",
+    parameters: [
+      p_uuid: [in: :path, required: true, type: :string, description: "Project UUID"],
+      e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"]
+    ],
+    responses: [
+      ok: {"Environment", "application/json", Schemas.Environment},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update,
+    summary: "Update an environment",
+    description: "Requires `env:manage` (admin) on the project.",
+    parameters: [
+      p_uuid: [in: :path, required: true, type: :string],
+      e_uuid: [in: :path, required: true, type: :string]
+    ],
+    request_body: {"Environment", "application/json", Schemas.EnvironmentCreate},
+    responses: [
+      ok: {"Environment", "application/json", Schemas.Environment},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete,
+    summary: "Delete an environment",
+    description: "Requires `env:manage` (admin) on the project.",
+    parameters: [
+      p_uuid: [in: :path, required: true, type: :string],
+      e_uuid: [in: :path, required: true, type: :string]
+    ],
+    responses: [
+      no_content: "Deleted",
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:force_lock,
+    summary: "Force-lock an environment",
+    description: "Requires `state:lock` on the env's project.",
+    parameters: [
+      e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"]
+    ],
+    responses: [
+      ok: {"Locked", "application/json", Schemas.Success},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      bad_request: {"Bad request", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:force_unlock,
+    summary: "Force-unlock an environment (admin only)",
+    description: """
+    Clears the active lock — the destructive variant. Requires
+    `state:force_unlock` (admin only). Note that the routine post-apply
+    unlock that Terraform calls automatically uses `/tf/.../unlock` and
+    only requires `state:unlock`.
+    """,
+    parameters: [
+      e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"]
+    ],
+    responses: [
+      ok: {"Unlocked", "application/json", Schemas.Success},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      bad_request: {"Bad request", "application/json", Schemas.Error}
+    ]
+  )
 
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")

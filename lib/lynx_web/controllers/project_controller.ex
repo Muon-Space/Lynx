@@ -8,6 +8,7 @@ defmodule LynxWeb.ProjectController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
@@ -15,6 +16,7 @@ defmodule LynxWeb.ProjectController do
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.Permission
+  alias LynxWeb.Schemas
 
   @name_min_length 2
   @name_max_length 60
@@ -32,6 +34,64 @@ defmodule LynxWeb.ProjectController do
   plug LynxWeb.Plug.RequirePerm,
        [permission: "project:manage", from: :project_uuid]
        when action in [:update, :delete]
+
+  tags(["Projects"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List projects",
+    description: "Returns projects the requesting user has any access to (super sees all).",
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Default 10"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Projects", "application/json", Schemas.ProjectList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create,
+    summary: "Create a project",
+    request_body: {"Project", "application/json", Schemas.ProjectCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.Project},
+      bad_request: {"Validation error", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:index,
+    summary: "Get a project by UUID",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Project", "application/json", Schemas.Project},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update,
+    summary: "Update a project",
+    description: "Requires `project:manage` (admin role) on the project.",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    request_body: {"Project", "application/json", Schemas.ProjectCreate},
+    responses: [
+      ok: {"Project", "application/json", Schemas.Project},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete,
+    summary: "Delete a project",
+    description: "Requires `project:manage` (admin role) on the project.",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      no_content: "Deleted",
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
 
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")

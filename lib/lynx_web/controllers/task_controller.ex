@@ -8,12 +8,28 @@ defmodule LynxWeb.TaskController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
   alias Lynx.Context.TaskContext
+  alias LynxWeb.Schemas
 
   plug :regular_user when action in [:index]
+
+  tags(["Tasks"])
+  security([%{"api_key" => []}])
+
+  operation(:index,
+    summary: "Get a task by UUID",
+    parameters: [
+      uuid: [in: :path, required: true, type: :string]
+    ],
+    responses: [
+      ok: {"Task", "application/json", Schemas.Task},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
 
   defp regular_user(conn, _opts) do
     Logger.info("Validate user permissions")

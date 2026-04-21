@@ -8,11 +8,13 @@ defmodule LynxWeb.UserController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   alias Lynx.Context.UserContext
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.AuthService
+  alias LynxWeb.Schemas
 
   require Logger
 
@@ -23,6 +25,61 @@ defmodule LynxWeb.UserController do
   @default_list_offset 0
 
   plug :super_user when action in [:list, :index, :create, :update, :delete]
+
+  tags(["Users"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List users (super only)",
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Default 10"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Users", "application/json", Schemas.UserList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create,
+    summary: "Create a user (super only)",
+    request_body: {"User", "application/json", Schemas.UserCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.User},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:index,
+    summary: "Get a user by UUID (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"User", "application/json", Schemas.User},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update,
+    summary: "Update a user (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    request_body: {"User", "application/json", Schemas.UserCreate},
+    responses: [
+      ok: {"User", "application/json", Schemas.User},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete,
+    summary: "Delete a user (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      no_content: "User deleted",
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")

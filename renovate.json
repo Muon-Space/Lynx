@@ -16,6 +16,16 @@
         "dependencies"
     ],
     "dependencyDashboardTitle": "Renovate dependency dashboard",
+    "dependencyDashboardLabels": [
+        "dependencies",
+        "renovate-dashboard"
+    ],
+    "reviewers": [
+        "aron-muon"
+    ],
+    "assignees": [
+        "aron-muon"
+    ],
     "packageRules": [
         {
             "description": "Group the Phoenix ecosystem so a stack-wide bump is one PR",
@@ -78,6 +88,22 @@
                 "github-actions"
             ],
             "groupName": "github actions",
+            "matchUpdateTypes": [
+                "patch",
+                "minor",
+                "digest"
+            ],
+            "automerge": true,
+            "automergeType": "pr",
+            "platformAutomerge": true
+        },
+        {
+            "description": "Group docker base images (postgres + nginx + ubuntu) and auto-merge patch/minor after CI",
+            "matchManagers": [
+                "docker-compose",
+                "dockerfile"
+            ],
+            "groupName": "docker base images",
             "matchUpdateTypes": [
                 "patch",
                 "minor",

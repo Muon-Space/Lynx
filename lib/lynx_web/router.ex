@@ -72,6 +72,7 @@ defmodule LynxWeb.Router do
     get "/logout", SessionController, :logout
     get "/admin/state/download/:uuid", DownloadController, :state
     get "/admin/environment/download/:uuid", DownloadController, :environment
+    get "/admin/audit/export.csv", AuditExportController, :export
     get "/auth/sso/finalize", SSOController, :finalize
   end
 
@@ -207,6 +208,11 @@ defmodule LynxWeb.Router do
 
     # Audit Log
     get "/audit", AuditController, :list
+
+    # Live OpenAPI 3.0 spec — generated from `@operation` annotations on
+    # every REST controller and assembled by `LynxWeb.ApiSpec`. No auth gate.
+    get "/openapi.json", OpenAPIController, :spec_json
+    get "/openapi.yml", OpenAPIController, :spec_yaml
   end
 
   scope "/tf", LynxWeb do

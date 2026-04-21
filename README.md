@@ -156,11 +156,13 @@ User deactivation via SCIM (`active: false`) immediately invalidates all of that
 
 ## REST API
 
-Lynx exposes a JSON API at `/api/v1/*` for programmatic management of users, teams, projects, environments, snapshots, OIDC providers, and audit events. All endpoints require a Bearer token (your user API key) in the `Authorization` header.
+Lynx exposes a JSON API at `/api/v1/*` for programmatic management of users, teams, projects, environments, snapshots, OIDC providers, and audit events. All endpoints require your user API key in the `x-api-key` header.
 
 ```bash
-curl -H "Authorization: Bearer $LYNX_API_KEY" https://lynx.example.com/api/v1/project
+curl -H "x-api-key: $LYNX_API_KEY" https://lynx.example.com/api/v1/project
 ```
+
+The live OpenAPI 3.0 spec is published at `/api/v1/openapi.yml` on every running instance.
 
 The SCIM 2.0 API at `/scim/v2/` supports Users and Groups with full CRUD, filtering, and PATCH operations for IdP integration.
 

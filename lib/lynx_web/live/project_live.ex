@@ -99,7 +99,12 @@ defmodule LynxWeb.ProjectLive do
           <span :if={@workspace}>/</span>
           <span class="text-foreground font-medium">{@project.name}</span>
         </nav>
-        <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+        <div class="flex items-center gap-2">
+          <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=project&resource_id=#{@project.uuid}"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+            Audit history
+          </a>
+          <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+        </div>
       </div>
 
       <%!-- Add Environment Modal --%>
