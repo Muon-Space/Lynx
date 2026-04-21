@@ -11,12 +11,13 @@ defmodule LynxWeb.SnapshotsLive do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
-    all_workspaces = Lynx.Context.WorkspaceContext.get_workspaces(0, 10000)
+    all_workspaces =
+      Lynx.Context.WorkspaceContext.get_workspaces(0, LynxWeb.Limits.dropdown_max())
 
     all_projects =
       if user.role == "super",
-        do: ProjectContext.get_projects(0, 10000),
-        else: ProjectContext.get_projects_for_user(user.id, 0, 10000)
+        do: ProjectContext.get_projects(0, LynxWeb.Limits.dropdown_max()),
+        else: ProjectContext.get_projects_for_user(user.id, 0, LynxWeb.Limits.dropdown_max())
 
     socket =
       socket
@@ -161,8 +162,15 @@ defmodule LynxWeb.SnapshotsLive do
     envs =
       if project_uuid && project_uuid != "" do
         case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
-          nil -> []
-          project -> Lynx.Context.EnvironmentContext.get_project_envs(project.id, 0, 10000)
+          nil ->
+            []
+
+          project ->
+            Lynx.Context.EnvironmentContext.get_project_envs(
+              project.id,
+              0,
+              LynxWeb.Limits.child_collection_max()
+            )
         end
       else
         []

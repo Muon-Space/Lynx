@@ -158,14 +158,24 @@ defmodule Lynx.Context.TeamContext do
   end
 
   @doc """
-  Retrieve all teams
+  Search teams by name or slug substring (case-insensitive). For autocomplete
+  dropdowns; returns at most `limit` matches ordered by name.
   """
-  def get_teams() do
-    Repo.all(Team)
+  def search_teams(query, limit \\ 25) when is_binary(query) do
+    pattern = "%#{String.replace(query, ~w(\\ % _), fn c -> "\\" <> c end)}%"
+
+    from(t in Team,
+      where: ilike(t.name, ^pattern) or ilike(t.slug, ^pattern),
+      order_by: [asc: t.name],
+      limit: ^limit
+    )
+    |> Repo.all()
   end
 
   @doc """
-  Retrieve teams
+  Retrieve teams (paginated). Caller is responsible for capping `limit` —
+  see `LynxWeb.Limits` for the platform-wide caps and `search_teams/2` for
+  autocomplete-style lookups.
   """
   def get_teams(offset, limit) do
     from(t in Team,

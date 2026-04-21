@@ -26,7 +26,12 @@ defmodule LynxWeb.ProjectLive do
           if project.workspace_id,
             do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
 
-        environments = EnvironmentContext.get_project_envs(project.id, 0, 10000)
+        environments =
+          EnvironmentContext.get_project_envs(
+            project.id,
+            0,
+            LynxWeb.Limits.child_collection_max()
+          )
 
         envs_with_info =
           Enum.map(environments, fn env ->
@@ -66,8 +71,8 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:rule_role_id, default_role_id(roles, "applier"))
           |> assign(:roles, roles)
           |> assign(:viewer_perms, viewer_perms)
-          |> assign(:all_teams, TeamContext.get_teams(0, 10000))
-          |> assign(:all_users, UserContext.get_users(0, 10000))
+          |> assign(:all_teams, TeamContext.get_teams(0, LynxWeb.Limits.dropdown_max()))
+          |> assign(:all_users, UserContext.get_users(0, LynxWeb.Limits.dropdown_max()))
           |> assign(:add_team_id, "")
           |> assign(:add_team_role_id, default_role_id(roles, "applier"))
           |> assign(:add_user_id, "")
@@ -679,7 +684,12 @@ defmodule LynxWeb.ProjectLive do
 
   # -- Helpers --
   defp reload_envs(socket) do
-    environments = EnvironmentContext.get_project_envs(socket.assigns.project.id, 0, 10000)
+    environments =
+      EnvironmentContext.get_project_envs(
+        socket.assigns.project.id,
+        0,
+        LynxWeb.Limits.child_collection_max()
+      )
 
     envs_with_info =
       Enum.map(environments, fn env ->

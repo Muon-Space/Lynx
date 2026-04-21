@@ -188,13 +188,6 @@ defmodule Lynx.Context.StateContext do
   end
 
   @doc """
-  Retrieve all states
-  """
-  def get_states() do
-    Repo.all(State)
-  end
-
-  @doc """
   Retrieve states
   """
   def get_states(offset, limit) do

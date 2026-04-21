@@ -132,13 +132,6 @@ defmodule Lynx.Context.LockContext do
   end
 
   @doc """
-  Retrieve all locks
-  """
-  def get_locks() do
-    Repo.all(Lock)
-  end
-
-  @doc """
   Create a new lock meta
   """
   def create_lock_meta(attrs \\ %{}) do

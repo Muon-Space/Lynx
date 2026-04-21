@@ -182,7 +182,7 @@ defmodule LynxWeb.WorkspacesLive do
         {:noreply, put_flash(socket, :error, "Workspace not found")}
 
       ws ->
-        ProjectContext.get_projects_by_workspace(ws.id, 0, 10000)
+        ProjectContext.get_projects_by_workspace(ws.id, 0, LynxWeb.Limits.child_collection_max())
         |> Enum.each(fn p ->
           ProjectContext.update_project(p, %{workspace_id: nil})
         end)

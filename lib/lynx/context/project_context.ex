@@ -119,13 +119,6 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
-  Retrieve all projects
-  """
-  def get_projects() do
-    Repo.all(Project)
-  end
-
-  @doc """
   Get projects
   """
   def get_projects(offset, limit) do

@@ -18,7 +18,7 @@ defmodule LynxWeb.TeamsLive do
       |> assign(:add_slug, "")
       |> assign(:editing_team, nil)
       |> assign(:editing_members, [])
-      |> assign(:all_users, UserContext.get_users(0, 10000))
+      |> assign(:all_users, UserContext.get_users(0, LynxWeb.Limits.dropdown_max()))
       |> assign(:roles, RoleContext.list_roles())
       |> assign(:confirm, nil)
       |> load_teams()

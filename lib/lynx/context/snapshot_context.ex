@@ -131,13 +131,6 @@ defmodule Lynx.Context.SnapshotContext do
   end
 
   @doc """
-  Retrieve all tasks
-  """
-  def get_snapshots() do
-    Repo.all(Snapshot)
-  end
-
-  @doc """
   Retrieve snapshots
   """
   def get_snapshots(offset, limit) do
@@ -436,7 +429,12 @@ defmodule Lynx.Context.SnapshotContext do
         }
 
         environments =
-          for environment <- EnvironmentContext.get_project_envs(project.id, 0, 10000) do
+          for environment <-
+                EnvironmentContext.get_project_envs(
+                  project.id,
+                  0,
+                  LynxWeb.Limits.serialization_max()
+                ) do
             states = serialize_states(environment.id)
 
             %{
