@@ -553,6 +553,65 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
+  # -- Date input (Flatpickr-backed) --
+  #
+  # Wraps a hidden text input with a Flatpickr instance so the calendar
+  # popup matches our theme (the OS-native `<input type="date">` popup
+  # isn't stylable). The hidden input is named like a normal form field —
+  # parent `phx-change` handlers receive the value as `YYYY-MM-DD` strings
+  # exactly like the native type="date" did, so swap-out is drop-in.
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :value, :string, default: ""
+  attr :label, :string, default: nil
+  attr :placeholder, :string, default: "YYYY-MM-DD"
+  attr :hint, :string, default: nil
+
+  def date_input(assigns) do
+    ~H"""
+    <div>
+      <label :if={@label} class="block text-sm font-medium text-secondary mb-1">{@label}</label>
+      <div id={@id} phx-hook=".DateInput" phx-update="ignore" data-initial={@value || ""}>
+        <input
+          type="text"
+          name={@name}
+          data-input
+          value={@value}
+          placeholder={@placeholder}
+          autocomplete="off"
+          class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm focus:border-accent-focus-border focus:ring-1 focus:ring-accent"
+        />
+      </div>
+      <p :if={@hint} class="mt-1 text-xs text-muted">{@hint}</p>
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".DateInput">
+      export default {
+        mounted() {
+          this.input = this.el.querySelector("[data-input]")
+          // Surface every Flatpickr selection through the hidden input's
+          // bubbling `input` event so the enclosing `<form phx-change>`
+          // fires exactly like a native date picker would.
+          this.fp = window.flatpickr(this.input, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            defaultDate: this.el.dataset.initial || null,
+            onChange: () => {
+              this.input.dispatchEvent(new Event("input", { bubbles: true }))
+            },
+            onClose: () => {
+              this.input.dispatchEvent(new Event("input", { bubbles: true }))
+            }
+          })
+        },
+        destroyed() {
+          if (this.fp) this.fp.destroy()
+        }
+      }
+    </script>
+    """
+  end
+
   # -- Combobox (autocomplete) --
   #
   # Server-side search dropdown for picking from large lists. Replaces the

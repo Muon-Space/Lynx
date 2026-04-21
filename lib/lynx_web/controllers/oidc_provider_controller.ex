@@ -8,11 +8,13 @@ defmodule LynxWeb.OIDCProviderController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
   alias Lynx.Service.OIDCBackend
   alias Lynx.Context.AuditContext
+  alias LynxWeb.Schemas
 
   # Provider CRUD stays super-only — these are global SSO/IdP configs.
   plug :super_user
@@ -28,6 +30,85 @@ defmodule LynxWeb.OIDCProviderController do
   plug LynxWeb.Plug.RequirePerm,
        [permission: "oidc_rule:manage", from: :oidc_rule_uuid]
        when action == :delete_rule
+
+  tags(["OIDC"])
+  security([%{"api_key" => []}])
+
+  operation(:list_providers,
+    summary: "List OIDC providers (super only)",
+    responses: [
+      ok: {"Providers", "application/json", Schemas.OIDCProviderList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create_provider,
+    summary: "Create an OIDC provider (super only)",
+    request_body: {"Provider", "application/json", Schemas.OIDCProviderCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.OIDCProvider},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update_provider,
+    summary: "Update an OIDC provider (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    request_body: {"Provider", "application/json", Schemas.OIDCProviderCreate},
+    responses: [
+      ok: {"Provider", "application/json", Schemas.OIDCProvider},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete_provider,
+    summary: "Delete an OIDC provider (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Deleted", "application/json", Schemas.Success},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:list_rules,
+    summary: "List OIDC access rules for an environment",
+    description: "Requires `oidc_rule:manage` (admin) on the env's project.",
+    parameters: [
+      environment_id: [in: :path, required: true, type: :string, description: "Environment UUID"]
+    ],
+    responses: [
+      ok: {"Rules", "application/json", Schemas.OIDCRuleList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create_rule,
+    summary: "Create an OIDC access rule",
+    description: "Requires `oidc_rule:manage` (admin) on the env's project.",
+    request_body: {"Rule", "application/json", Schemas.OIDCRuleCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.OIDCRule},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete_rule,
+    summary: "Delete an OIDC access rule",
+    description: "Requires `oidc_rule:manage` (admin) on the env's project.",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Deleted", "application/json", Schemas.Success},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
 
   defp super_user(conn, _opts) do
     if not conn.assigns[:is_super] do

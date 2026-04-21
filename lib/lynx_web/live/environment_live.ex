@@ -68,6 +68,9 @@ defmodule LynxWeb.EnvironmentLive do
           <span class="text-foreground font-medium">{@env.name}</span>
         </nav>
         <div class="flex items-center gap-3">
+          <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=environment&resource_id=#{@env.uuid}"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+            Audit history
+          </a>
           <% can_act = if @env_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
           <span
             class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}

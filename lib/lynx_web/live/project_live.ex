@@ -99,7 +99,12 @@ defmodule LynxWeb.ProjectLive do
           <span :if={@workspace}>/</span>
           <span class="text-foreground font-medium">{@project.name}</span>
         </nav>
-        <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+        <div class="flex items-center gap-2">
+          <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=project&resource_id=#{@project.uuid}"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+            Audit history
+          </a>
+          <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+        </div>
       </div>
 
       <%!-- Add Environment Modal --%>
@@ -174,7 +179,7 @@ defmodule LynxWeb.ProjectLive do
 
       <%!-- Environments Table --%>
       <.card>
-        <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
+        <.table rows={@environments} row_click={fn env -> JS.navigate("/admin/projects/#{@project_uuid}/environments/#{env.uuid}") end}>
           <:col :let={env} label="Name"><span class="font-medium text-clickable">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
             <% can_act = if env.is_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>

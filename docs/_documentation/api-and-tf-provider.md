@@ -12,13 +12,15 @@ hero:
 
 ## REST API — `/api/v1/*`
 
-JSON API for managing every resource in Lynx. All endpoints require a Bearer token in the `Authorization` header:
+JSON API for managing every resource in Lynx. All endpoints require an API key in the `x-api-key` header:
 
 ```
-Authorization: Bearer <your-api-key>
+x-api-key: <your-api-key>
 ```
 
 Find your API key on `/admin/profile` (Show → Copy). The key is never embedded in the rendered HTML; it's pushed over the LiveView socket on demand.
+
+The OpenAPI 3.0 spec is published at `/api/v1/openapi.yml` on every running instance — feed it to Swagger UI, Postman, or any OpenAPI-aware tool. The spec at the repo root (`api.yml`) is the same file.
 
 ### Response conventions
 
@@ -135,9 +137,12 @@ DELETE /api/v1/action/scim_token/:uuid      # revoke
 
 ```
 GET    /api/v1/audit
+GET    /admin/audit/export.csv      # super only — streams CSV (UI route)
 ```
 
-Query params: `action`, `resource_type`, `actor_id`, `offset`, `limit`. Returns `{ events, total }`.
+Query params (all optional, AND-combined): `action`, `resource_type`, `resource_id`, `actor_id`, `actor`, `offset`, `limit`. Returns `{ events, total }`.
+
+The `actor` filter is a substring match across the actor's name, joined user email, AND `actor_type` — so `?actor=system` matches background events that have `actor_id: nil`. The CSV endpoint accepts the same filter set plus `from`/`to` (ISO 8601 dates or datetimes; bare dates expand to start/end of day UTC).
 
 ## Terraform HTTP backend — `/tf/*`
 

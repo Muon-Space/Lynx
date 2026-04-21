@@ -7,13 +7,55 @@ defmodule LynxWeb.AuditLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    {:ok, assign(socket, :filters, default_filters())}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    filters = filters_from_params(params)
+
     socket =
       socket
-      |> assign(:filter_action, "")
-      |> assign(:filter_resource, "")
+      |> assign(:filters, filters)
       |> reset_stream()
 
-    {:ok, socket}
+    {:noreply, socket}
+  end
+
+  defp default_filters do
+    %{
+      action: "",
+      resource_type: "",
+      resource_id: "",
+      actor: "",
+      from: "",
+      to: ""
+    }
+  end
+
+  # URL-driven filter state — `<.link patch=...>` carries `?action=...&...`,
+  # the LV's `handle_params/3` decodes them, and `phx-change="filter"`
+  # navigates to a new URL with the same shape. Means an admin can copy/paste
+  # a filtered view, refresh, or hit the CSV export endpoint with the same
+  # query string.
+  defp filters_from_params(params) do
+    %{
+      action: params["action"] || "",
+      resource_type: params["resource_type"] || "",
+      resource_id: params["resource_id"] || "",
+      # Back-compat with bookmarked URLs from the previous `actor_email` name.
+      actor: params["actor"] || params["actor_email"] || "",
+      from: params["from"] || "",
+      to: params["to"] || ""
+    }
+  end
+
+  defp non_empty_params(filters) do
+    filters
+    |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
+    |> Enum.into(%{})
+    |> Enum.map(fn {k, v} -> {to_string(k), v} end)
+    |> Enum.into(%{})
   end
 
   @impl true
@@ -24,23 +66,30 @@ defmodule LynxWeb.AuditLive do
       <.page_header title="Audit Log" subtitle="Track who did what and when" />
 
       <.card>
-        <div class="flex gap-4 mb-6">
-          <form phx-change="filter" class="flex gap-4">
-            <div class="w-48">
-              <.input name="action" type="select" value={@filter_action} prompt="All Actions" options={[
-                {"Created", "created"}, {"Updated", "updated"}, {"Deleted", "deleted"},
-                {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"},
-                {"Login", "login"}, {"SSO Login", "sso_login"}, {"Generated", "generated"}, {"Revoked", "revoked"}
-              ]} />
-            </div>
-            <div class="w-48">
-              <.input name="resource_type" type="select" value={@filter_resource} prompt="All Resources" options={[
-                {"Project", "project"}, {"Environment", "environment"}, {"Team", "team"},
-                {"User", "user"}, {"Snapshot", "snapshot"}, {"Settings", "settings"},
-                {"SCIM Token", "scim_token"}, {"OIDC Provider", "oidc_provider"}
-              ]} />
-            </div>
-          </form>
+        <form phx-change="filter" phx-submit="filter" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <.input name="action" type="select" label="Action" value={@filters.action} prompt="All Actions" options={[
+            {"Created", "created"}, {"Updated", "updated"}, {"Deleted", "deleted"},
+            {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"},
+            {"Login", "login"}, {"SSO Login", "sso_login"}, {"Generated", "generated"}, {"Revoked", "revoked"}
+          ]} />
+          <.input name="resource_type" type="select" label="Resource type" value={@filters.resource_type} prompt="All Resources" options={[
+            {"Project", "project"}, {"Environment", "environment"}, {"Team", "team"},
+            {"User", "user"}, {"Snapshot", "snapshot"}, {"Settings", "settings"},
+            {"SCIM Token", "scim_token"}, {"OIDC Provider", "oidc_provider"}
+          ]} />
+          <.input name="resource_id" type="text" label="Resource ID" value={@filters.resource_id} placeholder="UUID or path" />
+          <.input name="actor" type="text" label="Actor" value={@filters.actor} placeholder="Name, email, or 'system'…" phx-debounce="300" />
+          <.date_input id="audit-filter-from" name="from" label="From (UTC)" value={@filters.from} />
+          <.date_input id="audit-filter-to" name="to" label="To (UTC)" value={@filters.to} />
+        </form>
+
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-xs text-muted">
+            <a href={"/admin/audit"} class="underline hover:text-foreground" :if={any_filters?(@filters)}>Clear filters</a>
+          </span>
+          <a href={export_url(@filters)} class="text-sm rounded-lg border border-border-input px-3 py-1.5 text-secondary hover:bg-surface-secondary">
+            Export CSV
+          </a>
         </div>
 
         <div class="overflow-x-auto">
@@ -91,13 +140,8 @@ defmodule LynxWeb.AuditLive do
 
   @impl true
   def handle_event("filter", params, socket) do
-    socket =
-      socket
-      |> assign(:filter_action, params["action"] || "")
-      |> assign(:filter_resource, params["resource_type"] || "")
-      |> reset_stream()
-
-    {:noreply, socket}
+    filters = Map.merge(socket.assigns.filters, filters_from_params(params))
+    {:noreply, push_patch(socket, to: ~p"/admin/audit?#{non_empty_params(filters)}")}
   end
 
   def handle_event("load_more", _, socket) do
@@ -122,14 +166,40 @@ defmodule LynxWeb.AuditLive do
   end
 
   defp fetch_events(socket, offset) do
+    f = socket.assigns.filters
+
     opts = %{
       offset: offset,
       limit: @per_page,
-      action: non_empty(socket.assigns.filter_action),
-      resource_type: non_empty(socket.assigns.filter_resource)
+      action: non_empty(f.action),
+      resource_type: non_empty(f.resource_type),
+      resource_id: non_empty(f.resource_id),
+      actor: non_empty(f.actor),
+      date_from: parse_date(f.from, :start_of_day),
+      date_to: parse_date(f.to, :end_of_day)
     }
 
     AuditContext.list_events(opts)
+  end
+
+  defp parse_date(nil, _), do: nil
+  defp parse_date("", _), do: nil
+
+  defp parse_date(value, bound) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> date_to_bound(date, bound)
+      _ -> nil
+    end
+  end
+
+  defp date_to_bound(date, :start_of_day), do: DateTime.new!(date, ~T[00:00:00])
+  defp date_to_bound(date, :end_of_day), do: DateTime.new!(date, ~T[23:59:59])
+
+  defp any_filters?(filters), do: filters |> Map.values() |> Enum.any?(&(&1 not in [nil, ""]))
+
+  defp export_url(filters) do
+    qs = filters |> non_empty_params() |> URI.encode_query()
+    if qs == "", do: "/admin/audit/export.csv", else: "/admin/audit/export.csv?#{qs}"
   end
 
   defp non_empty(""), do: nil

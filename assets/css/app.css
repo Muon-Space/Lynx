@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "flatpickr/dist/flatpickr.min.css";
 
 @source "../../lib/lynx_web/**/*.ex";
 @source "../../lib/lynx_web/**/*.heex";
@@ -287,4 +288,78 @@
   --color-flash-error-bg: var(--flash-error-bg);
   --color-flash-error-text: var(--flash-error-text);
   --color-flash-error-border: var(--flash-error-border);
+}
+
+
+/* -- Flatpickr theme --
+ * Flatpickr ships its own default chrome — we override only the surfaces
+ * so the popup matches our themed `bg-surface` / `text-foreground` /
+ * `accent` tokens. The popup structure (week grid, prev/next arrows) is
+ * Flatpickr-rendered and gets these colors via these overrides.
+ */
+.flatpickr-calendar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-foreground);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.flatpickr-calendar.arrowTop:before,
+.flatpickr-calendar.arrowTop:after,
+.flatpickr-calendar.arrowBottom:before,
+.flatpickr-calendar.arrowBottom:after {
+  border-bottom-color: var(--bg-surface);
+  border-top-color: var(--bg-surface);
+}
+.flatpickr-months,
+.flatpickr-month,
+.flatpickr-current-month,
+.flatpickr-monthDropdown-months,
+.flatpickr-current-month input.cur-year {
+  background: var(--bg-surface);
+  color: var(--text-foreground);
+  fill: var(--text-foreground);
+}
+.flatpickr-weekdays,
+span.flatpickr-weekday {
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+.flatpickr-day {
+  color: var(--text-foreground);
+}
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay,
+.flatpickr-day.flatpickr-disabled {
+  color: var(--text-muted);
+}
+.flatpickr-day:hover,
+.flatpickr-day.today:hover {
+  background: var(--bg-surface-secondary);
+  border-color: var(--bg-surface-secondary);
+}
+.flatpickr-day.today {
+  border-color: var(--accent);
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.startRange,
+.flatpickr-day.selected.endRange {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  fill: var(--text-foreground);
+  color: var(--text-foreground);
+}
+.flatpickr-prev-month:hover svg,
+.flatpickr-next-month:hover svg {
+  fill: var(--accent);
+}
+.numInputWrapper:hover,
+.flatpickr-monthDropdown-months:hover {
+  background: var(--bg-surface-secondary);
 }

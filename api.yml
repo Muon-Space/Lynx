@@ -1,339 +1,1135 @@
-openapi: 3.0.1
+---
+components:
+  responses: {}
+  schemas:
+    ProjectCreate:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        team_id:
+          description: Single team UUID (legacy)
+          type: string
+        team_ids:
+          items:
+            description: Team UUID
+            type: string
+          type: array
+      required:
+        - name
+        - slug
+        - description
+      title: ProjectCreate
+      type: object
+    OIDCProviderList:
+      properties:
+        providers:
+          items:
+            $ref: '#/components/schemas/OIDCProvider'
+          type: array
+      title: OIDCProviderList
+      type: object
+    OIDCProvider:
+      properties:
+        audience:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        discoveryUrl:
+          type: string
+        id:
+          description: UUID
+          type: string
+        isActive:
+          type: boolean
+        name:
+          type: string
+        successMessage:
+          description: Present on create/update
+          type: string
+      title: OIDCProvider
+      type: object
+    UserList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        users:
+          items:
+            $ref: '#/components/schemas/User'
+          type: array
+      title: UserList
+      type: object
+    Environment:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          description: UUID
+          type: string
+        isLocked:
+          type: boolean
+        name:
+          type: string
+        project:
+          $ref: '#/components/schemas/EnvironmentProjectRef'
+        secret:
+          description: Static credential for legacy auth
+          type: string
+        slug:
+          type: string
+        stateVersion:
+          type: integer
+        updatedAt:
+          format: date-time
+          type: string
+        username:
+          type: string
+      title: Environment
+      type: object
+    ScimTokenCreate:
+      properties:
+        description:
+          type: string
+      title: ScimTokenCreate
+      type: object
+    ProfileUpdate:
+      properties:
+        email:
+          format: email
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+      title: ProfileUpdate
+      type: object
+    AuditEventList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        events:
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+          type: array
+      title: AuditEventList
+      type: object
+    SamlCertResponse:
+      properties:
+        cert_pem:
+          type: string
+        successMessage:
+          type: string
+      title: SamlCertResponse
+      type: object
+    OIDCRule:
+      properties:
+        claimRules:
+          additionalProperties:
+            type: string
+          type: object
+        createdAt:
+          format: date-time
+          type: string
+        environmentId:
+          type: integer
+        id:
+          description: UUID
+          type: string
+        isActive:
+          type: boolean
+        name:
+          type: string
+        providerId:
+          type: integer
+        successMessage:
+          description: Present on create
+          type: string
+      title: OIDCRule
+      type: object
+    UserCreate:
+      properties:
+        email:
+          format: email
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+        role:
+          enum:
+            - super
+            - regular
+          type: string
+      required:
+        - name
+        - email
+        - role
+      title: UserCreate
+      type: object
+    Project:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        envCount:
+          type: integer
+        id:
+          description: UUID
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        team:
+          description: First team (backwards compat)
+          oneOf:
+            - $ref: '#/components/schemas/ProjectTeamRef'
+            - type: 'null'
+        teams:
+          items:
+            $ref: '#/components/schemas/ProjectTeamRef'
+          type: array
+        updatedAt:
+          format: date-time
+          type: string
+      title: Project
+      type: object
+    SettingsUpdate:
+      properties:
+        app_email:
+          format: email
+          type: string
+        app_name:
+          type: string
+        app_url:
+          type: string
+      title: SettingsUpdate
+      type: object
+    ScimTokenCreated:
+      description: Returned once on creation; the raw token cannot be re-fetched later.
+      properties:
+        description:
+          type: string
+        token:
+          type: string
+        uuid:
+          type: string
+      title: ScimTokenCreated
+      type: object
+    OIDCProviderCreate:
+      properties:
+        audience:
+          type: string
+        discovery_url:
+          type: string
+        name:
+          type: string
+      required:
+        - name
+        - discovery_url
+        - audience
+      title: OIDCProviderCreate
+      type: object
+    SnapshotCreate:
+      properties:
+        description:
+          type: string
+        record_type:
+          enum:
+            - project
+            - environment
+            - unit
+          type: string
+        record_uuid:
+          type: string
+        team_id:
+          description: Team UUID
+          type: string
+        title:
+          type: string
+      required:
+        - title
+        - description
+        - record_type
+        - record_uuid
+        - team_id
+      title: SnapshotCreate
+      type: object
+    ScimToken:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+      title: ScimToken
+      type: object
+    AuditEvent:
+      properties:
+        action:
+          type: string
+        actorId:
+          nullable: true
+          type: integer
+        actorName:
+          nullable: true
+          type: string
+        actorType:
+          enum:
+            - user
+            - system
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: integer
+        metadata:
+          description: JSON-encoded metadata
+          nullable: true
+          type: string
+        resourceId:
+          nullable: true
+          type: string
+        resourceName:
+          nullable: true
+          type: string
+        resourceType:
+          type: string
+      title: AuditEvent
+      type: object
+    Task:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        runAt:
+          format: date-time
+          type: string
+        status:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      title: Task
+      type: object
+    ApiKey:
+      properties:
+        apiKey:
+          type: string
+      title: ApiKey
+      type: object
+    ProjectList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        projects:
+          items:
+            $ref: '#/components/schemas/Project'
+          type: array
+      title: ProjectList
+      type: object
+    OIDCRuleCreate:
+      properties:
+        claim_rules:
+          oneOf:
+            - additionalProperties:
+                type: string
+              type: object
+            - description: Pre-encoded JSON
+              type: string
+        environment_id:
+          description: Environment UUID
+          type: string
+        name:
+          type: string
+        provider_id:
+          description: Provider UUID
+          type: string
+        role_id:
+          description: Role granted on match. Defaults to applier.
+          type: integer
+      required:
+        - name
+        - provider_id
+        - environment_id
+      title: OIDCRuleCreate
+      type: object
+    EnvironmentProjectRef:
+      properties:
+        id:
+          description: Project UUID
+          type: string
+      title: EnvironmentProjectRef
+      type: object
+    ScimTokenList:
+      properties:
+        tokens:
+          items:
+            $ref: '#/components/schemas/ScimToken'
+          type: array
+      title: ScimTokenList
+      type: object
+    Team:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          description: UUID
+          type: string
+        members:
+          items:
+            description: User UUID
+            type: string
+          type: array
+        name:
+          type: string
+        projectsCount:
+          type: integer
+        slug:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        usersCount:
+          type: integer
+      title: Team
+      type: object
+    Success:
+      description: Generic success response
+      properties:
+        successMessage:
+          type: string
+      title: Success
+      type: object
+    ProjectTeamRef:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      title: ProjectTeamRef
+      type: object
+    EnvironmentList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        environments:
+          items:
+            $ref: '#/components/schemas/Environment'
+          type: array
+      title: EnvironmentList
+      type: object
+    SnapshotList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        snapshots:
+          items:
+            $ref: '#/components/schemas/Snapshot'
+          type: array
+      title: SnapshotList
+      type: object
+    TeamCreate:
+      properties:
+        description:
+          type: string
+        members:
+          items:
+            description: User UUID
+            type: string
+          type: array
+        name:
+          type: string
+        slug:
+          type: string
+      required:
+        - name
+        - slug
+        - description
+      title: TeamCreate
+      type: object
+    Error:
+      description: Error response
+      properties:
+        errorMessage:
+          type: string
+      title: Error
+      type: object
+    EnvironmentCreate:
+      properties:
+        name:
+          type: string
+        secret:
+          type: string
+        slug:
+          type: string
+        username:
+          type: string
+      required:
+        - name
+        - slug
+        - username
+        - secret
+      title: EnvironmentCreate
+      type: object
+    SnapshotUpdate:
+      properties:
+        description:
+          type: string
+        team_id:
+          type: string
+        title:
+          type: string
+      title: SnapshotUpdate
+      type: object
+    SsoSettingsUpdate:
+      additionalProperties: true
+      description: SSO + auth toggles. Field set is intentionally permissive — see config docs.
+      properties:
+        auth_password_enabled:
+          type: boolean
+        auth_sso_enabled:
+          type: boolean
+        scim_enabled:
+          type: boolean
+        sso_protocol:
+          enum:
+            - oidc
+            - saml
+          type: string
+      title: SsoSettingsUpdate
+      type: object
+    SnapshotTeamRef:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      title: SnapshotTeamRef
+      type: object
+    ListMetadata:
+      properties:
+        limit:
+          type: integer
+        offset:
+          type: integer
+        totalCount:
+          type: integer
+      title: ListMetadata
+      type: object
+    Snapshot:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          description: UUID
+          type: string
+        record_type:
+          enum:
+            - project
+            - environment
+            - unit
+          type: string
+        record_uuid:
+          type: string
+        status:
+          enum:
+            - success
+            - failure
+            - pending
+          type: string
+        team:
+          $ref: '#/components/schemas/SnapshotTeamRef'
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      title: Snapshot
+      type: object
+    OIDCRuleList:
+      properties:
+        rules:
+          items:
+            $ref: '#/components/schemas/OIDCRule'
+          type: array
+      title: OIDCRuleList
+      type: object
+    TeamList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        teams:
+          items:
+            $ref: '#/components/schemas/Team'
+          type: array
+      title: TeamList
+      type: object
+    User:
+      properties:
+        authProvider:
+          enum:
+            - local
+            - oidc
+            - saml
+            - scim
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        email:
+          format: email
+          type: string
+        id:
+          description: UUID
+          type: string
+        isActive:
+          type: boolean
+        name:
+          type: string
+        role:
+          enum:
+            - super
+            - regular
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      title: User
+      type: object
+  securitySchemes:
+    api_key:
+      description: Per-user API key from `/admin/profile`
+      in: header
+      name: x-api-key
+      type: apiKey
 info:
-  title: Lynx
-  description: 🐺 A Fast, Secure and Reliable Terraform Backend, Set up in Minutes.
   contact:
-    email: hello@clivern.com
+    name: Muon Space
+    url: https://github.com/Muon-Space/Lynx
+  description: |
+    Lynx is a self-hosted Terraform backend. The `/api/v1/*` REST API
+    manages every resource (users, teams, projects, environments,
+    snapshots, OIDC providers, audit log, settings).
+
+    All endpoints require the `x-api-key` header — find your key on
+    `/admin/profile`.
   license:
-    name: MIT License
-    url: https://github.com/Clivern/Lynx/blob/main/LICENSE
+    name: MIT
+    url: https://github.com/Muon-Space/Lynx/blob/main/LICENSE
+  title: Lynx
   version: 0.12.9
-externalDocs:
-  description: Find out more about lynx
-  url: https://github.com/Clivern/Lynx
-servers:
-  - url: https://localhost:4000
+openapi: 3.0.0
 paths:
-  /_health:
+  /api/v1/action/fetch_api_key:
     get:
-      tags:
-        - Liveness
-      summary: Get system health status
+      callbacks: {}
+      operationId: LynxWeb.ProfileController.fetch_api_key
+      parameters: []
       responses:
         '200':
-          description: System is healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
-        '500':
-          description: System is down
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-
-  /_ready:
-    get:
-      tags:
-        - Readiness
-      summary: Get system readiness
-      responses:
-        '200':
-          description: System is ready to accept traffic
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-        '500':
-          description: System not ready to accept traffic
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-
-  /api/v1/user:
-    get:
-      tags:
-        - Users
-      summary: Get a list of users
+                $ref: '#/components/schemas/ApiKey'
+          description: API key
       security:
         - api_key: []
-      parameters:
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 10
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  users:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/User'
-                  metadata:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                      offset:
-                        type: integer
-                      totalCount:
-                        type: integer
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+      summary: Fetch the current user's API key
+      tags:
+        - Profile
+  /api/v1/action/rotate_api_key:
     post:
-      tags:
-        - Users
-      summary: Create a new user
+      callbacks: {}
+      operationId: LynxWeb.ProfileController.rotate_api_key
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+          description: New API key
       security:
         - api_key: []
+      summary: Rotate the current user's API key
+      tags:
+        - Profile
+  /api/v1/action/saml_cert:
+    post:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.generate_saml_cert
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlCertResponse'
+          description: Generated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Generate a SAML SP certificate (super only)
+      tags:
+        - Settings
+  /api/v1/action/scim_token:
+    post:
+      callbacks: {}
+      description: |
+        The token value is returned **once** in this response. Subsequent
+        list-token calls return the metadata only — lost tokens must be
+        revoked and re-minted.
+      operationId: LynxWeb.SettingsController.generate_scim_token
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserCreate'
+              $ref: '#/components/schemas/ScimTokenCreate'
+        description: Token
+        required: false
       responses:
         '201':
-          description: User created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '500':
-          description: Internal Server Error
+                $ref: '#/components/schemas/ScimTokenCreated'
+          description: Minted
+        '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/user/{id}:
-    get:
-      tags:
-        - Users
-      summary: Get a user
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
       security:
         - api_key: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    put:
+      summary: Mint a new SCIM bearer token (super only)
       tags:
-        - Users
-      summary: Update a user
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserUpdate'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+        - Settings
+  /api/v1/action/scim_token/{uuid}:
     delete:
-      tags:
-        - Users
-      summary: Delete a user
-      security:
-        - api_key: []
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.revoke_scim_token
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
       responses:
-        '204':
-          description: Successful response
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Revoked
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/team:
-    post:
-      tags:
-        - Teams
-      summary: Create a new team
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
+      summary: Revoke a SCIM token (super only)
+      tags:
+        - Settings
+  /api/v1/action/scim_tokens:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.list_scim_tokens
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScimTokenList'
+          description: Tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List SCIM tokens (super only) — values masked
+      tags:
+        - Settings
+  /api/v1/action/update_profile:
+    post:
+      callbacks: {}
+      operationId: LynxWeb.ProfileController.update
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TeamCreate'
+              $ref: '#/components/schemas/ProfileUpdate'
+        description: Profile fields
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      security:
+        - api_key: []
+      summary: Update the current user's profile
+      tags:
+        - Profile
+  /api/v1/action/update_settings:
+    put:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.update
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+        description: Settings
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update general app settings (super only)
+      tags:
+        - Settings
+  /api/v1/action/update_sso_settings:
+    put:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.update_sso
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoSettingsUpdate'
+        description: SSO settings
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update SSO + auth settings (super only)
+      tags:
+        - Settings
+  /api/v1/audit:
+    get:
+      callbacks: {}
+      description: All filter params are optional and AND-combined.
+      operationId: LynxWeb.AuditController.list
+      parameters:
+        - description: Exact action match
+          in: query
+          name: action
+          required: false
+          schema:
+            type: string
+        - description: Exact resource type match
+          in: query
+          name: resource_type
+          required: false
+          schema:
+            type: string
+        - description: Exact actor PK
+          in: query
+          name: actor_id
+          required: false
+          schema:
+            type: integer
+        - description: Default 50
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventList'
+          description: Events
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List audit events (super only)
+      tags:
+        - Audit
+  /api/v1/environment/{e_uuid}/lock:
+    post:
+      callbacks: {}
+      description: Requires `state:lock` on the env's project.
+      operationId: LynxWeb.EnvironmentController.force_lock
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Locked
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Force-lock an environment
+      tags:
+        - Environments
+  /api/v1/environment/{e_uuid}/unlock:
+    post:
+      callbacks: {}
+      description: |
+        Clears the active lock — the destructive variant. Requires
+        `state:force_unlock` (admin only). Note that the routine post-apply
+        unlock that Terraform calls automatically uses `/tf/.../unlock` and
+        only requires `state:unlock`.
+      operationId: LynxWeb.EnvironmentController.force_unlock
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Unlocked
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Force-unlock an environment (admin only)
+      tags:
+        - Environments
+  /api/v1/oidc_provider:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.list_providers
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCProviderList'
+          description: Providers
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List OIDC providers (super only)
+      tags:
+        - OIDC
+    post:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.create_provider
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OIDCProviderCreate'
+        description: Provider
+        required: false
       responses:
         '201':
-          description: Team created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Team'
-        '500':
-          description: Internal Server Error
+                $ref: '#/components/schemas/OIDCProvider'
+          description: Created
+        '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    get:
-      tags:
-        - Teams
-      summary: Get a list of teams
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
       security:
         - api_key: []
-      parameters:
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 10
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  teams:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Team'
-                  metadata:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                      offset:
-                        type: integer
-                      totalCount:
-                        type: integer
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/team/{id}:
-    get:
+      summary: Create an OIDC provider (super only)
       tags:
-        - Teams
-      summary: Get a team
-      security:
-        - api_key: []
+        - OIDC
+  /api/v1/oidc_provider/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.delete_provider
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Team'
+                $ref: '#/components/schemas/Success'
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    put:
-      tags:
-        - Teams
-      summary: Update a team
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
+      summary: Delete an OIDC provider (super only)
+      tags:
+        - OIDC
+    put:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.update_provider
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
@@ -341,235 +1137,268 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TeamUpdate'
+              $ref: '#/components/schemas/OIDCProviderCreate'
+        description: Provider
+        required: false
       responses:
         '200':
-          description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Team'
+                $ref: '#/components/schemas/OIDCProvider'
+          description: Provider
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    delete:
-      tags:
-        - Teams
-      summary: Delete a team
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
+      summary: Update an OIDC provider (super only)
+      tags:
+        - OIDC
+  /api/v1/oidc_rule:
+    post:
+      callbacks: {}
+      description: Requires `oidc_rule:manage` (admin) on the env's project.
+      operationId: LynxWeb.OIDCProviderController.create_rule
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OIDCRuleCreate'
+        description: Rule
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCRule'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Create an OIDC access rule
+      tags:
+        - OIDC
+  /api/v1/oidc_rule/{environment_id}:
+    get:
+      callbacks: {}
+      description: Requires `oidc_rule:manage` (admin) on the env's project.
+      operationId: LynxWeb.OIDCProviderController.list_rules
       parameters:
-        - in: path
-          name: id
+        - description: Environment UUID
+          in: path
+          name: environment_id
           required: true
           schema:
             type: string
       responses:
-        '204':
-          description: Successful response
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCRuleList'
+          description: Rules
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: List OIDC access rules for an environment
+      tags:
+        - OIDC
+  /api/v1/oidc_rule/{uuid}:
+    delete:
+      callbacks: {}
+      description: Requires `oidc_rule:manage` (admin) on the env's project.
+      operationId: LynxWeb.OIDCProviderController.delete_rule
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+                $ref: '#/components/schemas/Success'
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete an OIDC access rule
+      tags:
+        - OIDC
   /api/v1/project:
-    post:
+    get:
+      callbacks: {}
+      description: Returns projects the requesting user has any access to (super sees all).
+      operationId: LynxWeb.ProjectController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectList'
+          description: Projects
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List projects
       tags:
         - Projects
-      summary: Create a new project
-      security:
-        - api_key: []
+    post:
+      callbacks: {}
+      operationId: LynxWeb.ProjectController.create
+      parameters: []
       requestBody:
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ProjectCreate'
+        description: Project
+        required: false
       responses:
         '201':
-          description: Project created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Project'
-        '500':
-          description: Internal Server Error
+          description: Created
+        '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    get:
-      tags:
-        - Projects
-      summary: Get a list of projects
+                $ref: '#/components/schemas/Error'
+          description: Validation error
       security:
         - api_key: []
+      summary: Create a project
+      tags:
+        - Projects
+  /api/v1/project/{p_uuid}/environment:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.EnvironmentController.list
       parameters:
-        - in: query
+        - description: Project UUID
+          in: path
+          name: p_uuid
+          required: true
+          schema:
+            type: string
+        - description: Default 10
+          in: query
           name: limit
+          required: false
           schema:
             type: integer
-            default: 10
-        - in: query
+        - description: Default 0
+          in: query
           name: offset
+          required: false
           schema:
             type: integer
-            default: 0
       responses:
         '200':
-          description: Successful response
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  projects:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Project'
-                  metadata:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                      offset:
-                        type: integer
-                      totalCount:
-                        type: integer
-        '500':
-          description: Internal Server Error
+                $ref: '#/components/schemas/EnvironmentList'
+          description: Environments
+        '404':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/project/{id}:
-    get:
-      tags:
-        - Projects
-      summary: Get a project
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    put:
-      tags:
-        - Projects
-      summary: Update a project
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProjectUpdate'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    delete:
-      tags:
-        - Projects
-      summary: Delete a project
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Successful response
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-
-  /api/v1/project/{projectId}/environment:
-    post:
+      summary: List environments in a project
       tags:
         - Environments
-      summary: Create a new environment
-      security:
-        - api_key: []
+    post:
+      callbacks: {}
+      description: Requires `env:manage` (admin) on the project.
+      operationId: LynxWeb.EnvironmentController.create
       parameters:
-        - in: path
-          name: projectId
+        - description: Project UUID
+          in: path
+          name: p_uuid
           required: true
           schema:
             type: string
@@ -578,296 +1407,423 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/EnvironmentCreate'
+        description: Environment
+        required: false
       responses:
         '201':
-          description: Environment created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Environment'
-        '500':
-          description: Internal Server Error
+          description: Created
+        '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    get:
-      tags:
-        - Environments
-      summary: Get a list of environments
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
       security:
         - api_key: []
-      parameters:
-        - in: path
-          name: projectId
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 10
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  environments:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Environment'
-                  metadata:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                      offset:
-                        type: integer
-                      totalCount:
-                        type: integer
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/project/{projectId}/environment/{environmentId}:
-    get:
+      summary: Create an environment
       tags:
         - Environments
-      summary: Get an environment
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: projectId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: environmentId
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Environment'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    put:
-      tags:
-        - Environments
-      summary: Update an environment
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: projectId
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: environmentId
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EnvironmentUpdate'
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Environment'
-        '404':
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+  /api/v1/project/{p_uuid}/environment/{e_uuid}:
     delete:
-      tags:
-        - Environments
-      summary: Delete an environment
-      security:
-        - api_key: []
+      callbacks: {}
+      description: Requires `env:manage` (admin) on the project.
+      operationId: LynxWeb.EnvironmentController.delete
       parameters:
-        - in: path
-          name: projectId
+        - description: ''
+          in: path
+          name: p_uuid
           required: true
           schema:
             type: string
-        - in: path
-          name: environmentId
+        - description: ''
+          in: path
+          name: e_uuid
           required: true
           schema:
             type: string
       responses:
         '204':
-          description: Successful response
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/snapshot:
-    post:
-      tags:
-        - Snapshots
-      summary: Create a new snapshot
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SnapshotCreate'
-      responses:
-        '201':
-          description: Snapshot created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Snapshot'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+      summary: Delete an environment
+      tags:
+        - Environments
     get:
-      tags:
-        - Snapshots
-      summary: Get a list of snapshots
-      security:
-        - api_key: []
+      callbacks: {}
+      operationId: LynxWeb.EnvironmentController.index
       parameters:
-        - in: query
-          name: limit
+        - description: Project UUID
+          in: path
+          name: p_uuid
+          required: true
           schema:
-            type: integer
-            default: 10
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  snapshots:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Snapshot'
-                  metadata:
-                    type: object
-                    properties:
-                      limit:
-                        type: integer
-                      offset:
-                        type: integer
-                      totalCount:
-                        type: integer
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/snapshot/{id}:
-    get:
-      tags:
-        - Snapshots
-      summary: Get a snapshot
-      security:
-        - api_key: []
-      parameters:
-        - in: path
-          name: id
+            type: string
+        - description: Environment UUID
+          in: path
+          name: e_uuid
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+          description: Environment
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get an environment by UUID
+      tags:
+        - Environments
+    put:
+      callbacks: {}
+      description: Requires `env:manage` (admin) on the project.
+      operationId: LynxWeb.EnvironmentController.update
+      parameters:
+        - description: ''
+          in: path
+          name: p_uuid
+          required: true
+          schema:
+            type: string
+        - description: ''
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnvironmentCreate'
+        description: Environment
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Environment'
+          description: Environment
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update an environment
+      tags:
+        - Environments
+  /api/v1/project/{uuid}:
+    delete:
+      callbacks: {}
+      description: Requires `project:manage` (admin role) on the project.
+      operationId: LynxWeb.ProjectController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a project
+      tags:
+        - Projects
+    get:
+      callbacks: {}
+      operationId: LynxWeb.ProjectController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: Project
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a project by UUID
+      tags:
+        - Projects
+    put:
+      callbacks: {}
+      description: Requires `project:manage` (admin role) on the project.
+      operationId: LynxWeb.ProjectController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+        description: Project
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: Project
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update a project
+      tags:
+        - Projects
+  /api/v1/snapshot:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotList'
+          description: Snapshots
+      security:
+        - api_key: []
+      summary: List snapshots
+      tags:
+        - Snapshots
+    post:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotCreate'
+        description: Snapshot
+        required: false
+      responses:
+        '201':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Snapshot'
-        '404':
-          description: Resource not found
+          description: Created
+        '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    put:
-      tags:
-        - Snapshots
-      summary: Update a snapshot
+                $ref: '#/components/schemas/Error'
+          description: Validation error
       security:
         - api_key: []
+      summary: Create a snapshot
+      tags:
+        - Snapshots
+  /api/v1/snapshot/restore/{uuid}:
+    post:
+      callbacks: {}
+      description: |
+        Re-creates environments and replays state versions from the snapshot.
+        Requires the `snapshot:restore` permission (admin role) on the
+        snapshot's owning project.
+      operationId: LynxWeb.SnapshotController.restore
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Restored
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Restore a snapshot (admin only)
+      tags:
+        - Snapshots
+  /api/v1/snapshot/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a snapshot
+      tags:
+        - Snapshots
+    get:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+          description: Snapshot
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a snapshot by UUID
+      tags:
+        - Snapshots
+    put:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
@@ -876,379 +1832,398 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SnapshotUpdate'
+        description: Snapshot
+        required: false
       responses:
         '200':
-          description: Successful response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Snapshot'
-        '404':
-          description: Resource not found
+          description: Snapshot
+        '400':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    delete:
-      tags:
-        - Snapshots
-      summary: Delete a snapshot
+                $ref: '#/components/schemas/Error'
+          description: Validation error
       security:
         - api_key: []
+      summary: Update a snapshot
+      tags:
+        - Snapshots
+  /api/v1/task/{uuid}:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.TaskController.index
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          description: Task
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a task by UUID
+      tags:
+        - Tasks
+  /api/v1/team:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamList'
+          description: Teams
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List teams
+      tags:
+        - Teams
+    post:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreate'
+        description: Team
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Create a team (super only)
+      tags:
+        - Teams
+  /api/v1/team/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
       responses:
         '204':
-          description: Successful response
-        '404':
-          description: Resource not found
+          description: Team deleted
+        '403':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/task/{id}:
-    get:
-      tags:
-        - Tasks
-      summary: Get a task
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
       security:
         - api_key: []
+      summary: Delete a team (super only)
+      tags:
+        - Teams
+    get:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.index
       parameters:
-        - in: path
-          name: id
+        - description: ''
+          in: path
+          name: uuid
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Successful response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Task'
+                $ref: '#/components/schemas/Team'
+          description: Team
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
-          description: Resource not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal Server Error
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a team by UUID (super only)
+      tags:
+        - Teams
+    put:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreate'
+        description: Team
+        required: false
+      responses:
+        '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-components:
-  schemas:
-    HealthResponse:
-      type: object
-      properties:
-        status:
-          type: string
-        errorMessage:
-          type: string
-
-    User:
-      type: object
-      properties:
-        id:
-          type: string
-        email:
-          type: string
-        name:
-          type: string
-        role:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    UserCreate:
-      type: object
-      properties:
-        email:
-          type: string
-        name:
-          type: string
-        role:
-          type: string
-        password:
-          type: string
-
-    UserUpdate:
-      type: object
-      properties:
-        email:
-          type: string
-        name:
-          type: string
-        role:
-          type: string
-        password:
-          type: string
-
-    Team:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        slug:
-          type: string
-        usersCount:
-          type: integer
-        projectsCount:
-          type: integer
-        description:
-          type: string
-        members:
-          type: array
-          items:
+                $ref: '#/components/schemas/Team'
+          description: Team
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update a team (super only)
+      tags:
+        - Teams
+  /api/v1/user:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.UserController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+          description: Users
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List users (super only)
+      tags:
+        - Users
+    post:
+      callbacks: {}
+      operationId: LynxWeb.UserController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        description: User
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Create a user (super only)
+      tags:
+        - Users
+  /api/v1/user/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.UserController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
             type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    TeamCreate:
-      type: object
-      properties:
-        slug:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        members:
-          type: array
-          items:
+      responses:
+        '204':
+          description: User deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Delete a user (super only)
+      tags:
+        - Users
+    get:
+      callbacks: {}
+      operationId: LynxWeb.UserController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
             type: string
-
-    TeamUpdate:
-      type: object
-      properties:
-        slug:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        members:
-          type: array
-          items:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: User
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a user by UUID (super only)
+      tags:
+        - Users
+    put:
+      callbacks: {}
+      operationId: LynxWeb.UserController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
             type: string
-
-    Project:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        slug:
-          type: string
-        description:
-          type: string
-        team:
-          type: object
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-            slug:
-              type: string
-        envCount:
-          type: integer
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    ProjectCreate:
-      type: object
-      properties:
-        slug:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        team_id:
-          type: integer
-
-    ProjectUpdate:
-      type: object
-      properties:
-        slug:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        team_id:
-          type: integer
-
-    Environment:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        slug:
-          type: string
-        username:
-          type: string
-        isLocked:
-          type: boolean
-        stateVersion:
-          type: integer
-        project:
-          type: object
-          properties:
-            id:
-              type: string
-        secret:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    EnvironmentCreate:
-      type: object
-      properties:
-        name:
-          type: string
-        slug:
-          type: string
-        username:
-          type: string
-        secret:
-          type: string
-
-    EnvironmentUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-        slug:
-          type: string
-        username:
-          type: string
-        secret:
-          type: string
-
-    Snapshot:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        description:
-          type: string
-        record_type:
-          type: string
-        record_uuid:
-          type: string
-        status:
-          type: string
-        team:
-          type: object
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-            slug:
-              type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    SnapshotCreate:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        record_type:
-          type: string
-        record_uuid:
-          type: string
-        team_id:
-          type: integer
-
-    SnapshotUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        team_id:
-          type: integer
-
-    Task:
-      type: object
-      properties:
-        id:
-          type: string
-        status:
-          type: string
-        runAt:
-          type: string
-          format: date-time
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-
-    ErrorResponse:
-      type: object
-      properties:
-        errorMessage:
-          type: string
-
-  securitySchemes:
-    api_key:
-      type: apiKey
-      in: header
-      name: x-api-key
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        description: User
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: User
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update a user (super only)
+      tags:
+        - Users
+security:
+  - api_key: []
+servers:
+  - url: http://localhost:4000
+    variables: {}
+tags: []

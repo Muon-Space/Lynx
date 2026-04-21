@@ -69,6 +69,49 @@ defmodule LynxWeb.AuditLiveTest do
 
       assert render(view) =~ "Event A"
     end
+
+    test "URL params restore filter state on mount", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "created", "project", "p1", "ProjectKeep")
+      AuditContext.log_user(user, "created", "team", "t1", "TeamDrop")
+
+      {:ok, _view, html} = live(conn, "/admin/audit?resource_type=project")
+
+      assert html =~ "ProjectKeep"
+      refute html =~ "TeamDrop"
+    end
+
+    test "filter event patches the URL with the new filter set", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/admin/audit")
+
+      render_change(view, "filter", %{
+        "action" => "created",
+        "resource_type" => "",
+        "resource_id" => "",
+        "actor_email" => "",
+        "from" => "",
+        "to" => ""
+      })
+
+      assert assert_patch(view) =~ "action=created"
+    end
+
+    test "filters by resource_id (per-resource timeline)", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "created", "project", "keep-id", "ProjectKeep")
+      AuditContext.log_user(user, "created", "project", "drop-id", "ProjectDrop")
+
+      {:ok, _view, html} = live(conn, "/admin/audit?resource_type=project&resource_id=keep-id")
+
+      assert html =~ "ProjectKeep"
+      refute html =~ "ProjectDrop"
+    end
+
+    test "exports CSV link reflects current filter set", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/audit?action=created&resource_type=project")
+      # The Export CSV anchor's href is built from non-empty filters.
+      assert html =~ ~s(/admin/audit/export.csv?)
+      assert html =~ "action=created"
+      assert html =~ "resource_type=project"
+    end
   end
 
   defp count_events(html) do

@@ -8,10 +8,12 @@ defmodule LynxWeb.TeamController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   alias Lynx.Context.TeamContext
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
+  alias LynxWeb.Schemas
 
   require Logger
 
@@ -27,6 +29,61 @@ defmodule LynxWeb.TeamController do
 
   plug :regular_user when action in [:list]
   plug :super_user when action in [:index, :create, :update, :delete]
+
+  tags(["Teams"])
+  security([%{"api_key" => []}])
+
+  operation(:list,
+    summary: "List teams",
+    parameters: [
+      limit: [in: :query, type: :integer, description: "Default 10"],
+      offset: [in: :query, type: :integer, description: "Default 0"]
+    ],
+    responses: [
+      ok: {"Teams", "application/json", Schemas.TeamList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:create,
+    summary: "Create a team (super only)",
+    request_body: {"Team", "application/json", Schemas.TeamCreate},
+    responses: [
+      created: {"Created", "application/json", Schemas.Team},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:index,
+    summary: "Get a team by UUID (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      ok: {"Team", "application/json", Schemas.Team},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update,
+    summary: "Update a team (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    request_body: {"Team", "application/json", Schemas.TeamCreate},
+    responses: [
+      ok: {"Team", "application/json", Schemas.Team},
+      bad_request: {"Validation error", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:delete,
+    summary: "Delete a team (super only)",
+    parameters: [uuid: [in: :path, required: true, type: :string]],
+    responses: [
+      no_content: "Team deleted",
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")

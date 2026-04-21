@@ -8,6 +8,7 @@ defmodule LynxWeb.SettingsController do
   """
 
   use LynxWeb, :controller
+  use OpenApiSpex.ControllerSpecs
 
   require Logger
 
@@ -18,6 +19,7 @@ defmodule LynxWeb.SettingsController do
   alias Lynx.Context.SCIMTokenContext
   alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
+  alias LynxWeb.Schemas
 
   plug :super_user
        when action in [
@@ -28,6 +30,70 @@ defmodule LynxWeb.SettingsController do
               :revoke_scim_token,
               :list_scim_tokens
             ]
+
+  tags(["Settings"])
+  security([%{"api_key" => []}])
+
+  operation(:update,
+    summary: "Update general app settings (super only)",
+    request_body: {"Settings", "application/json", Schemas.SettingsUpdate},
+    responses: [
+      ok: {"Updated", "application/json", Schemas.Success},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      bad_request: {"Validation error", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:update_sso,
+    summary: "Update SSO + auth settings (super only)",
+    request_body: {"SSO settings", "application/json", Schemas.SsoSettingsUpdate},
+    responses: [
+      ok: {"Updated", "application/json", Schemas.Success},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:generate_saml_cert,
+    summary: "Generate a SAML SP certificate (super only)",
+    responses: [
+      ok: {"Generated", "application/json", Schemas.SamlCertResponse},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:generate_scim_token,
+    summary: "Mint a new SCIM bearer token (super only)",
+    description: """
+    The token value is returned **once** in this response. Subsequent
+    list-token calls return the metadata only — lost tokens must be
+    revoked and re-minted.
+    """,
+    request_body: {"Token", "application/json", Schemas.ScimTokenCreate},
+    responses: [
+      created: {"Minted", "application/json", Schemas.ScimTokenCreated},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:list_scim_tokens,
+    summary: "List SCIM tokens (super only) — values masked",
+    responses: [
+      ok: {"Tokens", "application/json", Schemas.ScimTokenList},
+      forbidden: {"Forbidden", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:revoke_scim_token,
+    summary: "Revoke a SCIM token (super only)",
+    parameters: [
+      uuid: [in: :path, required: true, type: :string]
+    ],
+    responses: [
+      ok: {"Revoked", "application/json", Schemas.Success},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error}
+    ]
+  )
 
   defp super_user(conn, _opts) do
     Logger.info("Validate user permissions")

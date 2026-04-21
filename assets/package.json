@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "diff": "^9.0.0"
+    "diff": "^9.0.0",
+    "flatpickr": "^4.6.13"
   }
 }

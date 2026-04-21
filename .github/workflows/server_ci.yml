@@ -49,3 +49,8 @@ jobs:
 
       - name: Build Lynx
         run: make build
+
+      # Fails if `api.yml` has drifted from controller `@operation` annotations.
+      # Regenerate locally with `mix lynx.openapi.dump` and commit the result.
+      - name: Check OpenAPI spec drift
+        run: make openapi_check
