@@ -1,11 +1,11 @@
 defmodule LynxWeb.InstallLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.InstallModule
+  alias Lynx.Service.Install
 
   @impl true
   def mount(_params, _session, socket) do
-    if InstallModule.is_installed() do
+    if Install.is_installed() do
       {:ok, redirect(socket, to: "/")}
     else
       {:ok, assign(socket, form: to_form(%{}, as: :install), error: nil)}
@@ -50,16 +50,16 @@ defmodule LynxWeb.InstallLive do
 
   @impl true
   def handle_event("install", params, socket) do
-    app_key = InstallModule.get_app_key()
+    app_key = Install.get_app_key()
 
-    InstallModule.store_configs(%{
+    Install.store_configs(%{
       app_name: params["app_name"] || "Lynx",
       app_url: params["app_url"] || "http://lynx.sh",
       app_email: params["app_email"] || "no_reply@lynx.sh",
       app_key: app_key
     })
 
-    case InstallModule.create_admin(%{
+    case Install.create_admin(%{
            admin_name: params["admin_name"] || "",
            admin_email: params["admin_email"] || "",
            admin_password: params["admin_password"] || "",

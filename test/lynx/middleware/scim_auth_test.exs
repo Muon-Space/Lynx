@@ -5,16 +5,16 @@
 defmodule Lynx.Middleware.SCIMAuthMiddlewareTest do
   use LynxWeb.ConnCase
 
-  alias Lynx.Module.SCIMTokenModule
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Context.SCIMTokenContext
+  alias Lynx.Service.Settings
 
   setup do
-    SettingsModule.upsert_config("scim_enabled", "true")
+    Settings.upsert_config("scim_enabled", "true")
 
-    {:ok, token_result} = SCIMTokenModule.generate_token("test token")
+    {:ok, token_result} = SCIMTokenContext.generate_token("test token")
 
     on_exit(fn ->
-      SettingsModule.upsert_config("scim_enabled", "false")
+      Settings.upsert_config("scim_enabled", "false")
     end)
 
     {:ok, token: token_result.token}
@@ -47,7 +47,7 @@ defmodule Lynx.Middleware.SCIMAuthMiddlewareTest do
   end
 
   test "halts with 404 when SCIM is disabled", %{conn: conn, token: token} do
-    SettingsModule.upsert_config("scim_enabled", "false")
+    Settings.upsert_config("scim_enabled", "false")
 
     conn =
       conn

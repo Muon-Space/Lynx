@@ -1,12 +1,12 @@
 defmodule LynxWeb.SnapshotLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.SnapshotModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.SnapshotContext
+  alias Lynx.Context.AuditContext
 
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
-    case SnapshotModule.get_snapshot_by_uuid(uuid) do
+    case SnapshotContext.fetch_snapshot_by_uuid(uuid) do
       {:not_found, _} ->
         {:ok, redirect(socket, to: "/admin/snapshots")}
 
@@ -165,9 +165,9 @@ defmodule LynxWeb.SnapshotLive do
   def handle_event("restore_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case SnapshotModule.restore_snapshot(uuid) do
+    case SnapshotContext.restore_snapshot(uuid) do
       {:ok, _} ->
-        AuditModule.log_user(
+        AuditContext.log_user(
           socket.assigns.current_user,
           "restored",
           "snapshot",
@@ -185,9 +185,9 @@ defmodule LynxWeb.SnapshotLive do
   def handle_event("delete_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case SnapshotModule.delete_snapshot_by_uuid(uuid) do
+    case SnapshotContext.delete_snapshot_by_uuid(uuid) do
       {:ok, _} ->
-        AuditModule.log_user(socket.assigns.current_user, "deleted", "snapshot", uuid)
+        AuditContext.log_user(socket.assigns.current_user, "deleted", "snapshot", uuid)
         {:noreply, redirect(socket, to: "/admin/snapshots")}
 
       _ ->

@@ -4,7 +4,7 @@ defmodule LynxWeb.UsersLiveTest do
   alias Lynx.Context.UserContext
 
   setup %{conn: conn} do
-    # UsersLive.create_user uses UserModule.create_user, which derives the
+    # UsersLive.create_user uses UserContext.create_user, which derives the
     # bcrypt salt from the `app_key` config — must be seeded.
     mark_installed()
     user = create_super(%{name: "Admin"})
@@ -135,7 +135,11 @@ defmodule LynxWeb.UsersLiveTest do
       project = create_project(%{name: "Beacon", workspace_id: workspace.id})
 
       {:ok, team} =
-        Lynx.Module.TeamModule.create_team(%{name: "Infra", slug: "infra-x", description: "x"})
+        Lynx.Context.TeamContext.create_team_from_data(%{
+          name: "Infra",
+          slug: "infra-x",
+          description: "x"
+        })
 
       {:ok, _} = Lynx.Context.UserContext.add_user_to_team(target.id, team.id)
       applier = RoleContext.get_role_by_name("applier")

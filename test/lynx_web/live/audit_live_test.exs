@@ -1,7 +1,7 @@
 defmodule LynxWeb.AuditLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.AuditContext
 
   setup %{conn: conn} do
     user = create_super()
@@ -22,7 +22,7 @@ defmodule LynxWeb.AuditLiveTest do
     end
 
     test "lists existing audit events", %{conn: conn, user: user} do
-      AuditModule.log_user(user, "created", "project", "p-uuid", "Cool Project")
+      AuditContext.log_user(user, "created", "project", "p-uuid", "Cool Project")
 
       {:ok, _view, html} = live(conn, "/admin/audit")
       assert html =~ "Cool Project"
@@ -33,8 +33,8 @@ defmodule LynxWeb.AuditLiveTest do
 
   describe "filter event" do
     test "filters by action", %{conn: conn, user: user} do
-      AuditModule.log_user(user, "created", "project", "p1", "Will Match")
-      AuditModule.log_user(user, "deleted", "project", "p2", "Wont Match")
+      AuditContext.log_user(user, "created", "project", "p1", "Will Match")
+      AuditContext.log_user(user, "deleted", "project", "p2", "Wont Match")
 
       {:ok, view, _} = live(conn, "/admin/audit")
 
@@ -50,8 +50,8 @@ defmodule LynxWeb.AuditLiveTest do
     end
 
     test "filters by resource type", %{conn: conn, user: user} do
-      AuditModule.log_user(user, "created", "project", "p1", "ProjectMatch")
-      AuditModule.log_user(user, "created", "team", "t1", "TeamMatch")
+      AuditContext.log_user(user, "created", "project", "p1", "ProjectMatch")
+      AuditContext.log_user(user, "created", "team", "t1", "TeamMatch")
 
       {:ok, view, _} = live(conn, "/admin/audit")
       render_change(view, "filter", %{"action" => "", "resource_type" => "team"})
@@ -62,7 +62,7 @@ defmodule LynxWeb.AuditLiveTest do
     end
 
     test "empty filter values show all events", %{conn: conn, user: user} do
-      AuditModule.log_user(user, "created", "project", "p1", "Event A")
+      AuditContext.log_user(user, "created", "project", "p1", "Event A")
 
       {:ok, view, _} = live(conn, "/admin/audit")
       render_change(view, "filter", %{"action" => "", "resource_type" => ""})

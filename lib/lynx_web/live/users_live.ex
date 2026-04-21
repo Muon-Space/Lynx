@@ -1,9 +1,9 @@
 defmodule LynxWeb.UsersLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.UserModule
-  alias Lynx.Module.AuditModule
-  alias Lynx.Module.RoleModule
+  alias Lynx.Context.UserContext
+  alias Lynx.Context.AuditContext
+  alias Lynx.Context.RoleContext
 
   @per_page 10
 
@@ -112,7 +112,7 @@ defmodule LynxWeb.UsersLive do
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_user, nil)}
 
   def handle_event("create_user", params, socket) do
-    case UserModule.create_user(%{
+    case UserContext.create_user_from_data(%{
            name: params["name"],
            email: params["email"],
            password: params["password"],
@@ -120,7 +120,13 @@ defmodule LynxWeb.UsersLive do
            api_key: Ecto.UUID.generate()
          }) do
       {:ok, user} ->
-        AuditModule.log_user(socket.assigns.current_user, "created", "user", user.uuid, user.name)
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "created",
+          "user",
+          user.uuid,
+          user.name
+        )
 
         {:noreply,
          socket
@@ -134,14 +140,14 @@ defmodule LynxWeb.UsersLive do
   end
 
   def handle_event("edit_user", %{"uuid" => uuid}, socket) do
-    case UserModule.get_user_by_uuid(uuid) do
+    case UserContext.fetch_user_by_uuid(uuid) do
       {:ok, user} -> {:noreply, assign(socket, :editing_user, user)}
       _ -> {:noreply, put_flash(socket, :error, "User not found")}
     end
   end
 
   def handle_event("update_user", params, socket) do
-    case UserModule.update_user(%{
+    case UserContext.update_user_from_data(%{
            uuid: socket.assigns.editing_user.uuid,
            name: params["name"],
            email: params["email"],
@@ -163,9 +169,9 @@ defmodule LynxWeb.UsersLive do
   def handle_event("delete_user", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case UserModule.delete_user_by_uuid(uuid) do
+    case UserContext.delete_user_by_uuid(uuid) do
       {:ok, _} ->
-        AuditModule.log_user(socket.assigns.current_user, "deleted", "user", uuid)
+        AuditContext.log_user(socket.assigns.current_user, "deleted", "user", uuid)
         {:noreply, socket |> put_flash(:info, "User deleted") |> load_users()}
 
       _ ->
@@ -193,12 +199,12 @@ defmodule LynxWeb.UsersLive do
     offset = (socket.assigns.page - 1) * socket.assigns.per_page
 
     users =
-      UserModule.get_users(offset, socket.assigns.per_page)
+      UserContext.get_users(offset, socket.assigns.per_page)
       |> Enum.map(fn user ->
-        Map.put(user, :assignments, RoleModule.list_user_project_access(user))
+        Map.put(user, :assignments, RoleContext.list_user_project_access(user))
       end)
 
-    total = UserModule.count_users()
+    total = UserContext.count_users()
     total_pages = max(ceil(total / socket.assigns.per_page), 1)
 
     socket

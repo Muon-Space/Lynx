@@ -1,7 +1,7 @@
 defmodule LynxWeb.InstallController do
   use LynxWeb, :controller
 
-  alias Lynx.Module.InstallModule
+  alias Lynx.Service.Install
   alias Lynx.Service.ValidatorService
 
   @admin_name_min_length 2
@@ -10,19 +10,19 @@ defmodule LynxWeb.InstallController do
   @app_name_max_length 60
 
   def install(conn, params) do
-    if not InstallModule.is_installed() do
+    if not Install.is_installed() do
       case validate_install_request(params) do
         {:ok, _} ->
-          app_key = InstallModule.get_app_key()
+          app_key = Install.get_app_key()
 
-          InstallModule.store_configs(%{
+          Install.store_configs(%{
             app_name: params["app_name"] || "Lynx",
             app_url: params["app_url"] || "http://lynx.sh",
             app_email: params["app_email"] || "no_reply@lynx.sh",
             app_key: app_key
           })
 
-          InstallModule.create_admin(%{
+          Install.create_admin(%{
             admin_name: params["admin_name"] || "",
             admin_email: params["admin_email"] || "",
             admin_password: params["admin_password"] || "",

@@ -11,7 +11,7 @@ defmodule LynxWeb.TaskController do
 
   require Logger
 
-  alias Lynx.Module.TaskModule
+  alias Lynx.Context.TaskContext
 
   plug :regular_user when action in [:index]
 
@@ -36,7 +36,7 @@ defmodule LynxWeb.TaskController do
   Index Action Endpoint
   """
   def index(conn, %{"uuid" => uuid}) do
-    case TaskModule.get_task_by_uuid(uuid) do
+    case TaskContext.fetch_task_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)

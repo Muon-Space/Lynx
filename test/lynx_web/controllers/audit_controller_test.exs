@@ -1,7 +1,7 @@
 defmodule LynxWeb.AuditControllerTest do
   use LynxWeb.ConnCase
 
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.AuditContext
   alias Lynx.Context.UserContext
 
   setup %{conn: conn} do
@@ -48,8 +48,8 @@ defmodule LynxWeb.AuditControllerTest do
     end
 
     test "returns logged events", %{conn: conn, api_key: api_key, admin: admin} do
-      AuditModule.log_user(admin, "created", "project", "p-uuid-1", "Cool Project")
-      AuditModule.log_user(admin, "deleted", "team", "t-uuid-1", "Old Team")
+      AuditContext.log_user(admin, "created", "project", "p-uuid-1", "Cool Project")
+      AuditContext.log_user(admin, "deleted", "team", "t-uuid-1", "Old Team")
 
       conn = conn |> with_api_key(api_key) |> get("/api/v1/audit")
       body = json_response(conn, 200)
@@ -60,8 +60,8 @@ defmodule LynxWeb.AuditControllerTest do
     end
 
     test "filters by action param", %{conn: conn, api_key: api_key, admin: admin} do
-      AuditModule.log_user(admin, "created", "project", "p1", "Created Item")
-      AuditModule.log_user(admin, "deleted", "project", "p2", "Deleted Item")
+      AuditContext.log_user(admin, "created", "project", "p1", "Created Item")
+      AuditContext.log_user(admin, "deleted", "project", "p2", "Deleted Item")
 
       conn = conn |> with_api_key(api_key) |> get("/api/v1/audit?action=created")
       body = json_response(conn, 200)
@@ -72,8 +72,8 @@ defmodule LynxWeb.AuditControllerTest do
     end
 
     test "filters by resource_type param", %{conn: conn, api_key: api_key, admin: admin} do
-      AuditModule.log_user(admin, "created", "project", "p1", "ProjOne")
-      AuditModule.log_user(admin, "created", "team", "t1", "TeamOne")
+      AuditContext.log_user(admin, "created", "project", "p1", "ProjOne")
+      AuditContext.log_user(admin, "created", "team", "t1", "TeamOne")
 
       conn = conn |> with_api_key(api_key) |> get("/api/v1/audit?resource_type=team")
       body = json_response(conn, 200)
@@ -85,7 +85,7 @@ defmodule LynxWeb.AuditControllerTest do
 
     test "respects limit and offset query params", %{conn: conn, api_key: api_key, admin: admin} do
       for i <- 1..5 do
-        AuditModule.log_user(admin, "created", "project", "p#{i}", "Item #{i}")
+        AuditContext.log_user(admin, "created", "project", "p#{i}", "Item #{i}")
       end
 
       conn = conn |> with_api_key(api_key) |> get("/api/v1/audit?limit=2&offset=1")

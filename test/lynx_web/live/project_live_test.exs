@@ -1,7 +1,7 @@
 defmodule LynxWeb.ProjectLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.OIDCBackendModule
+  alias Lynx.Service.OIDCBackend
   alias Lynx.Context.EnvironmentContext
 
   setup %{conn: conn} do
@@ -16,7 +16,7 @@ defmodule LynxWeb.ProjectLiveTest do
 
   defp create_provider!(name \\ "TestProvider") do
     {:ok, provider} =
-      OIDCBackendModule.create_provider(%{
+      OIDCBackend.create_provider(%{
         name: name,
         discovery_url: "https://example.com/.well-known/openid-configuration",
         audience: "test-audience"
@@ -175,7 +175,7 @@ defmodule LynxWeb.ProjectLiveTest do
       assert html =~ "Rule created"
       assert html =~ "ci-deploy"
 
-      rules = OIDCBackendModule.list_rules_by_environment(env.id)
+      rules = OIDCBackend.list_rules_by_environment(env.id)
       assert length(rules) == 1
       assert hd(rules).name == "ci-deploy"
     end
@@ -185,7 +185,7 @@ defmodule LynxWeb.ProjectLiveTest do
       provider = create_provider!("Acme GitHub Actions")
 
       {:ok, _rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "deploy",
           claim_rules: ~s([{"claim":"repo","operator":"eq","value":"org/x"}]),
           provider_id: provider.id,
@@ -256,7 +256,7 @@ defmodule LynxWeb.ProjectLiveTest do
 
       html = render(view)
       assert html =~ "Provider not found"
-      assert OIDCBackendModule.list_rules_by_environment(env.id) == []
+      assert OIDCBackend.list_rules_by_environment(env.id) == []
     end
 
     test "delete_rule removes a rule", %{conn: conn, project: project} do
@@ -264,7 +264,7 @@ defmodule LynxWeb.ProjectLiveTest do
       provider = create_provider!()
 
       {:ok, rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "to-delete",
           claim_rules: ~s([{"claim":"x","operator":"eq","value":"y"}]),
           provider_id: provider.id,
@@ -278,7 +278,7 @@ defmodule LynxWeb.ProjectLiveTest do
 
       html = render(view)
       assert html =~ "Rule deleted"
-      assert OIDCBackendModule.list_rules_by_environment(env.id) == []
+      assert OIDCBackend.list_rules_by_environment(env.id) == []
     end
   end
 
@@ -317,7 +317,7 @@ defmodule LynxWeb.ProjectLiveTest do
       html = render(view)
       assert html =~ "Rule created", "expected flash :info but got: #{inspect(html_flash(html))}"
 
-      rules = OIDCBackendModule.list_rules_by_environment(env.id)
+      rules = OIDCBackend.list_rules_by_environment(env.id)
       assert length(rules) == 1
       assert hd(rules).name == "after-edit-rule"
     end
@@ -382,7 +382,11 @@ defmodule LynxWeb.ProjectLiveTest do
       project: project
     } do
       {:ok, team} =
-        Lynx.Module.TeamModule.create_team(%{name: "T1", slug: "t1", description: "d"})
+        Lynx.Context.TeamContext.create_team_from_data(%{
+          name: "T1",
+          slug: "t1",
+          description: "d"
+        })
 
       planner = RoleContext.get_role_by_name("planner")
 
@@ -435,7 +439,7 @@ defmodule LynxWeb.ProjectLiveTest do
         "claims" => "repository=org/repo"
       })
 
-      [rule] = OIDCBackendModule.list_rules_by_environment(env.id)
+      [rule] = OIDCBackend.list_rules_by_environment(env.id)
       assert rule.role_id == planner.id
     end
   end

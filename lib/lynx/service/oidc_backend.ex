@@ -2,7 +2,7 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.OIDCBackendModule do
+defmodule Lynx.Service.OIDCBackend do
   @moduledoc """
   OIDC Backend Module - validates OIDC tokens for Terraform backend access.
 

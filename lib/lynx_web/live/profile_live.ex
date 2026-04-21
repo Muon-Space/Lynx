@@ -1,7 +1,7 @@
 defmodule LynxWeb.ProfileLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.UserModule
+  alias Lynx.Context.UserContext
   alias Lynx.Service.AuthService
 
   @impl true
@@ -76,7 +76,7 @@ defmodule LynxWeb.ProfileLive do
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("update_profile", params, socket) do
-    case UserModule.update_user(%{
+    case UserContext.update_user_from_data(%{
            uuid: socket.assigns.current_user.uuid,
            name: params["name"],
            email: params["email"],
@@ -110,7 +110,7 @@ defmodule LynxWeb.ProfileLive do
     socket = assign(socket, :confirm, nil)
     new_key = AuthService.get_uuid()
 
-    case UserModule.rotate_api_key(socket.assigns.current_user.uuid, new_key) do
+    case UserContext.rotate_api_key(socket.assigns.current_user.uuid, new_key) do
       {:ok, user} ->
         {:noreply,
          socket

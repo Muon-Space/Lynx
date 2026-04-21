@@ -9,8 +9,8 @@ defmodule LynxWeb.SCIMController do
 
   use LynxWeb, :controller
 
-  alias Lynx.Module.SCIMModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Service.SCIM
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.SCIMService
 
   # -- Discovery --
@@ -40,7 +40,7 @@ defmodule LynxWeb.SCIMController do
     start_index = parse_int(params["startIndex"], 1)
     count = parse_int(params["count"], 100)
 
-    {users, total} = SCIMModule.list_users(filter, start_index, count)
+    {users, total} = SCIM.list_users(filter, start_index, count)
 
     resources = Enum.map(users, &SCIMService.format_user_resource/1)
 
@@ -52,9 +52,9 @@ defmodule LynxWeb.SCIMController do
   def create_user(conn, params) do
     case SCIMService.parse_user_resource(params) do
       {:ok, attrs} ->
-        case SCIMModule.create_user(attrs) do
+        case SCIM.create_user(attrs) do
           {:ok, user} ->
-            AuditModule.log_system("created", "user", user.uuid, user.name, %{source: "scim"})
+            AuditContext.log_system("created", "user", user.uuid, user.name, %{source: "scim"})
 
             conn
             |> put_scim_content_type()
@@ -84,7 +84,7 @@ defmodule LynxWeb.SCIMController do
   end
 
   def get_user(conn, %{"id" => uuid}) do
-    case SCIMModule.get_user(uuid) do
+    case SCIM.get_user(uuid) do
       {:ok, user} ->
         conn
         |> put_scim_content_type()
@@ -101,9 +101,9 @@ defmodule LynxWeb.SCIMController do
   def update_user(conn, %{"id" => uuid} = params) do
     case SCIMService.parse_user_resource(params) do
       {:ok, attrs} ->
-        case SCIMModule.update_user(uuid, attrs) do
+        case SCIM.update_user(uuid, attrs) do
           {:ok, user} ->
-            AuditModule.log_system("updated", "user", user.uuid, user.name, %{source: "scim"})
+            AuditContext.log_system("updated", "user", user.uuid, user.name, %{source: "scim"})
 
             conn
             |> put_scim_content_type()
@@ -133,9 +133,9 @@ defmodule LynxWeb.SCIMController do
   def patch_user(conn, %{"id" => uuid} = params) do
     case SCIMService.parse_patch_operations(params) do
       {:ok, operations} ->
-        case SCIMModule.patch_user(uuid, operations) do
+        case SCIM.patch_user(uuid, operations) do
           {:ok, user} ->
-            AuditModule.log_system("updated", "user", user.uuid, user.name, %{
+            AuditContext.log_system("updated", "user", user.uuid, user.name, %{
               source: "scim",
               method: "patch"
             })
@@ -166,9 +166,9 @@ defmodule LynxWeb.SCIMController do
   end
 
   def delete_user(conn, %{"id" => uuid}) do
-    case SCIMModule.delete_user(uuid) do
+    case SCIM.delete_user(uuid) do
       :ok ->
-        AuditModule.log_system("deleted", "user", uuid, nil, %{source: "scim"})
+        AuditContext.log_system("deleted", "user", uuid, nil, %{source: "scim"})
         send_resp(conn, :no_content, "")
 
       {:not_found, _} ->
@@ -186,7 +186,7 @@ defmodule LynxWeb.SCIMController do
     start_index = parse_int(params["startIndex"], 1)
     count = parse_int(params["count"], 100)
 
-    {teams, total} = SCIMModule.list_groups(filter, start_index, count)
+    {teams, total} = SCIM.list_groups(filter, start_index, count)
 
     resources = Enum.map(teams, &SCIMService.format_group_resource/1)
 
@@ -198,9 +198,9 @@ defmodule LynxWeb.SCIMController do
   def create_group(conn, params) do
     case SCIMService.parse_group_resource(params) do
       {:ok, attrs} ->
-        case SCIMModule.create_group(attrs) do
+        case SCIM.create_group(attrs) do
           {:ok, team} ->
-            AuditModule.log_system("created", "team", team.uuid, team.name, %{source: "scim"})
+            AuditContext.log_system("created", "team", team.uuid, team.name, %{source: "scim"})
 
             conn
             |> put_scim_content_type()
@@ -224,7 +224,7 @@ defmodule LynxWeb.SCIMController do
   end
 
   def get_group(conn, %{"id" => uuid}) do
-    case SCIMModule.get_group(uuid) do
+    case SCIM.get_group(uuid) do
       {:ok, team} ->
         conn
         |> put_scim_content_type()
@@ -241,9 +241,9 @@ defmodule LynxWeb.SCIMController do
   def update_group(conn, %{"id" => uuid} = params) do
     case SCIMService.parse_group_resource(params) do
       {:ok, attrs} ->
-        case SCIMModule.update_group(uuid, attrs) do
+        case SCIM.update_group(uuid, attrs) do
           {:ok, team} ->
-            AuditModule.log_system("updated", "team", team.uuid, team.name, %{source: "scim"})
+            AuditContext.log_system("updated", "team", team.uuid, team.name, %{source: "scim"})
 
             conn
             |> put_scim_content_type()
@@ -273,9 +273,9 @@ defmodule LynxWeb.SCIMController do
   def patch_group(conn, %{"id" => uuid} = params) do
     case SCIMService.parse_patch_operations(params) do
       {:ok, operations} ->
-        case SCIMModule.patch_group(uuid, operations) do
+        case SCIM.patch_group(uuid, operations) do
           {:ok, team} ->
-            AuditModule.log_system("updated", "team", team.uuid, team.name, %{
+            AuditContext.log_system("updated", "team", team.uuid, team.name, %{
               source: "scim",
               method: "patch"
             })
@@ -300,9 +300,9 @@ defmodule LynxWeb.SCIMController do
   end
 
   def delete_group(conn, %{"id" => uuid}) do
-    case SCIMModule.delete_group(uuid) do
+    case SCIM.delete_group(uuid) do
       :ok ->
-        AuditModule.log_system("deleted", "team", uuid, nil, %{source: "scim"})
+        AuditContext.log_system("deleted", "team", uuid, nil, %{source: "scim"})
         send_resp(conn, :no_content, "")
 
       {:not_found, _} ->

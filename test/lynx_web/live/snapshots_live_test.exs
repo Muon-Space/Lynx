@@ -1,7 +1,7 @@
 defmodule LynxWeb.SnapshotsLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.SnapshotModule
+  alias Lynx.Context.SnapshotContext
 
   setup %{conn: conn} do
     user = create_super()
@@ -20,7 +20,7 @@ defmodule LynxWeb.SnapshotsLiveTest do
       project = create_project(%{workspace_id: ws.id})
 
       {:ok, _} =
-        SnapshotModule.create_snapshot(%{
+        SnapshotContext.create_snapshot_from_data(%{
           title: "Nightly Backup",
           description: "auto",
           record_type: "project",
@@ -109,7 +109,7 @@ defmodule LynxWeb.SnapshotsLiveTest do
       project = create_project(%{workspace_id: ws.id})
 
       {:ok, snapshot} =
-        SnapshotModule.create_snapshot(%{
+        SnapshotContext.create_snapshot_from_data(%{
           title: "ToDelete",
           description: "x",
           record_type: "project",

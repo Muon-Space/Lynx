@@ -2,15 +2,15 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.SSOModuleTest do
+defmodule Lynx.Service.SSOTest do
   @moduledoc """
   SSO Module Test Cases
   """
 
   use ExUnit.Case
 
-  alias Lynx.Module.SSOModule
-  alias Lynx.Module.UserModule
+  alias Lynx.Service.SSO
+  alias Lynx.Context.UserContext
   alias Lynx.Context.UserContext
 
   setup do
@@ -19,19 +19,19 @@ defmodule Lynx.Module.SSOModuleTest do
 
   describe "config helpers" do
     test "is_sso_enabled?/0 returns false by default" do
-      assert SSOModule.is_sso_enabled?() == false
+      assert SSO.is_sso_enabled?() == false
     end
 
     test "is_password_enabled?/0 returns true by default" do
-      assert SSOModule.is_password_enabled?() == true
+      assert SSO.is_password_enabled?() == true
     end
 
     test "get_sso_protocol/0 returns :oidc by default" do
-      assert SSOModule.get_sso_protocol() == :oidc
+      assert SSO.get_sso_protocol() == :oidc
     end
 
     test "get_sso_login_label/0 returns SSO by default" do
-      assert SSOModule.get_sso_login_label() == "SSO"
+      assert SSO.get_sso_login_label() == "SSO"
     end
   end
 
@@ -43,7 +43,7 @@ defmodule Lynx.Module.SSOModuleTest do
         name: "SSO User"
       }
 
-      assert {:ok, user} = SSOModule.find_or_create_sso_user(attrs, "oidc")
+      assert {:ok, user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert user.email == "sso_new@example.com"
       assert user.name == "SSO User"
       assert user.external_id == "ext-user-001"
@@ -58,7 +58,7 @@ defmodule Lynx.Module.SSOModuleTest do
         name: "SSO Repeat"
       }
 
-      {:ok, first_user} = SSOModule.find_or_create_sso_user(attrs, "oidc")
+      {:ok, first_user} = SSO.find_or_create_sso_user(attrs, "oidc")
 
       # Second login with same external_id
       attrs2 = %{
@@ -67,16 +67,16 @@ defmodule Lynx.Module.SSOModuleTest do
         name: "SSO Repeat Updated"
       }
 
-      {:ok, second_user} = SSOModule.find_or_create_sso_user(attrs2, "oidc")
+      {:ok, second_user} = SSO.find_or_create_sso_user(attrs2, "oidc")
       assert second_user.id == first_user.id
       assert second_user.name == "SSO Repeat Updated"
     end
 
     test "links existing local user by email on first SSO login" do
       # Install app first so app_key is available for password hashing
-      alias Lynx.Module.InstallModule
+      alias Lynx.Service.Install
 
-      InstallModule.store_configs(%{
+      Install.store_configs(%{
         app_name: "Lynx",
         app_url: "http://lynx.test",
         app_email: "test@lynx.test",
@@ -85,7 +85,7 @@ defmodule Lynx.Module.SSOModuleTest do
 
       # Create a local user first
       {:ok, local_user} =
-        UserModule.create_user(%{
+        UserContext.create_user_from_data(%{
           email: "local_user@example.com",
           name: "Local User",
           password: "password123",
@@ -100,7 +100,7 @@ defmodule Lynx.Module.SSOModuleTest do
         name: "Local User"
       }
 
-      {:ok, sso_user} = SSOModule.find_or_create_sso_user(attrs, "oidc")
+      {:ok, sso_user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert sso_user.id == local_user.id
       assert sso_user.external_id == "ext-user-003"
     end
@@ -112,12 +112,12 @@ defmodule Lynx.Module.SSOModuleTest do
         name: "Deactivated User"
       }
 
-      {:ok, user} = SSOModule.find_or_create_sso_user(attrs, "oidc")
+      {:ok, user} = SSO.find_or_create_sso_user(attrs, "oidc")
       UserContext.update_user(user, %{is_active: false})
 
       # Try to login again
       assert {:error, "Account is deactivated"} =
-               SSOModule.find_or_create_sso_user(attrs, "oidc")
+               SSO.find_or_create_sso_user(attrs, "oidc")
     end
   end
 end

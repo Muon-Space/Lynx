@@ -9,8 +9,8 @@ defmodule LynxWeb.UserController do
 
   use LynxWeb, :controller
 
-  alias Lynx.Module.UserModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.UserContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
   alias Lynx.Service.AuthService
 
@@ -49,11 +49,11 @@ defmodule LynxWeb.UserController do
     offset = params["offset"] || @default_list_offset
 
     render(conn, "list.json", %{
-      users: UserModule.get_users(offset, limit),
+      users: UserContext.get_users(offset, limit),
       metadata: %{
         limit: limit,
         offset: offset,
-        totalCount: UserModule.count_users()
+        totalCount: UserContext.count_users()
       }
     })
   end
@@ -62,7 +62,7 @@ defmodule LynxWeb.UserController do
   Index Action Endpoint
   """
   def index(conn, %{"uuid" => uuid}) do
-    case UserModule.get_user_by_uuid(uuid) do
+    case UserContext.fetch_user_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -82,7 +82,7 @@ defmodule LynxWeb.UserController do
     case validate_create_request(params) do
       {:ok, _} ->
         result =
-          UserModule.create_user(%{
+          UserContext.create_user_from_data(%{
             name: params["name"],
             email: params["email"],
             api_key: AuthService.get_uuid(),
@@ -99,7 +99,7 @@ defmodule LynxWeb.UserController do
             |> render(:error, %{message: "Invalid Request"})
 
           {:ok, user} ->
-            AuditModule.log(conn, "created", "user", user.uuid, user.name)
+            AuditContext.log(conn, "created", "user", user.uuid, user.name)
 
             conn
             |> put_status(:created)
@@ -120,7 +120,7 @@ defmodule LynxWeb.UserController do
     case validate_update_request(params, params["uuid"]) do
       {:ok, _} ->
         result =
-          UserModule.update_user(%{
+          UserContext.update_user_from_data(%{
             uuid: params["uuid"],
             name: params["name"],
             email: params["email"],
@@ -160,7 +160,7 @@ defmodule LynxWeb.UserController do
       |> put_status(:bad_request)
       |> render(:error, %{message: "User can't delete his own account!"})
     else
-      case UserModule.delete_user_by_uuid(uuid) do
+      case UserContext.delete_user_by_uuid(uuid) do
         {:not_found, msg} ->
           conn
           |> put_status(:not_found)

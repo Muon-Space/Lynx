@@ -9,7 +9,7 @@ defmodule LynxWeb.AuditController do
 
   use LynxWeb, :controller
 
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.AuditContext
 
   plug :super_user
 
@@ -33,7 +33,7 @@ defmodule LynxWeb.AuditController do
       actor_id: params["actor_id"]
     }
 
-    {events, total} = AuditModule.list_events(opts)
+    {events, total} = AuditContext.list_events(opts)
 
     conn
     |> json(%{

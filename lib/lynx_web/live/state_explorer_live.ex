@@ -1,7 +1,7 @@
 defmodule LynxWeb.StateExplorerLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.ProjectModule
+  alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.StateContext
 
@@ -9,7 +9,7 @@ defmodule LynxWeb.StateExplorerLive do
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid} = params, _session, socket) do
     sub_path = params["sub_path"] || ""
 
-    case ProjectModule.get_project_by_uuid(project_uuid) do
+    case ProjectContext.fetch_project_by_uuid(project_uuid) do
       {:not_found, _} ->
         {:ok, redirect(socket, to: "/admin/workspaces")}
 
@@ -245,7 +245,7 @@ defmodule LynxWeb.StateExplorerLive do
 
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
 
-    Lynx.Module.AuditModule.log_user(
+    Lynx.Context.AuditContext.log_user(
       socket.assigns.current_user,
       "locked",
       "unit",
@@ -268,7 +268,7 @@ defmodule LynxWeb.StateExplorerLive do
 
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
 
-    Lynx.Module.AuditModule.log_user(
+    Lynx.Context.AuditContext.log_user(
       socket.assigns.current_user,
       "unlocked",
       "unit",

@@ -19,7 +19,7 @@ defmodule LynxWeb.SSOController do
 
   import Plug.Conn
 
-  alias Lynx.Module.SSOModule
+  alias Lynx.Service.SSO
   alias Lynx.Service.SSOService
   alias Lynx.Service.SAMLService
 
@@ -27,12 +27,12 @@ defmodule LynxWeb.SSOController do
   Initiate SSO login - redirects to the IdP
   """
   def initiate(conn, _params) do
-    if not SSOModule.is_sso_enabled?() do
+    if not SSO.is_sso_enabled?() do
       conn
       |> put_status(:bad_request)
       |> json(%{errorMessage: "SSO is not enabled"})
     else
-      case SSOModule.get_sso_protocol() do
+      case SSO.get_sso_protocol() do
         :oidc -> initiate_oidc(conn)
         :saml -> initiate_saml(conn)
       end
@@ -183,11 +183,11 @@ defmodule LynxWeb.SSOController do
   end
 
   defp complete_sso_login(conn, claims, auth_method) do
-    case SSOModule.find_or_create_sso_user(claims, auth_method) do
+    case SSO.find_or_create_sso_user(claims, auth_method) do
       {:ok, user} ->
-        case SSOModule.create_sso_session(user, auth_method) do
+        case SSO.create_sso_session(user, auth_method) do
           {:success, session} ->
-            Lynx.Module.AuditModule.log_system(
+            Lynx.Context.AuditContext.log_system(
               "sso_login",
               "user",
               user.uuid,

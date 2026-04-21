@@ -1,12 +1,12 @@
 defmodule LynxWeb.LoginLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.InstallModule
-  alias Lynx.Module.SSOModule
+  alias Lynx.Service.Install
+  alias Lynx.Service.SSO
 
   @impl true
   def mount(_params, session, socket) do
-    if not InstallModule.is_installed() do
+    if not Install.is_installed() do
       {:ok, redirect(socket, to: "/install")}
     else
       # Check if already logged in
@@ -20,9 +20,9 @@ defmodule LynxWeb.LoginLive do
         _ ->
           socket =
             socket
-            |> assign(:sso_enabled, SSOModule.is_sso_enabled?())
-            |> assign(:password_enabled, SSOModule.is_password_enabled?())
-            |> assign(:sso_login_label, SSOModule.get_sso_login_label())
+            |> assign(:sso_enabled, SSO.is_sso_enabled?())
+            |> assign(:password_enabled, SSO.is_password_enabled?())
+            |> assign(:sso_login_label, SSO.get_sso_login_label())
             |> assign(:error, nil)
 
           {:ok, socket}

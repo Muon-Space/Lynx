@@ -1,7 +1,7 @@
 defmodule LynxWeb.TeamsLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.TeamModule
+  alias Lynx.Context.TeamContext
 
   setup %{conn: conn} do
     user = create_super()
@@ -17,7 +17,7 @@ defmodule LynxWeb.TeamsLiveTest do
 
     test "lists existing teams", %{conn: conn} do
       {:ok, _team} =
-        TeamModule.create_team(%{name: "Platform", slug: "platform", description: "x"})
+        TeamContext.create_team_from_data(%{name: "Platform", slug: "platform", description: "x"})
 
       {:ok, _view, html} = live(conn, "/admin/teams")
       assert html =~ "Platform"
@@ -71,7 +71,9 @@ defmodule LynxWeb.TeamsLiveTest do
 
   describe "Edit Team" do
     test "edit_team opens modal with current values", %{conn: conn} do
-      {:ok, team} = TeamModule.create_team(%{name: "Old Name", slug: "old", description: "x"})
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "Old Name", slug: "old", description: "x"})
+
       {:ok, view, _} = live(conn, "/admin/teams")
 
       render_click(view, "edit_team", %{"uuid" => team.uuid})
@@ -81,7 +83,9 @@ defmodule LynxWeb.TeamsLiveTest do
     end
 
     test "update_team persists changes", %{conn: conn} do
-      {:ok, team} = TeamModule.create_team(%{name: "Old", slug: "old", description: "x"})
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "Old", slug: "old", description: "x"})
+
       {:ok, view, _} = live(conn, "/admin/teams")
 
       render_click(view, "edit_team", %{"uuid" => team.uuid})
@@ -103,7 +107,8 @@ defmodule LynxWeb.TeamsLiveTest do
     alias Lynx.Context.{ProjectContext, RoleContext}
 
     test "shows attached project name and role badge", %{conn: conn} do
-      {:ok, team} = TeamModule.create_team(%{name: "Infra", slug: "infra", description: "x"})
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "Infra", slug: "infra", description: "x"})
 
       workspace = create_workspace()
       project = create_project(%{name: "Platform", workspace_id: workspace.id})
@@ -119,7 +124,8 @@ defmodule LynxWeb.TeamsLiveTest do
     end
 
     test "shows 'No projects' when team has no project assignments", %{conn: conn} do
-      {:ok, _team} = TeamModule.create_team(%{name: "Lonely", slug: "lonely", description: "x"})
+      {:ok, _team} =
+        TeamContext.create_team_from_data(%{name: "Lonely", slug: "lonely", description: "x"})
 
       {:ok, _view, html} = live(conn, "/admin/teams")
       assert html =~ "No projects"
@@ -128,7 +134,9 @@ defmodule LynxWeb.TeamsLiveTest do
 
   describe "Delete Team" do
     test "delete_team removes the team", %{conn: conn} do
-      {:ok, team} = TeamModule.create_team(%{name: "ToDelete", slug: "td", description: "x"})
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "ToDelete", slug: "td", description: "x"})
+
       {:ok, view, _} = live(conn, "/admin/teams")
 
       render_click(view, "delete_team", %{"uuid" => team.uuid})

@@ -11,10 +11,10 @@ defmodule LynxWeb.SnapshotController do
 
   require Logger
 
-  alias Lynx.Module.SnapshotModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.SnapshotContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
-  alias Lynx.Module.PermissionModule
+  alias Lynx.Service.Permission
 
   @title_min_length 2
   @title_max_length 60
@@ -47,7 +47,7 @@ defmodule LynxWeb.SnapshotController do
   defp access_check(conn, _opts) do
     Logger.info("Validate if user can access snapshot")
 
-    if not PermissionModule.can_access_snapshot_uuid(
+    if not Permission.can_access_snapshot_uuid(
          :snapshot,
          conn.assigns[:user_role],
          conn.params["uuid"],
@@ -75,10 +75,10 @@ defmodule LynxWeb.SnapshotController do
 
     {snapshots, count} =
       if conn.assigns[:is_super] do
-        {SnapshotModule.get_snapshots(offset, limit), SnapshotModule.count_snapshots()}
+        {SnapshotContext.get_snapshots(offset, limit), SnapshotContext.count_snapshots()}
       else
-        {SnapshotModule.get_snapshots(conn.assigns[:user_id], offset, limit),
-         SnapshotModule.count_snapshots(conn.assigns[:user_id])}
+        {SnapshotContext.get_snapshots_for_user(conn.assigns[:user_id], offset, limit),
+         SnapshotContext.count_snapshots_for_user(conn.assigns[:user_id])}
       end
 
     render(conn, "list.json", %{
@@ -98,7 +98,7 @@ defmodule LynxWeb.SnapshotController do
     case validate_create_request(params) do
       {:ok, _} ->
         {data, status} =
-          case SnapshotModule.take_snapshot(params["record_type"], params["record_uuid"]) do
+          case SnapshotContext.take_snapshot(params["record_type"], params["record_uuid"]) do
             {:error, msg} ->
               Logger.info("Snapshot failed with error: #{msg}")
               {"", "failure"}
@@ -108,7 +108,7 @@ defmodule LynxWeb.SnapshotController do
           end
 
         result =
-          SnapshotModule.create_snapshot(%{
+          SnapshotContext.create_snapshot_from_data(%{
             title: params["title"],
             description: params["description"],
             record_type: params["record_type"],
@@ -120,7 +120,7 @@ defmodule LynxWeb.SnapshotController do
 
         case result do
           {:ok, snapshot} ->
-            AuditModule.log(conn, "created", "snapshot", snapshot.uuid, snapshot.title)
+            AuditContext.log(conn, "created", "snapshot", snapshot.uuid, snapshot.title)
 
             conn
             |> put_status(:created)
@@ -146,7 +146,7 @@ defmodule LynxWeb.SnapshotController do
     case validate_update_request(params) do
       {:ok, _} ->
         result =
-          SnapshotModule.update_snapshot(%{
+          SnapshotContext.update_snapshot_from_data(%{
             uuid: params["uuid"],
             title: params["title"],
             description: params["description"],
@@ -176,7 +176,7 @@ defmodule LynxWeb.SnapshotController do
   Index Snapshot Endpoint
   """
   def index(conn, %{"uuid" => uuid}) do
-    case SnapshotModule.get_snapshot_by_uuid(uuid) do
+    case SnapshotContext.fetch_snapshot_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -193,7 +193,7 @@ defmodule LynxWeb.SnapshotController do
   Delete Snapshot Endpoint
   """
   def delete(conn, %{"uuid" => uuid}) do
-    case SnapshotModule.delete_snapshot_by_uuid(uuid) do
+    case SnapshotContext.delete_snapshot_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -209,7 +209,7 @@ defmodule LynxWeb.SnapshotController do
   Restore Snapshot Endpoint
   """
   def restore(conn, %{"uuid" => uuid}) do
-    case SnapshotModule.restore_snapshot(uuid) do
+    case SnapshotContext.restore_snapshot(uuid) do
       {:error, msg} ->
         conn
         |> put_status(:bad_request)

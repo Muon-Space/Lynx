@@ -11,6 +11,7 @@ defmodule Lynx.Context.TeamContext do
 
   alias Lynx.Repo
   alias Lynx.Model.{Team, TeamMeta}
+  alias Lynx.Context.UserContext
 
   @doc """
   Get a new team
@@ -252,4 +253,132 @@ defmodule Lynx.Context.TeamContext do
     )
     |> Repo.all()
   end
+
+  # -- Tagged-tuple lookups (Phoenix `fetch_*` convention) --
+
+  def fetch_team_by_id(id) do
+    case get_team_by_id(id) do
+      nil -> {:not_found, "Team with ID #{id} not found"}
+      team -> {:ok, team}
+    end
+  end
+
+  def fetch_team_by_uuid(uuid) do
+    case get_team_by_uuid(uuid) do
+      nil -> {:not_found, "Team with ID #{uuid} not found"}
+      team -> {:ok, team}
+    end
+  end
+
+  # -- High-level orchestration (was TeamModule) --
+
+  @doc """
+  Create a team from a data map. Returns `{:ok, team}` or `{:error, message}`.
+  """
+  def create_team_from_data(data \\ %{}) do
+    team =
+      new_team(%{
+        name: data[:name],
+        slug: data[:slug],
+        description: data[:description]
+      })
+
+    case create_team(team) do
+      {:ok, team} ->
+        {:ok, team}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  @doc "Sync team membership: future_members are user UUIDs."
+  def sync_team_members(team_id, future_members \\ []) do
+    current_members =
+      UserContext.get_team_users(team_id)
+      |> Enum.map(& &1.id)
+
+    future_members_ids =
+      future_members
+      |> Enum.map(&UserContext.get_user_id_with_uuid/1)
+      |> Enum.reject(&is_nil/1)
+
+    for member <- current_members, member not in future_members_ids do
+      UserContext.remove_user_from_team(member, team_id)
+    end
+
+    for member <- future_members_ids, member not in current_members do
+      UserContext.add_user_to_team(member, team_id)
+    end
+  end
+
+  @doc "Get team members (UUIDs)."
+  def get_team_members(team_id) do
+    UserContext.get_team_users(team_id) |> Enum.map(& &1.uuid)
+  end
+
+  @doc "Update a team from a data map (UUID-keyed)."
+  def update_team_from_data(data \\ %{}) do
+    case get_team_by_uuid(data[:uuid]) do
+      nil ->
+        {:not_found, "Team with ID #{data[:uuid]} not found"}
+
+      team ->
+        new_team = %{
+          name: data[:name] || team.name,
+          description: data[:description] || team.description,
+          slug: data[:slug] || team.slug
+        }
+
+        case update_team(team, new_team) do
+          {:ok, team} ->
+            {:ok, team}
+
+          {:error, changeset} ->
+            messages =
+              changeset.errors
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+            {:error, Enum.at(messages, 0)}
+        end
+    end
+  end
+
+  def is_slug_used(slug) do
+    case get_team_by_slug(slug) do
+      nil -> false
+      _ -> true
+    end
+  end
+
+  @doc "Paginated user-scoped teams."
+  def get_user_teams_paged(user_id, offset, limit) do
+    teams_ids =
+      user_id
+      |> UserContext.get_user_teams()
+      |> Enum.map(& &1.id)
+
+    get_teams(teams_ids, offset, limit)
+  end
+
+  def delete_team_by_uuid(uuid) do
+    case get_team_by_uuid(uuid) do
+      nil ->
+        {:not_found, "Team with ID #{uuid} not found"}
+
+      team ->
+        delete_team(team)
+        {:ok, "Team with ID #{uuid} deleted successfully"}
+    end
+  end
+
+  # -- Pass-through delegations to UserContext (so callers can use TeamContext
+  # for everything team-related without knowing the data lives in UserContext) --
+
+  defdelegate count_user_teams(user_id), to: UserContext
+  defdelegate get_user_teams(user_id), to: UserContext
 end

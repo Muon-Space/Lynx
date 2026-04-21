@@ -5,8 +5,8 @@
 defmodule LynxWeb.SCIMControllerTest do
   use LynxWeb.ConnCase
 
-  alias Lynx.Module.SCIMTokenModule
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Context.SCIMTokenContext
+  alias Lynx.Service.Settings
 
   setup %{conn: conn} do
     # Install the app first
@@ -22,11 +22,11 @@ defmodule LynxWeb.SCIMControllerTest do
     post(conn, "/action/install", params)
 
     # Enable SCIM and generate a token in the DB
-    SettingsModule.upsert_config("scim_enabled", "true")
-    {:ok, token_result} = SCIMTokenModule.generate_token("test token")
+    Settings.upsert_config("scim_enabled", "true")
+    {:ok, token_result} = SCIMTokenContext.generate_token("test token")
 
     on_exit(fn ->
-      SettingsModule.upsert_config("scim_enabled", "false")
+      Settings.upsert_config("scim_enabled", "false")
     end)
 
     {:ok, conn: conn, scim_token: token_result.token}
@@ -56,7 +56,7 @@ defmodule LynxWeb.SCIMControllerTest do
     end
 
     test "returns 404 when SCIM is disabled", %{conn: conn, scim_token: scim_token} do
-      SettingsModule.upsert_config("scim_enabled", "false")
+      Settings.upsert_config("scim_enabled", "false")
 
       conn =
         conn

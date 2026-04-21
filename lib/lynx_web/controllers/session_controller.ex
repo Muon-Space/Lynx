@@ -5,7 +5,7 @@ defmodule LynxWeb.SessionController do
 
   alias Lynx.Service.AuthService
   alias Lynx.Service.ValidatorService
-  alias Lynx.Module.SSOModule
+  alias Lynx.Service.SSO
 
   def logout(conn, _params) do
     AuthService.logout(conn.assigns[:user_id])
@@ -16,7 +16,7 @@ defmodule LynxWeb.SessionController do
   end
 
   def auth(conn, params) do
-    if not SSOModule.is_password_enabled?() do
+    if not SSO.is_password_enabled?() do
       conn
       |> put_status(:bad_request)
       |> put_view(LynxWeb.MiscJSON)
@@ -35,7 +35,7 @@ defmodule LynxWeb.SessionController do
          {:ok, email} <- ValidatorService.is_email?(params["email"], err) do
       case AuthService.login(email, password) do
         {:success, session} ->
-          Lynx.Module.AuditModule.log_system("login", "user", nil, params["email"], %{
+          Lynx.Context.AuditContext.log_system("login", "user", nil, params["email"], %{
             method: "password"
           })
 

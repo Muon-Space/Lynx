@@ -3,8 +3,8 @@
 # license that can be found in the LICENSE file.
 
 defmodule LynxWeb.ProjectJSON do
-  alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.ProjectModule
+  alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.ProjectContext
 
   # Render projects list
   def render("list.json", %{projects: projects, metadata: metadata}) do
@@ -30,7 +30,7 @@ defmodule LynxWeb.ProjectJSON do
 
   # Format project
   defp render_project(project) do
-    teams = ProjectModule.get_project_teams(project.id)
+    teams = ProjectContext.get_project_teams(project.id)
 
     %{
       id: project.uuid,
@@ -47,7 +47,7 @@ defmodule LynxWeb.ProjectJSON do
           [first | _] -> %{id: first.uuid, name: first.name, slug: first.slug}
           [] -> nil
         end,
-      envCount: EnvironmentModule.count_project_envs(project.id),
+      envCount: EnvironmentContext.count_project_envs(project.id),
       createdAt: project.inserted_at,
       updatedAt: project.updated_at
     }

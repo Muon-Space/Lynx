@@ -1,8 +1,8 @@
-defmodule Lynx.Module.RoleModuleTest do
+defmodule Lynx.Context.RoleContextTest do
   use Lynx.DataCase
 
-  alias Lynx.Module.RoleModule
-  alias Lynx.Module.TeamModule
+  alias Lynx.Context.RoleContext
+  alias Lynx.Context.TeamContext
   alias Lynx.Context.{ProjectContext, RoleContext, UserContext, UserProjectContext}
   alias Lynx.Service.AuthService
 
@@ -43,14 +43,17 @@ defmodule Lynx.Module.RoleModuleTest do
 
   defp create_team_with_user(user) do
     n = System.unique_integer([:positive])
-    {:ok, team} = TeamModule.create_team(%{name: "T-#{n}", slug: "t-#{n}", description: "x"})
+
+    {:ok, team} =
+      TeamContext.create_team_from_data(%{name: "T-#{n}", slug: "t-#{n}", description: "x"})
+
     {:ok, _} = Lynx.Context.UserContext.add_user_to_team(user.id, team.id)
     team
   end
 
   describe "permissions/0" do
     test "returns the canonical list of permission strings" do
-      perms = RoleModule.permissions()
+      perms = RoleContext.permissions()
 
       for required <-
             ~w(state:read state:write state:lock state:unlock snapshot:create snapshot:restore env:manage project:manage access:manage oidc_rule:manage) do
@@ -61,39 +64,39 @@ defmodule Lynx.Module.RoleModuleTest do
 
   describe "default_roles/0" do
     test "names planner, applier, admin" do
-      assert RoleModule.default_roles() == ~w(planner applier admin)
+      assert RoleContext.default_roles() == ~w(planner applier admin)
     end
   end
 
   describe "can?/2 (role + permission lookup)" do
     test "planner can read state and lock/unlock (so `terraform plan` works) but not write" do
-      assert RoleModule.can?("planner", "state:read")
+      assert RoleContext.can?("planner", "state:read")
       # plan needs to acquire a lock; planner must be allowed to do so
-      assert RoleModule.can?("planner", "state:lock")
-      assert RoleModule.can?("planner", "state:unlock")
+      assert RoleContext.can?("planner", "state:lock")
+      assert RoleContext.can?("planner", "state:unlock")
       # the meaningful applier-only differentiator:
-      refute RoleModule.can?("planner", "state:write")
-      refute RoleModule.can?("planner", "snapshot:create")
+      refute RoleContext.can?("planner", "state:write")
+      refute RoleContext.can?("planner", "snapshot:create")
     end
 
     test "applier can state operations and snapshot:create but not snapshot:restore" do
-      assert RoleModule.can?("applier", "state:read")
-      assert RoleModule.can?("applier", "state:write")
-      assert RoleModule.can?("applier", "state:lock")
-      assert RoleModule.can?("applier", "state:unlock")
-      assert RoleModule.can?("applier", "snapshot:create")
-      refute RoleModule.can?("applier", "snapshot:restore")
-      refute RoleModule.can?("applier", "access:manage")
+      assert RoleContext.can?("applier", "state:read")
+      assert RoleContext.can?("applier", "state:write")
+      assert RoleContext.can?("applier", "state:lock")
+      assert RoleContext.can?("applier", "state:unlock")
+      assert RoleContext.can?("applier", "snapshot:create")
+      refute RoleContext.can?("applier", "snapshot:restore")
+      refute RoleContext.can?("applier", "access:manage")
     end
 
     test "admin holds every defined permission" do
-      for perm <- RoleModule.permissions() do
-        assert RoleModule.can?("admin", perm), "admin missing #{perm}"
+      for perm <- RoleContext.permissions() do
+        assert RoleContext.can?("admin", perm), "admin missing #{perm}"
       end
     end
 
     test "unknown role returns false" do
-      refute RoleModule.can?("nonexistent", "state:read")
+      refute RoleContext.can?("nonexistent", "state:read")
     end
   end
 
@@ -101,16 +104,16 @@ defmodule Lynx.Module.RoleModuleTest do
     test "super user gets every permission regardless of project" do
       user = create_user("super")
       project = create_project()
-      perms = RoleModule.effective_permissions(user, project)
+      perms = RoleContext.effective_permissions(user, project)
 
-      assert MapSet.size(perms) == length(RoleModule.permissions())
+      assert MapSet.size(perms) == length(RoleContext.permissions())
       assert MapSet.member?(perms, "snapshot:restore")
     end
 
     test "user with no grants has empty permission set" do
       user = create_user()
       project = create_project()
-      assert MapSet.size(RoleModule.effective_permissions(user, project)) == 0
+      assert MapSet.size(RoleContext.effective_permissions(user, project)) == 0
     end
 
     test "team membership grants the team role's permissions" do
@@ -120,7 +123,7 @@ defmodule Lynx.Module.RoleModuleTest do
       planner = RoleContext.get_role_by_name("planner")
       ProjectContext.add_project_to_team(project.id, team.id, planner.id)
 
-      perms = RoleModule.effective_permissions(user, project)
+      perms = RoleContext.effective_permissions(user, project)
       assert MapSet.equal?(perms, MapSet.new(["state:read", "state:lock", "state:unlock"]))
     end
 
@@ -136,7 +139,7 @@ defmodule Lynx.Module.RoleModuleTest do
       ProjectContext.add_project_to_team(project.id, team.id, planner.id)
       UserProjectContext.assign_role(user.id, project.id, applier.id)
 
-      perms = RoleModule.effective_permissions(user, project)
+      perms = RoleContext.effective_permissions(user, project)
 
       assert MapSet.member?(perms, "state:read")
       assert MapSet.member?(perms, "state:write")
@@ -156,15 +159,15 @@ defmodule Lynx.Module.RoleModuleTest do
       ProjectContext.add_project_to_team(project.id, team_a.id, planner.id)
       ProjectContext.add_project_to_team(project.id, team_b.id, admin.id)
 
-      perms = RoleModule.effective_permissions(user, project)
+      perms = RoleContext.effective_permissions(user, project)
       # admin's set is a superset, so this should include everything
-      assert MapSet.size(perms) == length(RoleModule.permissions())
+      assert MapSet.size(perms) == length(RoleContext.permissions())
     end
 
     test "accepts a project_id integer instead of a struct" do
       user = create_user("super")
       project = create_project()
-      perms = RoleModule.effective_permissions(user, project.id)
+      perms = RoleContext.effective_permissions(user, project.id)
       assert MapSet.size(perms) > 0
     end
   end
@@ -177,8 +180,8 @@ defmodule Lynx.Module.RoleModuleTest do
       applier = RoleContext.get_role_by_name("applier")
       ProjectContext.add_project_to_team(project.id, team.id, applier.id)
 
-      assert RoleModule.can?(user, project, "state:write")
-      refute RoleModule.can?(user, project, "snapshot:restore")
+      assert RoleContext.can?(user, project, "state:write")
+      refute RoleContext.can?(user, project, "snapshot:restore")
     end
   end
 
@@ -187,32 +190,32 @@ defmodule Lynx.Module.RoleModuleTest do
       planner = RoleContext.get_role_by_name("planner")
 
       assert MapSet.equal?(
-               RoleModule.permissions_for_oidc_rule(%{role_id: planner.id}),
+               RoleContext.permissions_for_oidc_rule(%{role_id: planner.id}),
                MapSet.new(["state:read", "state:lock", "state:unlock"])
              )
     end
 
     test "rule without a role_id returns empty set" do
-      assert MapSet.size(RoleModule.permissions_for_oidc_rule(%{role_id: nil})) == 0
+      assert MapSet.size(RoleContext.permissions_for_oidc_rule(%{role_id: nil})) == 0
     end
   end
 
   describe "permissions_for_env_credentials/0" do
     test "returns the full permission set (legacy auth path preserves full access)" do
-      perms = RoleModule.permissions_for_env_credentials()
-      assert MapSet.size(perms) == length(RoleModule.permissions())
+      perms = RoleContext.permissions_for_env_credentials()
+      assert MapSet.size(perms) == length(RoleContext.permissions())
     end
   end
 
   describe "list_user_project_access/1" do
     test "returns empty list for super users (their access is global)" do
       user = create_user("super")
-      assert RoleModule.list_user_project_access(user) == []
+      assert RoleContext.list_user_project_access(user) == []
     end
 
     test "returns nothing for users with no grants" do
       user = create_user()
-      assert RoleModule.list_user_project_access(user) == []
+      assert RoleContext.list_user_project_access(user) == []
     end
 
     test "lists direct user_projects grants with source 'direct'" do
@@ -221,7 +224,7 @@ defmodule Lynx.Module.RoleModuleTest do
       planner = RoleContext.get_role_by_name("planner")
       UserProjectContext.assign_role(user.id, project.id, planner.id)
 
-      [entry] = RoleModule.list_user_project_access(user)
+      [entry] = RoleContext.list_user_project_access(user)
       assert entry.project.id == project.id
       assert entry.role_name == "planner"
       assert entry.sources == ["direct"]
@@ -234,7 +237,7 @@ defmodule Lynx.Module.RoleModuleTest do
       applier = RoleContext.get_role_by_name("applier")
       ProjectContext.add_project_to_team(project.id, team.id, applier.id)
 
-      [entry] = RoleModule.list_user_project_access(user)
+      [entry] = RoleContext.list_user_project_access(user)
       assert entry.project.id == project.id
       assert entry.role_name == "applier"
       assert ["via " <> team_name] = entry.sources
@@ -252,7 +255,7 @@ defmodule Lynx.Module.RoleModuleTest do
       ProjectContext.add_project_to_team(project.id, team.id, planner.id)
       UserProjectContext.assign_role(user.id, project.id, admin.id)
 
-      [entry] = RoleModule.list_user_project_access(user)
+      [entry] = RoleContext.list_user_project_access(user)
       assert entry.role_name == "admin"
       assert "direct" in entry.sources
       assert Enum.any?(entry.sources, &String.starts_with?(&1, "via "))
@@ -270,7 +273,7 @@ defmodule Lynx.Module.RoleModuleTest do
       ProjectContext.add_project_to_team(project.id, team_a.id, planner.id)
       ProjectContext.add_project_to_team(project.id, team_b.id, applier.id)
 
-      [entry] = RoleModule.list_user_project_access(user)
+      [entry] = RoleContext.list_user_project_access(user)
       assert entry.role_name == "applier"
       assert length(entry.sources) == 2
     end
@@ -307,7 +310,7 @@ defmodule Lynx.Module.RoleModuleTest do
       UserProjectContext.assign_role(user.id, p_zeta.id, planner.id)
       UserProjectContext.assign_role(user.id, p_alpha.id, planner.id)
 
-      [first, second] = RoleModule.list_user_project_access(user)
+      [first, second] = RoleContext.list_user_project_access(user)
       assert first.project.name == "Alpha"
       assert second.project.name == "Zeta"
     end
@@ -315,11 +318,11 @@ defmodule Lynx.Module.RoleModuleTest do
 
   describe "has?/2" do
     test "works with both MapSet and list inputs" do
-      assert RoleModule.has?(MapSet.new(["a", "b"]), "a")
-      refute RoleModule.has?(MapSet.new(["a"]), "b")
-      assert RoleModule.has?(["a", "b"], "b")
-      refute RoleModule.has?([], "a")
-      refute RoleModule.has?("not-a-collection", "a")
+      assert RoleContext.has?(MapSet.new(["a", "b"]), "a")
+      refute RoleContext.has?(MapSet.new(["a"]), "b")
+      assert RoleContext.has?(["a", "b"], "b")
+      refute RoleContext.has?([], "a")
+      refute RoleContext.has?("not-a-collection", "a")
     end
   end
 end

@@ -1,9 +1,9 @@
 defmodule LynxWeb.SnapshotsLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.SnapshotModule
-  alias Lynx.Module.ProjectModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.SnapshotContext
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.AuditContext
 
   @per_page 10
 
@@ -15,8 +15,8 @@ defmodule LynxWeb.SnapshotsLive do
 
     all_projects =
       if user.role == "super",
-        do: ProjectModule.get_projects(0, 10000),
-        else: ProjectModule.get_projects(user.id, 0, 10000)
+        do: ProjectContext.get_projects(0, 10000),
+        else: ProjectContext.get_projects_for_user(user.id, 0, 10000)
 
     socket =
       socket
@@ -250,14 +250,14 @@ defmodule LynxWeb.SnapshotsLive do
     teams =
       case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
         nil -> []
-        project -> Lynx.Module.ProjectModule.get_project_teams(project.id)
+        project -> Lynx.Context.ProjectContext.get_project_teams(project.id)
       end
 
     first_team_uuid = if teams != [], do: hd(teams).uuid, else: nil
 
-    case SnapshotModule.take_snapshot(record_type, record_uuid, snapshot_opts) do
+    case SnapshotContext.take_snapshot(record_type, record_uuid, snapshot_opts) do
       {:ok, data} ->
-        case SnapshotModule.create_snapshot(%{
+        case SnapshotContext.create_snapshot_from_data(%{
                title: params["title"],
                description: params["description"],
                record_type: record_type,
@@ -267,7 +267,7 @@ defmodule LynxWeb.SnapshotsLive do
                team_id: first_team_uuid
              }) do
           {:ok, snapshot} ->
-            AuditModule.log_user(
+            AuditContext.log_user(
               socket.assigns.current_user,
               "created",
               "snapshot",
@@ -293,7 +293,7 @@ defmodule LynxWeb.SnapshotsLive do
   def handle_event("restore_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case SnapshotModule.restore_snapshot(uuid) do
+    case SnapshotContext.restore_snapshot(uuid) do
       {:ok, _} -> {:noreply, put_flash(socket, :info, "Snapshot restored successfully")}
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
     end
@@ -302,7 +302,7 @@ defmodule LynxWeb.SnapshotsLive do
   def handle_event("delete_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case SnapshotModule.delete_snapshot_by_uuid(uuid) do
+    case SnapshotContext.delete_snapshot_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Snapshot deleted") |> load_snapshots()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
     end
@@ -326,10 +326,10 @@ defmodule LynxWeb.SnapshotsLive do
 
     {snapshots, total} =
       if user.role == "super" do
-        {SnapshotModule.get_snapshots(offset, @per_page), SnapshotModule.count_snapshots()}
+        {SnapshotContext.get_snapshots(offset, @per_page), SnapshotContext.count_snapshots()}
       else
-        {SnapshotModule.get_snapshots(user.id, offset, @per_page),
-         SnapshotModule.count_snapshots(user.id)}
+        {SnapshotContext.get_snapshots_for_user(user.id, offset, @per_page),
+         SnapshotContext.count_snapshots_for_user(user.id)}
       end
 
     assign(socket, snapshots: snapshots, total_pages: max(ceil(total / @per_page), 1))

@@ -2,21 +2,21 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.SSOModule do
+defmodule Lynx.Service.SSO do
   @moduledoc """
   SSO Module - handles JIT provisioning and SSO configuration
   """
 
   alias Lynx.Context.UserContext
-  alias Lynx.Module.UserModule
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Context.UserContext
+  alias Lynx.Service.Settings
   alias Lynx.Service.AuthService
 
   @doc """
   Check if SSO is enabled
   """
   def is_sso_enabled? do
-    SettingsModule.get_sso_config("auth_sso_enabled", "false") == "true"
+    Settings.get_sso_config("auth_sso_enabled", "false") == "true"
   end
 
   @doc """
@@ -26,7 +26,7 @@ defmodule Lynx.Module.SSOModule do
     if System.get_env("FORCE_PASSWORD_LOGIN") == "true" do
       true
     else
-      SettingsModule.get_sso_config("auth_password_enabled", "true") == "true"
+      Settings.get_sso_config("auth_password_enabled", "true") == "true"
     end
   end
 
@@ -34,7 +34,7 @@ defmodule Lynx.Module.SSOModule do
   Get SSO protocol (:oidc or :saml)
   """
   def get_sso_protocol do
-    case SettingsModule.get_sso_config("sso_protocol", "oidc") do
+    case Settings.get_sso_config("sso_protocol", "oidc") do
       "saml" -> :saml
       _ -> :oidc
     end
@@ -44,14 +44,14 @@ defmodule Lynx.Module.SSOModule do
   Get SSO login button label
   """
   def get_sso_login_label do
-    SettingsModule.get_sso_config("sso_login_label", "SSO")
+    Settings.get_sso_config("sso_login_label", "SSO")
   end
 
   @doc """
   Check if JIT provisioning is enabled
   """
   def is_jit_enabled? do
-    SettingsModule.get_sso_config("sso_jit_enabled", "true") == "true"
+    Settings.get_sso_config("sso_jit_enabled", "true") == "true"
   end
 
   @doc """
@@ -72,7 +72,7 @@ defmodule Lynx.Module.SSOModule do
         case UserContext.get_user_by_email(email) do
           nil ->
             if is_jit_enabled?() do
-              UserModule.create_sso_user(%{
+              UserContext.create_sso_user(%{
                 email: email,
                 name: name,
                 auth_provider: provider,

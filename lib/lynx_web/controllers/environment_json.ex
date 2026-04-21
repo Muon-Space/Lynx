@@ -3,9 +3,9 @@
 # license that can be found in the LICENSE file.
 
 defmodule LynxWeb.EnvironmentJSON do
-  alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.StateModule
-  alias Lynx.Module.ProjectModule
+  alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.StateContext
+  alias Lynx.Context.ProjectContext
 
   # Render environments list
   def render("list.json", %{environments: environments, metadata: metadata}) do
@@ -31,15 +31,15 @@ defmodule LynxWeb.EnvironmentJSON do
 
   # Format environment
   defp render_environment(environment) do
-    count = StateModule.count_states(environment.id)
-    {:ok, project} = ProjectModule.get_project_by_id(environment.project_id)
+    count = StateContext.count_states(environment.id)
+    {:ok, project} = ProjectContext.fetch_project_by_id(environment.project_id)
 
     %{
       id: environment.uuid,
       name: environment.name,
       slug: environment.slug,
       username: environment.username,
-      isLocked: EnvironmentModule.is_environment_locked(environment.id),
+      isLocked: EnvironmentContext.is_environment_locked(environment.id),
       stateVersion: "v#{count}",
       project: %{
         id: project.uuid

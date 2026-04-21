@@ -1,17 +1,17 @@
 defmodule LynxWeb.EnvironmentLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.ProjectModule
-  alias Lynx.Module.LockModule
-  alias Lynx.Module.SettingsModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.LockContext
+  alias Lynx.Service.Settings
+  alias Lynx.Context.AuditContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.StateContext
   alias Lynx.Context.LockContext
 
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid}, _session, socket) do
-    case ProjectModule.get_project_by_uuid(project_uuid) do
+    case ProjectContext.fetch_project_by_uuid(project_uuid) do
       {:not_found, _} ->
         {:ok, redirect(socket, to: "/admin/projects")}
 
@@ -26,7 +26,7 @@ defmodule LynxWeb.EnvironmentLive do
                 do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
 
             app_url =
-              SettingsModule.get_config("app_url", "http://localhost:4000")
+              Settings.get_config("app_url", "http://localhost:4000")
               |> String.trim_trailing("/")
 
             socket =
@@ -156,8 +156,15 @@ defmodule LynxWeb.EnvironmentLive do
   def handle_event("env_force_lock", _, socket) do
     socket = assign(socket, :confirm, nil)
     env = socket.assigns.env
-    LockModule.force_lock(env.id, socket.assigns.current_user.name)
-    AuditModule.log_user(socket.assigns.current_user, "locked", "environment", env.uuid, env.name)
+    LockContext.force_lock(env.id, socket.assigns.current_user.name)
+
+    AuditContext.log_user(
+      socket.assigns.current_user,
+      "locked",
+      "environment",
+      env.uuid,
+      env.name
+    )
 
     {:noreply,
      socket |> assign(:env_locked, true) |> put_flash(:info, "Environment locked") |> load_units()}
@@ -166,9 +173,9 @@ defmodule LynxWeb.EnvironmentLive do
   def handle_event("env_force_unlock", _, socket) do
     socket = assign(socket, :confirm, nil)
     env = socket.assigns.env
-    LockModule.force_unlock(env.id)
+    LockContext.force_unlock(env.id)
 
-    AuditModule.log_user(
+    AuditContext.log_user(
       socket.assigns.current_user,
       "unlocked",
       "environment",
@@ -202,7 +209,7 @@ defmodule LynxWeb.EnvironmentLive do
 
     LockContext.create_lock(lock)
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditModule.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
+    AuditContext.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
     {:noreply, socket |> put_flash(:info, "Unit locked") |> load_units()}
   end
 
@@ -216,7 +223,7 @@ defmodule LynxWeb.EnvironmentLive do
     end
 
     label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
-    AuditModule.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
+    AuditContext.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
     {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
   end
 

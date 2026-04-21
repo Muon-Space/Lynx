@@ -1,7 +1,7 @@
 defmodule LynxWeb.AuditLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.AuditContext
 
   @per_page 50
 
@@ -111,7 +111,7 @@ defmodule LynxWeb.AuditLive do
       resource_type: non_empty(socket.assigns.filter_resource)
     }
 
-    {events, total} = AuditModule.list_events(opts)
+    {events, total} = AuditContext.list_events(opts)
     total_pages = max(ceil(total / socket.assigns.per_page), 1)
 
     socket

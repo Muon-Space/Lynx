@@ -30,7 +30,7 @@ defmodule LynxWeb.SettingsControllerTest do
         })
 
       assert response(conn, 200)
-      assert Lynx.Module.SettingsModule.get_config("app_name", "") == "Lynx Updated"
+      assert Lynx.Service.Settings.get_config("app_name", "") == "Lynx Updated"
     end
   end
 

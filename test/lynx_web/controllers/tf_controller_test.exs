@@ -259,7 +259,7 @@ defmodule LynxWeb.TfControllerTest do
 
     test "environment-level lock blocks all unit locks", %{conn: conn, env: env} do
       # Create an environment-level lock (root path)
-      Lynx.Module.LockModule.force_lock(env.id, "admin")
+      Lynx.Context.LockContext.force_lock(env.id, "admin")
 
       lock_body = %{
         "ID" => Ecto.UUID.generate(),
@@ -363,7 +363,7 @@ defmodule LynxWeb.TfControllerTest do
 
   describe "env-level lock blocks state push" do
     test "state push rejected when environment is locked", %{conn: conn, env: env} do
-      Lynx.Module.LockModule.force_lock(env.id, "admin")
+      Lynx.Context.LockContext.force_lock(env.id, "admin")
 
       conn =
         conn
@@ -375,7 +375,7 @@ defmodule LynxWeb.TfControllerTest do
     end
 
     test "unit state push rejected when environment is locked", %{conn: conn, env: env} do
-      Lynx.Module.LockModule.force_lock(env.id, "admin")
+      Lynx.Context.LockContext.force_lock(env.id, "admin")
 
       conn =
         conn
@@ -387,8 +387,8 @@ defmodule LynxWeb.TfControllerTest do
     end
 
     test "state push works after unlock", %{conn: conn, env: env} do
-      Lynx.Module.LockModule.force_lock(env.id, "admin")
-      Lynx.Module.LockModule.force_unlock(env.id)
+      Lynx.Context.LockContext.force_lock(env.id, "admin")
+      Lynx.Context.LockContext.force_unlock(env.id)
 
       conn =
         conn
@@ -454,7 +454,7 @@ defmodule LynxWeb.TfControllerTest do
       conn: conn,
       env: env
     } do
-      Lynx.Module.LockModule.force_lock(env.id, "admin")
+      Lynx.Context.LockContext.force_lock(env.id, "admin")
 
       push =
         conn

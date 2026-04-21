@@ -1,11 +1,11 @@
 defmodule LynxWeb.HomeLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.InstallModule
+  alias Lynx.Service.Install
 
   @impl true
   def mount(_params, _session, socket) do
-    if not InstallModule.is_installed() do
+    if not Install.is_installed() do
       {:ok, redirect(socket, to: "/install")}
     else
       if socket.assigns.current_user do

@@ -420,4 +420,144 @@ defmodule Lynx.Context.ProjectContext do
     from(p in ProjectMeta, where: p.project_id == ^project_id)
     |> Repo.all()
   end
+
+  # -- Tagged-tuple lookups (Phoenix `fetch_*` convention) --
+
+  def fetch_project_by_id(id) do
+    case get_project_by_id(id) do
+      nil -> {:not_found, "Project with ID #{id} not found"}
+      project -> {:ok, project}
+    end
+  end
+
+  def fetch_project_by_uuid(uuid) do
+    case get_project_by_uuid(uuid) do
+      nil -> {:not_found, "Project with UUID #{uuid} not found"}
+      project -> {:ok, project}
+    end
+  end
+
+  # -- High-level orchestration (was ProjectModule) --
+
+  @doc "Get user-scoped projects (paginated) — projects whose teams the user belongs to."
+  def get_projects_for_user(user_id, offset, limit) do
+    teams_ids =
+      user_id
+      |> Lynx.Context.UserContext.get_user_teams()
+      |> Enum.map(& &1.id)
+
+    get_projects_by_teams(teams_ids, offset, limit)
+  end
+
+  @doc "Count user-scoped projects."
+  def count_projects_for_user(user_id) do
+    teams_ids =
+      user_id
+      |> Lynx.Context.UserContext.get_user_teams()
+      |> Enum.map(& &1.id)
+
+    count_projects_by_teams(teams_ids)
+  end
+
+  def update_project_from_data(data \\ %{}) do
+    case get_project_by_uuid(data[:uuid]) do
+      nil ->
+        {:not_found, "Project with ID #{data[:uuid]} not found"}
+
+      project ->
+        new_project = %{
+          name: data[:name] || project.name,
+          description: data[:description] || project.description,
+          slug: data[:slug] || project.slug
+        }
+
+        case update_project(project, new_project) do
+          {:ok, project} ->
+            if data[:team_ids], do: sync_project_teams(project.id, data[:team_ids])
+            {:ok, project}
+
+          {:error, changeset} ->
+            messages =
+              changeset.errors
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+            {:error, Enum.at(messages, 0)}
+        end
+    end
+  end
+
+  def create_project_from_data(data \\ %{}) do
+    project =
+      new_project(%{
+        name: data[:name],
+        description: data[:description],
+        slug: data[:slug],
+        workspace_id: data[:workspace_id]
+      })
+
+    case create_project(project) do
+      {:ok, project} ->
+        team_ids = data[:team_ids] || []
+
+        team_ids =
+          if team_ids == [] and data[:team_id] do
+            [Lynx.Context.TeamContext.get_team_id_with_uuid(data[:team_id])]
+          else
+            Enum.map(team_ids, &Lynx.Context.TeamContext.get_team_id_with_uuid/1)
+          end
+
+        for team_id <- team_ids, team_id != nil do
+          add_project_to_team(project.id, team_id)
+        end
+
+        {:ok, project}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  def delete_project_by_uuid(uuid) do
+    case get_project_by_uuid(uuid) do
+      nil ->
+        {:not_found, "Project with UUID #{uuid} not found"}
+
+      project ->
+        delete_project(project)
+        {:ok, "Project with UUID #{uuid} deleted successfully"}
+    end
+  end
+
+  def is_slug_used_in_team(slug, team_id) do
+    case get_project_by_slug_team_id(slug, team_id) do
+      nil -> false
+      _ -> true
+    end
+  end
+
+  def get_project_team_uuids(project_id) do
+    get_project_teams(project_id) |> Enum.map(& &1.uuid)
+  end
+
+  @doc "Sync project team memberships. `team_uuids` are user-supplied UUIDs."
+  def sync_project_teams(project_id, team_uuids) do
+    current_team_ids = get_project_team_ids(project_id)
+
+    future_team_ids =
+      team_uuids
+      |> Enum.map(&Lynx.Context.TeamContext.get_team_id_with_uuid/1)
+      |> Enum.filter(&(&1 != nil))
+
+    for id <- current_team_ids, id not in future_team_ids do
+      remove_project_from_team(project_id, id)
+    end
+
+    for id <- future_team_ids, id not in current_team_ids do
+      add_project_to_team(project_id, id)
+    end
+  end
 end

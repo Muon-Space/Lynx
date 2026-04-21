@@ -11,8 +11,8 @@ defmodule LynxWeb.OIDCProviderController do
 
   require Logger
 
-  alias Lynx.Module.OIDCBackendModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Service.OIDCBackend
+  alias Lynx.Context.AuditContext
 
   plug :super_user
 
@@ -30,7 +30,7 @@ defmodule LynxWeb.OIDCProviderController do
   # -- Providers --
 
   def list_providers(conn, _params) do
-    providers = OIDCBackendModule.list_providers()
+    providers = OIDCBackend.list_providers()
 
     conn
     |> json(%{
@@ -49,13 +49,13 @@ defmodule LynxWeb.OIDCProviderController do
   end
 
   def create_provider(conn, params) do
-    case OIDCBackendModule.create_provider(%{
+    case OIDCBackend.create_provider(%{
            name: params["name"],
            discovery_url: params["discovery_url"],
            audience: params["audience"]
          }) do
       {:ok, provider} ->
-        AuditModule.log(conn, "created", "oidc_provider", provider.uuid, provider.name)
+        AuditContext.log(conn, "created", "oidc_provider", provider.uuid, provider.name)
 
         conn
         |> put_status(:created)
@@ -79,7 +79,7 @@ defmodule LynxWeb.OIDCProviderController do
   end
 
   def update_provider(conn, %{"uuid" => uuid} = params) do
-    case OIDCBackendModule.update_provider(uuid, %{
+    case OIDCBackend.update_provider(uuid, %{
            name: params["name"],
            discovery_url: params["discovery_url"],
            audience: params["audience"]
@@ -109,9 +109,9 @@ defmodule LynxWeb.OIDCProviderController do
   end
 
   def delete_provider(conn, %{"uuid" => uuid}) do
-    case OIDCBackendModule.delete_provider(uuid) do
+    case OIDCBackend.delete_provider(uuid) do
       {:ok, _} ->
-        AuditModule.log(conn, "deleted", "oidc_provider", uuid)
+        AuditContext.log(conn, "deleted", "oidc_provider", uuid)
         conn |> json(%{successMessage: "Provider deleted successfully"})
 
       {:not_found, _} ->
@@ -127,7 +127,7 @@ defmodule LynxWeb.OIDCProviderController do
         conn |> put_status(:not_found) |> json(%{errorMessage: "Environment not found"})
 
       environment_id ->
-        rules = OIDCBackendModule.list_rules_by_environment(environment_id)
+        rules = OIDCBackend.list_rules_by_environment(environment_id)
 
         conn
         |> json(%{
@@ -163,7 +163,7 @@ defmodule LynxWeb.OIDCProviderController do
           Jason.encode!(params["claim_rules"])
         end
 
-      case OIDCBackendModule.create_rule(%{
+      case OIDCBackend.create_rule(%{
              name: params["name"],
              claim_rules: claim_rules,
              provider_id: provider.id,
@@ -192,7 +192,7 @@ defmodule LynxWeb.OIDCProviderController do
   end
 
   def delete_rule(conn, %{"uuid" => uuid}) do
-    case OIDCBackendModule.delete_rule(uuid) do
+    case OIDCBackend.delete_rule(uuid) do
       {:ok, _} ->
         conn |> json(%{successMessage: "Access rule deleted successfully"})
 

@@ -10,6 +10,7 @@ defmodule Lynx.Context.UserContext do
   import Ecto.Query
 
   alias Lynx.Repo
+  alias Lynx.Service.{AuthService, Settings}
   alias Lynx.Model.{Team, UserMeta, User, UserSession, UserTeam}
 
   @doc """
@@ -438,6 +439,160 @@ defmodule Lynx.Context.UserContext do
 
       _ ->
         true
+    end
+  end
+
+  # -- Tagged-tuple lookups (Phoenix `fetch_*` convention) --
+
+  def fetch_user_by_id(id) do
+    case get_user_by_id(id) do
+      nil -> {:not_found, nil}
+      user -> {:ok, user}
+    end
+  end
+
+  def fetch_user_by_uuid(uuid) do
+    case get_user_by_uuid(uuid) do
+      nil -> {:not_found, "User with ID #{uuid} not found"}
+      user -> {:ok, user}
+    end
+  end
+
+  # -- High-level orchestration (was UserModule) --
+
+  @doc "Create a user. Hashes the password using the seeded `app_key`."
+  def create_user_from_data(params \\ %{}) do
+    app_key = Settings.get_config("app_key", "")
+    hash = AuthService.hash_password(params[:password], app_key)
+
+    user =
+      new_user(%{
+        email: params[:email],
+        name: params[:name],
+        password_hash: hash,
+        verified: false,
+        api_key: params[:api_key],
+        role: params[:role],
+        last_seen: DateTime.utc_now()
+      })
+
+    case create_user(user) do
+      {:ok, user} ->
+        {:ok, user}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  @doc "Update an existing user. If `:password` is blank, the password is left untouched."
+  def update_user_from_data(params \\ %{}) do
+    case get_user_by_uuid(params[:uuid]) do
+      nil ->
+        {:not_found, "User with ID #{params[:uuid]} not found"}
+
+      user ->
+        new_user =
+          if params[:password] == nil or params[:password] == "" do
+            %{
+              email: params[:email] || user.email,
+              name: params[:name] || user.name,
+              role: params[:role] || user.role
+            }
+          else
+            app_key = Settings.get_config("app_key", "")
+            hash = AuthService.hash_password(params[:password], app_key)
+
+            %{
+              email: params[:email] || user.email,
+              name: params[:name] || user.name,
+              role: params[:role] || user.role,
+              password_hash: hash
+            }
+          end
+
+        case update_user(user, new_user) do
+          {:ok, user} ->
+            {:ok, user}
+
+          {:error, changeset} ->
+            messages =
+              changeset.errors
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+            {:error, Enum.at(messages, 0)}
+        end
+    end
+  end
+
+  def rotate_api_key(user_uuid, new_api_key) do
+    case get_user_by_uuid(user_uuid) do
+      nil ->
+        {:not_found, "User with ID #{user_uuid} not found"}
+
+      user ->
+        case update_user(user, %{api_key: new_api_key}) do
+          {:ok, user} ->
+            {:ok, user}
+
+          {:error, changeset} ->
+            messages =
+              changeset.errors
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+            {:error, Enum.at(messages, 0)}
+        end
+    end
+  end
+
+  @doc "Create an SSO/SCIM user (no password — auth handled externally)."
+  def create_sso_user(params \\ %{}) do
+    user =
+      new_user(%{
+        email: params[:email],
+        name: params[:name],
+        password_hash: "__SSO_NO_PASSWORD__",
+        verified: true,
+        api_key: AuthService.get_uuid(),
+        role: params[:role] || "regular",
+        last_seen: DateTime.utc_now(),
+        auth_provider: params[:auth_provider],
+        external_id: params[:external_id],
+        is_active: Map.get(params, :is_active, true)
+      })
+
+    case create_user(user) do
+      {:ok, user} ->
+        {:ok, user}
+
+      {:error, changeset} ->
+        messages =
+          changeset.errors
+          |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+        {:error, Enum.at(messages, 0)}
+    end
+  end
+
+  def delete_user_by_uuid(uuid) do
+    case get_user_by_uuid(uuid) do
+      nil ->
+        {:not_found, "User with ID #{uuid} not found"}
+
+      user ->
+        delete_user(user)
+        {:ok, "User with ID #{uuid} deleted successfully"}
+    end
+  end
+
+  def is_email_used(email) do
+    case get_user_by_email(email) do
+      nil -> false
+      _ -> true
     end
   end
 end

@@ -2,10 +2,10 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.OIDCBackendModuleTest do
+defmodule Lynx.Service.OIDCBackendTest do
   use ExUnit.Case
 
-  alias Lynx.Module.OIDCBackendModule
+  alias Lynx.Service.OIDCBackend
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.TeamContext
@@ -17,45 +17,45 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
   describe "provider CRUD" do
     test "create and list providers" do
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "test-provider",
           discovery_url: "https://example.com/.well-known/openid-configuration"
         })
 
       assert provider.name == "test-provider"
 
-      providers = OIDCBackendModule.list_providers()
+      providers = OIDCBackend.list_providers()
       assert length(providers) >= 1
       assert Enum.any?(providers, fn p -> p.name == "test-provider" end)
     end
 
     test "is_oidc_provider? returns true for active provider" do
       {:ok, _} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "github-actions-test",
           discovery_url: "https://token.actions.githubusercontent.com"
         })
 
-      assert OIDCBackendModule.is_oidc_provider?("github-actions-test")
-      refute OIDCBackendModule.is_oidc_provider?("nonexistent")
+      assert OIDCBackend.is_oidc_provider?("github-actions-test")
+      refute OIDCBackend.is_oidc_provider?("nonexistent")
     end
 
     test "delete provider" do
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "to-delete",
           discovery_url: "https://example.com"
         })
 
-      {:ok, _} = OIDCBackendModule.delete_provider(provider.uuid)
-      assert {:not_found, _} = OIDCBackendModule.get_provider(provider.uuid)
+      {:ok, _} = OIDCBackend.delete_provider(provider.uuid)
+      assert {:not_found, _} = OIDCBackend.get_provider(provider.uuid)
     end
   end
 
   describe "access rule CRUD" do
     test "create and list rules" do
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "rule-test-provider",
           discovery_url: "https://example.com"
         })
@@ -90,7 +90,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
       claim_rules = Jason.encode!([%{claim: "repository", operator: "eq", value: "myorg/myrepo"}])
 
       {:ok, rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "test-rule",
           claim_rules: claim_rules,
           provider_id: provider.id,
@@ -99,7 +99,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
       assert rule.name == "test-rule"
 
-      rules = OIDCBackendModule.list_rules_by_environment(env.id)
+      rules = OIDCBackend.list_rules_by_environment(env.id)
       assert length(rules) == 1
     end
   end
@@ -115,7 +115,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
       # Test via the module's internal logic by creating real data
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "claim-test",
           discovery_url: "https://example.com"
         })
@@ -147,7 +147,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
         )
 
       {:ok, _} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "match-rule",
           claim_rules: Jason.encode!(rules),
           provider_id: provider.id,
@@ -156,7 +156,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
       # The evaluate_access function is private, but we can test via the public API
       # by checking the rule listing and manually verifying claim matching logic
-      rules_list = OIDCBackendModule.list_rules_by_environment(env.id)
+      rules_list = OIDCBackend.list_rules_by_environment(env.id)
       assert length(rules_list) == 1
 
       decoded = Jason.decode!(hd(rules_list).claim_rules)
@@ -169,7 +169,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
     setup do
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "github-actions-eval-#{System.unique_integer([:positive])}",
           discovery_url: "https://token.actions.githubusercontent.com"
         })
@@ -212,7 +212,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
 
     defp create_rule!(%{provider: p, env: e}, name, role, claim_list) do
       {:ok, rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: name,
           claim_rules: Jason.encode!(claim_list),
           provider_id: p.id,
@@ -241,7 +241,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
         "environment" => "grafana-production"
       }
 
-      assert {:ok, perms} = OIDCBackendModule.evaluate_access(p.id, env.id, token_claims)
+      assert {:ok, perms} = OIDCBackend.evaluate_access(p.id, env.id, token_claims)
       # Applier has state:write; planner does not. Union must include it.
       assert MapSet.member?(perms, "state:write")
       assert MapSet.member?(perms, "state:read")
@@ -261,7 +261,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
       ])
 
       claims_full = %{"repository" => "org/repo", "environment" => "prod"}
-      {:ok, perms} = OIDCBackendModule.evaluate_access(p.id, env.id, claims_full)
+      {:ok, perms} = OIDCBackend.evaluate_access(p.id, env.id, claims_full)
 
       # Regardless of insertion order, the union must include applier's perms.
       assert MapSet.member?(perms, "state:write")
@@ -281,7 +281,7 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
       # Token without `environment` claim — only the planner rule matches.
       token_claims = %{"repository" => "org/repo"}
 
-      assert {:ok, perms} = OIDCBackendModule.evaluate_access(p.id, env.id, token_claims)
+      assert {:ok, perms} = OIDCBackend.evaluate_access(p.id, env.id, token_claims)
       refute MapSet.member?(perms, "state:write")
       assert MapSet.member?(perms, "state:read")
     end
@@ -292,13 +292,13 @@ defmodule Lynx.Module.OIDCBackendModuleTest do
       ])
 
       assert {:error, _} =
-               OIDCBackendModule.evaluate_access(p.id, env.id, %{
+               OIDCBackend.evaluate_access(p.id, env.id, %{
                  "repository" => "different/repo"
                })
     end
 
     test "no rules configured: distinct error", %{provider: p, env: env} do
-      assert {:error, msg} = OIDCBackendModule.evaluate_access(p.id, env.id, %{})
+      assert {:error, msg} = OIDCBackend.evaluate_access(p.id, env.id, %{})
       assert msg =~ "No access rules"
     end
   end
