@@ -711,6 +711,11 @@ defmodule LynxWeb.CoreComponents do
 
           this._close = (e) => { if (!this.el.contains(e.target)) this.close() }
           document.addEventListener("click", this._close)
+
+          // Mark already-selected options on first mount — the server-rendered
+          // option list is in the DOM (just hidden) and needs the highlight +
+          // checkmark applied before the user opens the dropdown.
+          this.markSelectedOptions()
         },
 
         updated() {
