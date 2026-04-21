@@ -4,7 +4,9 @@ defmodule LynxWeb.StateExplorerLiveTest do
   alias Lynx.Context.LockContext
 
   setup %{conn: conn} do
-    user = create_user()
+    # super bypasses per-project RBAC. Permission-denial tests live in their
+    # own describe block below.
+    user = create_super()
     workspace = create_workspace()
     project = create_project(%{workspace_id: workspace.id})
     env = create_env(project)
