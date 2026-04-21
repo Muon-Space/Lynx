@@ -12,11 +12,11 @@ hero:
 
 ## What is Lynx?
 
-Lynx is a remote Terraform backend that stores state over HTTP with locking, versioning, and rollback. It replaces the need for S3 + DynamoDB or Terraform Cloud for state management. All it needs is PostgreSQL — no object storage required.
+Lynx is a self-hosted remote Terraform backend that stores state over HTTP with locking, versioning, and rollback. It replaces the need for S3 + DynamoDB or Terraform Cloud for state management. All it needs is PostgreSQL — no object storage required.
 
-The admin UI lets you organize work into teams, projects, and environments. Each environment gets its own state endpoint with credentials. You can lock environments, view state versions, take snapshots, and configure OIDC token-based access for CI/CD.
+The admin UI organizes work into a `Workspace → Project → Environment → Unit` hierarchy. Access is governed by **role-based access control** (planner / applier / admin) granted to teams or individual users at the project level, plus OIDC access rules at the environment level for CI tokens.
 
-This is a fork of [Clivern/Lynx](https://github.com/Clivern/Lynx) with SSO (OIDC + SAML), SCIM 2.0 provisioning, OIDC token authentication for CI/CD pipelines, audit logging, multi-team project membership, and a frontend rewrite to Phoenix LiveView with Tailwind CSS.
+This is a fork of [Clivern/Lynx](https://github.com/Clivern/Lynx) with SSO (OIDC + SAML), SCIM 2.0 provisioning, OIDC token authentication for CI/CD pipelines, RBAC, audit logging, multi-team project membership, unit-level state, and a frontend rewrite to Phoenix LiveView with Tailwind CSS.
 
 
 ## Docker
@@ -68,6 +68,25 @@ helm install lynx oci://ghcr.io/muon-space/charts/lynx
 The chart expects PostgreSQL to be provided externally. Database credentials are read from a pre-existing Kubernetes secret (`lynx-db-secret`), and the app secret from `lynx-app-secret`. An init container runs database migrations before the app starts.
 
 See `charts/lynx/values.yaml` in the repository for all configurable values, including ingress, resource limits, and additional environment variables.
+
+### Required environment variables
+
+When deploying via Helm or any production Docker setup, the app reads these env vars at runtime (defined in `config/runtime.exs`):
+
+| Variable | Required? | Notes |
+|---|---|---|
+| `APP_SECRET` | **yes** | Random 64-byte string used to sign cookies. Generate with `mix phx.gen.secret`. |
+| `APP_HOST` | yes (prod) | Public host name for SSO redirect URLs and OpenAPI references. |
+| `APP_HTTP_SCHEMA` | optional | `http` or `https`. Defaults to `http`. |
+| `APP_PORT` | optional | Listening port. Defaults to `4000`. |
+| `DB_USERNAME`, `DB_PASSWORD`, `DB_HOSTNAME`, `DB_DATABASE`, `DB_PORT` | **yes** | Postgres connection. |
+| `DB_SSL` | optional | `on` to enable peer-verified TLS to Postgres. |
+| `DB_CA_CERTFILE_PATH` | required if `DB_SSL=on` | Path to the CA bundle used to verify the Postgres server. |
+| `AUTH_PASSWORD_ENABLED` | optional | `true`/`false`. Default `true`. Set to `false` to force SSO-only login. |
+| `AUTH_SSO_ENABLED` | optional | `true`/`false`. Default `false`. |
+| `SSO_PROTOCOL` | required if SSO on | `oidc` or `saml`. |
+| `SSO_*` | required per protocol | Issuer/client/cert config. See `config/runtime.exs` for the full list. |
+| `SCIM_ENABLED` | optional | `true`/`false`. Default `false`. |
 
 
 ## Manual (Ubuntu)

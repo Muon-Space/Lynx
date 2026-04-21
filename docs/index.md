@@ -33,40 +33,48 @@ features:
           description: Run with Docker or Helm. Only needs PostgreSQL, no object storage.
           icon: database
 
+        - title: Workspace Hierarchy
+          description: Organize state by Workspace → Project → Environment → Unit. One Lynx instance can serve every repo and every team.
+          icon: layers
+
+        - title: Role-Based Access Control
+          description: Planner, Applier, and Admin roles let you separate "can run plan" from "can apply." Custom roles supported.
+          icon: shield
+
         - title: Team Collaboration
-          description: Organize users into teams with role-based access. Projects can belong to multiple teams.
-          icon: server
+          description: Attach teams to projects with a role. Individual user grants on top compose with team grants — permissions union.
+          icon: users
+
+        - title: OIDC Token Auth
+          description: GitHub Actions, GitLab CI, and other OIDC-capable runners authenticate with native tokens. No static secrets in CI.
+          icon: lock
 
         - title: SSO and SCIM
           description: OIDC and SAML 2.0 login with JIT provisioning. SCIM 2.0 for automated user and group sync from your IdP.
           icon: user
 
-        - title: OIDC Token Auth
-          description: CI/CD systems like GitHub Actions authenticate with native OIDC tokens. No static secrets needed.
-          icon: lock
-
-        - title: Environment Management
-          description: Multiple environments per project, each with its own state endpoint, credentials, and lock controls.
-          icon: square
+        - title: Unit-Level State
+          description: Terragrunt-style sub-paths get their own state files. One environment can host dozens of independently-locked units.
+          icon: grid
 
         - title: State Versioning
           description: Every state push is versioned. Roll back to any previous version from the UI.
           icon: git-branch
 
-        - title: Audit Logging
-          description: Every action is tracked with who, what, and when. Filter by action type and resource.
-          icon: activity
-
-        - title: Terraform Locking
-          description: State locking prevents concurrent operations. Lock and unlock environments directly from the admin UI.
-          icon: cpu
-
         - title: Snapshots
-          description: Point-in-time backups of project or environment state with one-click restore.
+          description: Point-in-time backups at project, environment, or unit scope. One-click restore (admin only).
           icon: tag
 
+        - title: Terraform Locking
+          description: State locking prevents concurrent operations. Force-unlock from the UI for stuck CI jobs.
+          icon: cpu
+
+        - title: Audit Logging
+          description: Every action — create/update/delete, lock/unlock, state push, role grant, snapshot restore — tracked with who and when.
+          icon: activity
+
         - title: RESTful API
-          description: Full JSON API for programmatic management of users, teams, projects, environments, and snapshots.
+          description: Full JSON API for programmatic management of users, teams, projects, environments, snapshots, OIDC providers.
           icon: code
 
         - title: Helm Chart
