@@ -71,11 +71,11 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:rule_role_id, default_role_id(roles, "applier"))
           |> assign(:roles, roles)
           |> assign(:viewer_perms, viewer_perms)
-          |> assign(:all_teams, TeamContext.get_teams(0, LynxWeb.Limits.dropdown_max()))
-          |> assign(:all_users, UserContext.get_users(0, LynxWeb.Limits.dropdown_max()))
-          |> assign(:add_team_id, "")
+          |> assign(:add_team_selected, nil)
+          |> assign(:add_team_options, [])
           |> assign(:add_team_role_id, default_role_id(roles, "applier"))
-          |> assign(:add_user_id, "")
+          |> assign(:add_user_selected, nil)
+          |> assign(:add_user_options, [])
           |> assign(:add_user_role_id, default_role_id(roles, "planner"))
           |> assign(:confirm, nil)
           |> reload_access()
@@ -230,15 +230,7 @@ defmodule LynxWeb.ProjectLive do
 
             <form phx-submit="add_team_access" phx-change="add_team_form_change" class="mt-3 flex items-end gap-2">
               <div class="flex-1">
-                <.input
-                  id="add-team-id"
-                  name="team_id"
-                  type="select"
-                  label="Add team"
-                  prompt="Select a team"
-                  options={Enum.map(unattached_teams(@all_teams, @team_assignments), &{&1.name, &1.uuid})}
-                  value={@add_team_id}
-                />
+                <.combobox id="add-team-id" name="team_id" label="Add team" prompt="Select a team" options={@add_team_options} selected={@add_team_selected} placeholder="Type a team name…" />
               </div>
               <div class="w-40">
                 <.input
@@ -250,7 +242,7 @@ defmodule LynxWeb.ProjectLive do
                   value={to_string(@add_team_role_id)}
                 />
               </div>
-              <.button type="submit" variant="primary" size="sm" disabled={@add_team_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
+              <.button type="submit" variant="primary" size="sm" disabled={is_nil(@add_team_selected)} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>
           </div>
 
@@ -277,15 +269,7 @@ defmodule LynxWeb.ProjectLive do
 
             <form phx-submit="add_user_access" phx-change="add_user_form_change" class="mt-3 flex items-end gap-2">
               <div class="flex-1">
-                <.input
-                  id="add-user-id"
-                  name="user_id"
-                  type="select"
-                  label="Add user"
-                  prompt="Select a user"
-                  options={Enum.map(unattached_users(@all_users, @user_assignments), &{"#{&1.name} (#{&1.email})", &1.uuid})}
-                  value={@add_user_id}
-                />
+                <.combobox id="add-user-id" name="user_id" label="Add user" prompt="Select a user" options={@add_user_options} selected={@add_user_selected} placeholder="Type a name or email…" />
               </div>
               <div class="w-40">
                 <.input
@@ -297,7 +281,7 @@ defmodule LynxWeb.ProjectLive do
                   value={to_string(@add_user_role_id)}
                 />
               </div>
-              <.button type="submit" variant="primary" size="sm" disabled={@add_user_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
+              <.button type="submit" variant="primary" size="sm" disabled={is_nil(@add_user_selected)} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>
           </div>
         </.card>
@@ -537,9 +521,21 @@ defmodule LynxWeb.ProjectLive do
 
   # -- Project Access (teams + users) --
   def handle_event("add_team_form_change", params, socket) do
+    selected =
+      case params["team_id"] do
+        nil -> nil
+        "" -> nil
+        uuid -> lookup_team_pair(uuid, socket.assigns.add_team_selected)
+      end
+
+    options =
+      params["_q_team_id"]
+      |> team_search_results(socket.assigns.team_assignments)
+
     {:noreply,
      socket
-     |> assign(:add_team_id, params["team_id"] || "")
+     |> assign(:add_team_selected, selected)
+     |> assign(:add_team_options, options)
      |> assign(
        :add_team_role_id,
        parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
@@ -547,9 +543,21 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("add_user_form_change", params, socket) do
+    selected =
+      case params["user_id"] do
+        nil -> nil
+        "" -> nil
+        uuid -> lookup_user_pair(uuid, socket.assigns.add_user_selected)
+      end
+
+    options =
+      params["_q_user_id"]
+      |> user_search_results(socket.assigns.user_assignments)
+
     {:noreply,
      socket
-     |> assign(:add_user_id, params["user_id"] || "")
+     |> assign(:add_user_selected, selected)
+     |> assign(:add_user_options, options)
      |> assign(
        :add_user_role_id,
        parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
@@ -558,7 +566,7 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("add_team_access", params, socket) do
     with :ok <- ensure_can_manage_access(socket),
-         %{} = team <- find_team_by_uuid(socket.assigns.all_teams, params["team_id"]) do
+         %{} = team <- TeamContext.get_team_by_uuid(params["team_id"] || "") do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
       ProjectContext.add_project_to_team(socket.assigns.project.id, team.id, role_id)
 
@@ -573,7 +581,8 @@ defmodule LynxWeb.ProjectLive do
       {:noreply,
        socket
        |> put_flash(:info, "Team access granted")
-       |> assign(:add_team_id, "")
+       |> assign(:add_team_selected, nil)
+       |> assign(:add_team_options, [])
        |> reload_access()}
     else
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
@@ -601,7 +610,7 @@ defmodule LynxWeb.ProjectLive do
     socket = assign(socket, :confirm, nil)
 
     with :ok <- ensure_can_manage_access(socket),
-         %{} = team <- find_team_by_uuid(socket.assigns.all_teams, team_uuid) do
+         %{} = team <- TeamContext.get_team_by_uuid(team_uuid) do
       ProjectContext.remove_project_from_team(socket.assigns.project.id, team.id)
 
       AuditContext.log_user(
@@ -621,7 +630,7 @@ defmodule LynxWeb.ProjectLive do
 
   def handle_event("add_user_access", params, socket) do
     with :ok <- ensure_can_manage_access(socket),
-         %{} = user <- find_user_by_uuid(socket.assigns.all_users, params["user_id"]) do
+         %{} = user <- UserContext.get_user_by_uuid(params["user_id"] || "") do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
       UserProjectContext.assign_role(user.id, socket.assigns.project.id, role_id)
 
@@ -636,7 +645,8 @@ defmodule LynxWeb.ProjectLive do
       {:noreply,
        socket
        |> put_flash(:info, "User access granted")
-       |> assign(:add_user_id, "")
+       |> assign(:add_user_selected, nil)
+       |> assign(:add_user_options, [])
        |> reload_access()}
     else
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
@@ -664,7 +674,7 @@ defmodule LynxWeb.ProjectLive do
     socket = assign(socket, :confirm, nil)
 
     with :ok <- ensure_can_manage_access(socket),
-         %{} = user <- find_user_by_uuid(socket.assigns.all_users, user_uuid) do
+         %{} = user <- UserContext.get_user_by_uuid(user_uuid) do
       UserProjectContext.remove(user.id, socket.assigns.project.id)
 
       AuditContext.log_user(
@@ -775,18 +785,49 @@ defmodule LynxWeb.ProjectLive do
     end
   end
 
-  defp unattached_teams(all_teams, assignments) do
+  defp team_search_results(query, assignments) do
     attached_ids = MapSet.new(assignments, & &1.team.id)
-    Enum.reject(all_teams, &MapSet.member?(attached_ids, &1.id))
+
+    (query || "")
+    |> TeamContext.search_teams()
+    |> Enum.reject(&MapSet.member?(attached_ids, &1.id))
+    |> Enum.map(&{&1.name, &1.uuid})
   end
 
-  defp unattached_users(all_users, assignments) do
+  defp user_search_results(query, assignments) do
     attached_ids = MapSet.new(assignments, & &1.user.id)
-    Enum.reject(all_users, &MapSet.member?(attached_ids, &1.id))
+
+    (query || "")
+    |> UserContext.search_users()
+    |> Enum.reject(&MapSet.member?(attached_ids, &1.id))
+    |> Enum.map(&{"#{&1.name} (#{&1.email})", &1.uuid})
   end
 
-  defp find_team_by_uuid(teams, uuid), do: Enum.find(teams, &(&1.uuid == uuid))
-  defp find_user_by_uuid(users, uuid), do: Enum.find(users, &(&1.uuid == uuid))
+  defp lookup_team_pair(uuid, current) do
+    case current do
+      {_, ^uuid} ->
+        current
+
+      _ ->
+        case TeamContext.get_team_by_uuid(uuid) do
+          nil -> nil
+          t -> {t.name, t.uuid}
+        end
+    end
+  end
+
+  defp lookup_user_pair(uuid, current) do
+    case current do
+      {_, ^uuid} ->
+        current
+
+      _ ->
+        case UserContext.get_user_by_uuid(uuid) do
+          nil -> nil
+          u -> {"#{u.name} (#{u.email})", u.uuid}
+        end
+    end
+  end
 
   defp reload_access(socket) do
     project_id = socket.assigns.project.id

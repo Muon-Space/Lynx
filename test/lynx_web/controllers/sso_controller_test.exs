@@ -9,7 +9,7 @@ defmodule LynxWeb.SSOControllerTest do
     {:ok, conn: conn}
   end
 
-  defp enable_sso(protocol \\ "oidc") do
+  defp enable_sso(protocol) do
     {:ok, _} =
       ConfigContext.create_config(
         ConfigContext.new_config(%{name: "auth_sso_enabled", value: "true"})

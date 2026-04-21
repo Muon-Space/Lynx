@@ -18,7 +18,8 @@ defmodule LynxWeb.TeamsLive do
       |> assign(:add_slug, "")
       |> assign(:editing_team, nil)
       |> assign(:editing_members, [])
-      |> assign(:all_users, UserContext.get_users(0, LynxWeb.Limits.dropdown_max()))
+      |> assign(:editing_member_options, [])
+      |> assign(:add_member_options, user_options(""))
       |> assign(:roles, RoleContext.list_roles())
       |> assign(:confirm, nil)
       |> load_teams()
@@ -40,11 +41,11 @@ defmodule LynxWeb.TeamsLive do
 
       <.modal :if={@show_add} id="add-team" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Add New Team</h3>
-        <form phx-submit="create_team" phx-change="form_change" class="space-y-4">
+        <form phx-submit="create_team" phx-change="add_form_change" class="space-y-4">
           <.input name="name" label="Name" value="" required />
           <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={[]} hint="Click to select multiple" />
+          <.combobox id="add-team-members" name="members" label="Members" multiple options={@add_member_options} selected={[]} hint="Type to search; click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -54,11 +55,11 @@ defmodule LynxWeb.TeamsLive do
 
       <.modal :if={@editing_team} id="edit-team" show on_close="hide_edit">
         <h3 class="text-lg font-semibold mb-4">Edit Team</h3>
-        <form phx-submit="update_team" class="space-y-4">
+        <form phx-submit="update_team" phx-change="edit_form_change" class="space-y-4">
           <.input name="name" label="Name" value={@editing_team.name} required />
           <.input name="slug" label="Slug" value={@editing_team.slug} required />
           <.input name="description" label="Description" type="textarea" value={@editing_team.description} required />
-          <.input name="members" label="Members" type="select" multiple options={Enum.map(@all_users, &{&1.name, &1.uuid})} value={@editing_members} hint="Click to select multiple" />
+          <.combobox id={"edit-team-members-#{@editing_team.uuid}"} name="members" label="Members" multiple options={@editing_member_options} selected={@editing_members} hint="Type to search; click to add or remove" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Update</.button>
             <.button phx-click="hide_edit" variant="secondary">Cancel</.button>
@@ -101,19 +102,28 @@ defmodule LynxWeb.TeamsLive do
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("show_add", _, socket),
-    do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+    do:
+      {:noreply,
+       assign(socket, show_add: true, add_slug: "", add_member_options: user_options(""))}
 
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
 
-  def handle_event("form_change", %{"name" => name}, socket) do
+  def handle_event("add_form_change", params, socket) do
     slug =
-      name
+      (params["name"] || "")
       |> String.downcase()
       |> String.replace(~r/[^a-z0-9]/, "-")
       |> String.replace(~r/-+/, "-")
       |> String.trim("-")
 
-    {:noreply, assign(socket, :add_slug, slug)}
+    options = user_options(params["_q_members"] || "")
+
+    {:noreply, socket |> assign(:add_slug, slug) |> assign(:add_member_options, options)}
+  end
+
+  def handle_event("edit_form_change", params, socket) do
+    options = user_options(params["_q_members"] || "")
+    {:noreply, assign(socket, :editing_member_options, options)}
   end
 
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_team, nil)}
@@ -146,8 +156,14 @@ defmodule LynxWeb.TeamsLive do
   def handle_event("edit_team", %{"uuid" => uuid}, socket) do
     case TeamContext.fetch_team_by_uuid(uuid) do
       {:ok, team} ->
-        members = TeamContext.get_team_members(team.id)
-        {:noreply, assign(socket, editing_team: team, editing_members: members)}
+        members = TeamContext.get_team_member_options(team.id)
+
+        {:noreply,
+         assign(socket,
+           editing_team: team,
+           editing_members: members,
+           editing_member_options: user_options("")
+         )}
 
       _ ->
         {:noreply, put_flash(socket, :error, "Team not found")}
@@ -191,6 +207,10 @@ defmodule LynxWeb.TeamsLive do
     if socket.assigns.page > 1,
       do: {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_teams()},
       else: {:noreply, socket}
+  end
+
+  defp user_options(query) do
+    UserContext.search_users(query || "") |> Enum.map(&{&1.name, &1.uuid})
   end
 
   defp load_teams(socket) do

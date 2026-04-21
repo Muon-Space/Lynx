@@ -131,6 +131,52 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
+  Search projects by name or slug substring (case-insensitive). For
+  autocomplete inputs. Returns at most `limit` matches ordered by name.
+  """
+  def search_projects(query, limit \\ 25) when is_binary(query) do
+    pattern = "%#{escape_like(query)}%"
+
+    from(p in Project,
+      where: ilike(p.name, ^pattern) or ilike(p.slug, ^pattern),
+      order_by: [asc: p.name],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Search projects scoped to a user — only projects whose teams the user belongs
+  to. For non-super users in autocomplete inputs.
+  """
+  def search_projects_for_user(user_id, query, limit \\ 25) when is_binary(query) do
+    teams_ids =
+      user_id
+      |> Lynx.Context.UserContext.get_user_teams()
+      |> Enum.map(& &1.id)
+
+    pattern = "%#{escape_like(query)}%"
+
+    from(p in Project,
+      join: pt in ProjectTeam,
+      on: pt.project_id == p.id,
+      where: pt.team_id in ^teams_ids,
+      where: ilike(p.name, ^pattern) or ilike(p.slug, ^pattern),
+      distinct: true,
+      order_by: [asc: p.name],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  defp escape_like(query),
+    do:
+      query
+      |> String.replace("\\", "\\\\")
+      |> String.replace("%", "\\%")
+      |> String.replace("_", "\\_")
+
+  @doc """
   Count projects
   """
   def count_projects() do
@@ -534,6 +580,11 @@ defmodule Lynx.Context.ProjectContext do
 
   def get_project_team_uuids(project_id) do
     get_project_teams(project_id) |> Enum.map(& &1.uuid)
+  end
+
+  @doc "Project teams as `[{name, uuid}, ...]` — combobox-friendly."
+  def get_project_team_options(project_id) do
+    get_project_teams(project_id) |> Enum.map(&{&1.name, &1.uuid})
   end
 
   @doc "Sync project team memberships. `team_uuids` are user-supplied UUIDs."

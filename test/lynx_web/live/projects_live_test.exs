@@ -47,7 +47,7 @@ defmodule LynxWeb.ProjectsLiveTest do
       {:ok, view, _} = live(conn, ws_path(ws))
       render_click(view, "show_add", %{})
 
-      render_change(view, "form_change", %{"name" => "Cool Project!"})
+      render_change(view, "add_form_change", %{"name" => "Cool Project!"})
       assert render(view) =~ ~s(value="cool-project")
     end
 
@@ -99,6 +99,64 @@ defmodule LynxWeb.ProjectsLiveTest do
       html = render(view)
       assert html =~ "Project updated"
       assert html =~ "Renamed"
+    end
+  end
+
+  describe "Teams combobox" do
+    alias Lynx.Context.{ProjectContext, TeamContext}
+
+    test "add modal: add_form_change populates team options matching `_q_team_ids`", %{
+      conn: conn,
+      workspace: ws
+    } do
+      {:ok, _platform} =
+        TeamContext.create_team_from_data(%{
+          name: "Platform Findme",
+          slug: "platform",
+          description: "x"
+        })
+
+      {:ok, _other} =
+        TeamContext.create_team_from_data(%{
+          name: "Marketing Other",
+          slug: "marketing",
+          description: "x"
+        })
+
+      {:ok, view, _} = live(conn, ws_path(ws))
+      render_click(view, "show_add", %{})
+
+      html =
+        render_change(view, "add_form_change", %{
+          "name" => "Whatever",
+          "_q_team_ids" => "platform"
+        })
+
+      assert html =~ "Platform Findme"
+      refute html =~ "Marketing Other"
+    end
+
+    test "edit modal pre-populates currently-attached teams as combobox chips", %{
+      conn: conn,
+      workspace: ws
+    } do
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{
+          name: "Already Attached",
+          slug: "att",
+          description: "x"
+        })
+
+      project = create_project(%{workspace_id: ws.id, name: "Proj", slug: "proj"})
+      ProjectContext.add_project_to_team(project.id, team.id)
+
+      {:ok, view, _} = live(conn, ws_path(ws))
+      render_click(view, "edit_project", %{"uuid" => project.uuid})
+
+      html = render(view)
+      assert html =~ "Already Attached"
+      assert html =~ ~s(name="team_ids[]")
+      assert html =~ team.uuid
     end
   end
 

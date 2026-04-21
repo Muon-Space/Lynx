@@ -47,7 +47,7 @@ defmodule LynxWeb.TeamsLiveTest do
       {:ok, view, _} = live(conn, "/admin/teams")
       render_click(view, "show_add", %{})
 
-      render_change(view, "form_change", %{"name" => "Cloud Infra"})
+      render_change(view, "add_form_change", %{"name" => "Cloud Infra"})
 
       assert render(view) =~ ~s(value="cloud-infra")
     end
@@ -129,6 +129,57 @@ defmodule LynxWeb.TeamsLiveTest do
 
       {:ok, _view, html} = live(conn, "/admin/teams")
       assert html =~ "No projects"
+    end
+  end
+
+  describe "Members combobox" do
+    alias Lynx.Context.UserContext
+
+    test "add modal: add_form_change populates options matching `_q_members`", %{conn: conn} do
+      _alice = create_user(%{name: "Alice Findme", email: "alice@example.com"})
+      _bob = create_user(%{name: "Bob Other", email: "bob@example.com"})
+
+      {:ok, view, _} = live(conn, "/admin/teams")
+      render_click(view, "show_add", %{})
+
+      html =
+        render_change(view, "add_form_change", %{"name" => "Whatever", "_q_members" => "find"})
+
+      # Combobox option list re-renders from search results.
+      assert html =~ "Alice Findme"
+      refute html =~ "Bob Other"
+    end
+
+    test "edit modal pre-populates current members as combobox chips", %{conn: conn} do
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "Pre", slug: "pre", description: "x"})
+
+      member = create_user(%{name: "Charlie Member", email: "c@example.com"})
+      {:ok, _} = UserContext.add_user_to_team(member.id, team.id)
+
+      {:ok, view, _} = live(conn, "/admin/teams")
+      render_click(view, "edit_team", %{"uuid" => team.uuid})
+
+      # Initial selection is JSON-encoded into data-initial on the trigger
+      # so the colocated hook can render chips on mount.
+      html = render(view)
+      assert html =~ "Charlie Member"
+      # Hidden input carries the user UUID so form submission works without JS.
+      assert html =~ ~s(name="members[]")
+      assert html =~ member.uuid
+    end
+
+    test "edit modal: edit_form_change refreshes options without losing selection", %{conn: conn} do
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "EditMe", slug: "editme", description: "x"})
+
+      _zoe = create_user(%{name: "Zoe Searchable", email: "z@example.com"})
+
+      {:ok, view, _} = live(conn, "/admin/teams")
+      render_click(view, "edit_team", %{"uuid" => team.uuid})
+
+      html = render_change(view, "edit_form_change", %{"_q_members" => "zoe"})
+      assert html =~ "Zoe Searchable"
     end
   end
 

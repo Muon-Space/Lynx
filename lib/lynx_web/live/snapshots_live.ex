@@ -9,26 +9,14 @@ defmodule LynxWeb.SnapshotsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_user
-
-    all_workspaces =
-      Lynx.Context.WorkspaceContext.get_workspaces(0, LynxWeb.Limits.dropdown_max())
-
-    all_projects =
-      if user.role == "super",
-        do: ProjectContext.get_projects(0, LynxWeb.Limits.dropdown_max()),
-        else: ProjectContext.get_projects_for_user(user.id, 0, LynxWeb.Limits.dropdown_max())
-
     socket =
       socket
-      |> assign(:page, 1)
       |> assign(:show_add, false)
-      |> assign(:all_workspaces, all_workspaces)
-      |> assign(:all_projects, all_projects)
-      |> assign(:filtered_projects, all_projects)
+      |> assign(:workspace_options, workspace_options(""))
+      |> assign(:project_options, project_options(socket.assigns.current_user, "", nil))
       |> assign(:snapshot_scope, "project")
-      |> assign(:snapshot_workspace_id, nil)
-      |> assign(:snapshot_project_uuid, nil)
+      |> assign(:selected_workspace, nil)
+      |> assign(:selected_project, nil)
       |> assign(:snapshot_envs, [])
       |> assign(:snapshot_env_uuid, nil)
       |> assign(:snapshot_units, [])
@@ -59,17 +47,17 @@ defmodule LynxWeb.SnapshotsLive do
           <.input name="title" label="Title" value="" required />
           <.input name="description" label="Description" type="textarea" value="" required />
 
-          <.input name="workspace_id" id="snapshot-workspace" label="Workspace" type="select" prompt="Select workspace" options={Enum.map(@all_workspaces, &{&1.name, to_string(&1.id)})} value={@snapshot_workspace_id || ""} required />
+          <.combobox id="snapshot-workspace" name="workspace_id" label="Workspace" options={@workspace_options} selected={@selected_workspace} prompt="Select workspace" required />
 
-          <div :if={@snapshot_workspace_id && @snapshot_workspace_id != ""}>
-            <.input name="project_uuid" id={"snapshot-project-#{@snapshot_workspace_id}"} label="Project" type="select" prompt="Select project" options={Enum.map(@filtered_projects, &{&1.name, &1.uuid})} value={@snapshot_project_uuid || ""} required />
+          <div :if={@selected_workspace}>
+            <.combobox id={"snapshot-project-#{workspace_value(@selected_workspace)}"} name="project_uuid" label="Project" options={@project_options} selected={@selected_project} prompt="Select project" required />
           </div>
 
-          <div :if={@snapshot_project_uuid && @snapshot_project_uuid != ""}>
-            <.input name="env_uuid" id={"snapshot-env-#{@snapshot_project_uuid}"} label="Environment" type="select" prompt="All Environments" options={Enum.map(@snapshot_envs, &{&1.name, &1.uuid})} value={@snapshot_env_uuid || ""} />
+          <div :if={@selected_project}>
+            <.input name="env_uuid" id={"snapshot-env-#{project_value(@selected_project)}"} label="Environment" type="select" prompt="All Environments" options={Enum.map(@snapshot_envs, &{&1.name, &1.uuid})} value={@snapshot_env_uuid || ""} />
           </div>
 
-          <div :if={@snapshot_project_uuid && @snapshot_project_uuid != "" && @snapshot_env_uuid && @snapshot_env_uuid != ""}>
+          <div :if={@selected_project && @snapshot_env_uuid && @snapshot_env_uuid != ""}>
             <.input name="unit_path" id={"snapshot-unit-#{@snapshot_env_uuid}"} label="Unit" type="select" prompt="All Units" options={Enum.map(@snapshot_units, &{if(&1.sub_path == "", do: "(root)", else: &1.sub_path), &1.sub_path})} value={@snapshot_unit_path || ""} />
           </div>
 
@@ -86,24 +74,52 @@ defmodule LynxWeb.SnapshotsLive do
       </.modal>
 
       <.card>
-        <.table rows={@snapshots} row_click={fn s -> JS.push("view_snapshot", value: %{uuid: s.uuid}) end}>
-          <:col :let={s} label="Title"><span class="font-medium text-clickable">{s.title}</span></:col>
-          <:col :let={s} label="Scope">
-            <.badge color={snapshot_badge_color(s.record_type)}>{s.record_type}</.badge>
-          </:col>
-          <:col :let={s} label="Target"><span class="text-xs">{snapshot_target(s)}</span></:col>
-          <:col :let={s} label="Status">
-            <.badge color={if s.status == "success", do: "green", else: "yellow"}>{s.status}</.badge>
-          </:col>
-          <:col :let={s} label="Created">
-            <span class="text-xs text-muted">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
-          </:col>
-          <:action :let={s}>
-            <.button phx-click="confirm_action" phx-value-event="restore_snapshot" phx-value-message="Restore this snapshot? This will overwrite current state." phx-value-uuid={s.uuid} variant="ghost" size="sm">Restore</.button>
-            <.button phx-click="confirm_action" phx-value-event="delete_snapshot" phx-value-message="Delete this snapshot?" phx-value-uuid={s.uuid} variant="ghost" size="sm">Delete</.button>
-          </:action>
-        </.table>
-        <.pagination page={@page} total_pages={@total_pages} />
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="border-b border-border text-left text-secondary font-medium">
+              <tr>
+                <th class="px-4 py-3">Title</th>
+                <th class="px-4 py-3">Scope</th>
+                <th class="px-4 py-3">Target</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3">Created</th>
+                <th class="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="snapshots-list" phx-update="stream">
+              <tr :for={{dom_id, s} <- @streams.snapshots} id={dom_id} class="border-b border-border hover:bg-surface-secondary cursor-pointer">
+                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                  <span class="font-medium text-clickable">{s.title}</span>
+                </td>
+                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                  <.badge color={snapshot_badge_color(s.record_type)}>{s.record_type}</.badge>
+                </td>
+                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                  <span class="text-xs">{snapshot_target(s)}</span>
+                </td>
+                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                  <.badge color={if s.status == "success", do: "green", else: "yellow"}>{s.status}</.badge>
+                </td>
+                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                  <span class="text-xs text-muted">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex gap-2">
+                    <.button phx-click="confirm_action" phx-value-event="restore_snapshot" phx-value-message="Restore this snapshot? This will overwrite current state." phx-value-uuid={s.uuid} variant="ghost" size="sm">Restore</.button>
+                    <.button phx-click="confirm_action" phx-value-event="delete_snapshot" phx-value-message="Delete this snapshot?" phx-value-uuid={s.uuid} variant="ghost" size="sm">Delete</.button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div :if={@empty?} class="px-4 py-8 text-center text-muted">No records found.</div>
+        </div>
+
+        <div :if={@has_more?} class="flex justify-center mt-4">
+          <button phx-click="load_more" class="px-4 py-2 text-sm rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+            Load more
+          </button>
+        </div>
       </.card>
     </div>
     """
@@ -125,9 +141,10 @@ defmodule LynxWeb.SnapshotsLive do
     {:noreply,
      assign(socket,
        show_add: true,
-       snapshot_workspace_id: nil,
-       snapshot_project_uuid: nil,
-       filtered_projects: socket.assigns.all_projects,
+       selected_workspace: nil,
+       selected_project: nil,
+       workspace_options: workspace_options(""),
+       project_options: project_options(socket.assigns.current_user, "", nil),
        snapshot_envs: [],
        snapshot_env_uuid: nil,
        snapshot_units: [],
@@ -144,24 +161,41 @@ defmodule LynxWeb.SnapshotsLive do
   end
 
   def handle_event("snapshot_form_change", params, socket) do
+    user = socket.assigns.current_user
     workspace_id = params["workspace_id"]
     project_uuid = params["project_uuid"]
     env_uuid = params["env_uuid"]
 
+    workspace_changed = workspace_id != workspace_value(socket.assigns.selected_workspace)
+    project_changed = project_uuid != project_value(socket.assigns.selected_project)
     env_changed = env_uuid != socket.assigns.snapshot_env_uuid
+
+    project_uuid = if workspace_changed, do: nil, else: project_uuid
+    env_uuid = if workspace_changed or project_changed, do: nil, else: env_uuid
     unit_path = if env_changed, do: nil, else: params["unit_path"]
 
-    filtered_projects =
-      if workspace_id && workspace_id != "" do
-        ws_id = String.to_integer(workspace_id)
-        Enum.filter(socket.assigns.all_projects, &(&1.workspace_id == ws_id))
+    selected_workspace = lookup_workspace(workspace_id, socket.assigns.selected_workspace)
+    workspace_db_id = selected_workspace && elem(selected_workspace, 1)
+
+    selected_project =
+      if project_uuid && project_uuid != "" do
+        case ProjectContext.get_project_by_uuid(project_uuid) do
+          nil -> nil
+          p -> {p.name, p.uuid}
+        end
       else
-        socket.assigns.all_projects
+        nil
       end
+
+    workspace_query = params["_q_workspace_id"] || ""
+    project_query = params["_q_project_uuid"] || ""
+
+    workspace_options = workspace_options(workspace_query)
+    project_options = project_options(user, project_query, workspace_db_id)
 
     envs =
       if project_uuid && project_uuid != "" do
-        case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
+        case ProjectContext.get_project_by_uuid(project_uuid) do
           nil ->
             []
 
@@ -207,9 +241,10 @@ defmodule LynxWeb.SnapshotsLive do
 
     {:noreply,
      socket
-     |> assign(:snapshot_workspace_id, workspace_id)
-     |> assign(:snapshot_project_uuid, project_uuid)
-     |> assign(:filtered_projects, filtered_projects)
+     |> assign(:selected_workspace, selected_workspace)
+     |> assign(:selected_project, selected_project)
+     |> assign(:workspace_options, workspace_options)
+     |> assign(:project_options, project_options)
      |> assign(:snapshot_envs, envs)
      |> assign(:snapshot_env_uuid, env_uuid)
      |> assign(:snapshot_units, units)
@@ -316,31 +351,84 @@ defmodule LynxWeb.SnapshotsLive do
     end
   end
 
-  def handle_event("next_page", _, socket) do
-    if socket.assigns.page < socket.assigns.total_pages,
-      do: {:noreply, socket |> assign(:page, socket.assigns.page + 1) |> load_snapshots()},
-      else: {:noreply, socket}
+  def handle_event("load_more", _, socket) do
+    {snapshots, total} = fetch_snapshots(socket, socket.assigns.next_offset)
+    new_offset = socket.assigns.next_offset + length(snapshots)
+
+    {:noreply,
+     socket
+     |> stream(:snapshots, snapshots)
+     |> assign(:next_offset, new_offset)
+     |> assign(:has_more?, new_offset < total)}
   end
 
-  def handle_event("prev_page", _, socket) do
-    if socket.assigns.page > 1,
-      do: {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_snapshots()},
-      else: {:noreply, socket}
+  defp workspace_value(nil), do: ""
+  defp workspace_value({_label, id}), do: to_string(id)
+
+  defp project_value(nil), do: ""
+  defp project_value({_label, uuid}), do: uuid
+
+  defp lookup_workspace("", _), do: nil
+  defp lookup_workspace(nil, _), do: nil
+
+  defp lookup_workspace(id_str, current) do
+    cond do
+      current && to_string(elem(current, 1)) == id_str ->
+        current
+
+      true ->
+        case Integer.parse(id_str) do
+          {id, _} ->
+            case Lynx.Context.WorkspaceContext.get_workspace_by_id(id) do
+              nil -> nil
+              ws -> {ws.name, ws.id}
+            end
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  defp workspace_options(query) do
+    Lynx.Context.WorkspaceContext.search_workspaces(query)
+    |> Enum.map(&{&1.name, to_string(&1.id)})
+  end
+
+  defp project_options(user, query, workspace_db_id) do
+    matches =
+      cond do
+        user.role == "super" -> ProjectContext.search_projects(query)
+        true -> ProjectContext.search_projects_for_user(user.id, query)
+      end
+
+    matches =
+      if workspace_db_id,
+        do: Enum.filter(matches, &(&1.workspace_id == workspace_db_id)),
+        else: matches
+
+    Enum.map(matches, &{&1.name, &1.uuid})
   end
 
   defp load_snapshots(socket) do
+    {snapshots, total} = fetch_snapshots(socket, 0)
+
+    socket
+    |> stream(:snapshots, snapshots, reset: true)
+    |> assign(:next_offset, length(snapshots))
+    |> assign(:has_more?, length(snapshots) < total)
+    |> assign(:empty?, snapshots == [])
+  end
+
+  defp fetch_snapshots(socket, offset) do
     user = socket.assigns.current_user
-    offset = (socket.assigns.page - 1) * @per_page
 
-    {snapshots, total} =
-      if user.role == "super" do
-        {SnapshotContext.get_snapshots(offset, @per_page), SnapshotContext.count_snapshots()}
-      else
-        {SnapshotContext.get_snapshots_for_user(user.id, offset, @per_page),
-         SnapshotContext.count_snapshots_for_user(user.id)}
-      end
-
-    assign(socket, snapshots: snapshots, total_pages: max(ceil(total / @per_page), 1))
+    if user.role == "super" do
+      {SnapshotContext.get_snapshots(offset, @per_page), SnapshotContext.count_snapshots()}
+    else
+      {SnapshotContext.get_snapshots_for_user(user.id, offset, @per_page),
+       SnapshotContext.count_snapshots_for_user(user.id)}
+    end
   end
 
   defp snapshot_badge_color("project"), do: "blue"

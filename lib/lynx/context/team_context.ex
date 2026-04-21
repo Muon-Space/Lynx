@@ -173,6 +173,24 @@ defmodule Lynx.Context.TeamContext do
   end
 
   @doc """
+  Search teams that `user_id` is a member of. For non-super users in
+  autocomplete inputs.
+  """
+  def search_user_teams(user_id, query, limit \\ 25) when is_binary(query) do
+    pattern = "%#{String.replace(query, ~w(\\ % _), fn c -> "\\" <> c end)}%"
+
+    from(t in Team,
+      join: ut in Lynx.Model.UserTeam,
+      on: ut.team_id == t.id,
+      where: ut.user_id == ^user_id,
+      where: ilike(t.name, ^pattern) or ilike(t.slug, ^pattern),
+      order_by: [asc: t.name],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Retrieve teams (paginated). Caller is responsible for capping `limit` —
   see `LynxWeb.Limits` for the platform-wide caps and `search_teams/2` for
   autocomplete-style lookups.
@@ -329,6 +347,20 @@ defmodule Lynx.Context.TeamContext do
   @doc "Get team members (UUIDs)."
   def get_team_members(team_id) do
     UserContext.get_team_users(team_id) |> Enum.map(& &1.uuid)
+  end
+
+  @doc "Get team members as `[{name, uuid}, ...]` — combobox-friendly."
+  def get_team_member_options(team_id) do
+    import Ecto.Query
+
+    from(u in Lynx.Model.User,
+      join: ut in Lynx.Model.UserTeam,
+      on: ut.user_id == u.id,
+      where: ut.team_id == ^team_id,
+      order_by: [asc: u.name],
+      select: {u.name, u.uuid}
+    )
+    |> Repo.all()
   end
 
   @doc "Update a team from a data map (UUID-keyed)."

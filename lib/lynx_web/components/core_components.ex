@@ -553,6 +553,313 @@ defmodule LynxWeb.CoreComponents do
     """
   end
 
+  # -- Combobox (autocomplete) --
+  #
+  # Server-side search dropdown for picking from large lists. Replaces the
+  # eager-loaded `<.input type="select">` for users / teams / projects /
+  # workspaces. Lives inside a `<form phx-change="...">` — the search input
+  # debounces keystrokes through that change handler, and option clicks
+  # mutate hidden inputs (via the colocated hook) and re-fire the change so
+  # the parent can recompute options and selection.
+  #
+  # `phx-update="ignore"` on the hidden-input + trigger regions: once mounted,
+  # the hook owns chip/label state. The dropdown's results region re-renders
+  # normally so search results stay in sync with the `:options` assign.
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, default: nil
+  attr :placeholder, :string, default: "Type to search…"
+  attr :prompt, :string, default: "Select…"
+  attr :options, :list, default: [], doc: "current results: [{label, value}, ...]"
+
+  attr :selected, :any,
+    default: nil,
+    doc: "single: {label, value} or nil; multi: [{label, value}, ...]"
+
+  attr :multiple, :boolean, default: false
+  attr :hint, :string, default: nil
+  attr :empty_label, :string, default: "No matches"
+  attr :required, :boolean, default: false
+
+  def combobox(assigns) do
+    assigns =
+      assigns
+      |> assign(:selected_list, normalize_selected(assigns))
+
+    ~H"""
+    <div>
+      <label :if={@label} class="block text-sm font-medium text-secondary mb-1">{@label}</label>
+      <div
+        id={@id}
+        phx-hook=".Combobox"
+        data-multiple={to_string(@multiple)}
+        data-name={@name}
+        data-prompt={@prompt}
+        data-required={to_string(@required)}
+        class="relative"
+      >
+        <div data-inputs phx-update="ignore" id={"#{@id}-inputs"}>
+          <%= if @multiple do %>
+            <input :for={{_label, value} <- @selected_list} type="hidden" name={@name <> "[]"} value={value} data-selected-value={value} />
+          <% else %>
+            <input type="hidden" name={@name} value={selected_single_value(@selected_list)} />
+          <% end %>
+        </div>
+
+        <div
+          data-trigger
+          phx-update="ignore"
+          id={"#{@id}-trigger"}
+          tabindex="0"
+          class="w-full rounded-lg border border-border-input bg-input text-foreground px-3 py-2 text-sm flex items-center justify-between hover:border-muted focus:border-accent-focus-border focus:ring-2 focus:ring-accent-focus-ring cursor-pointer min-h-[38px]"
+          data-initial={Jason.encode!(initial_payload(@selected_list, @multiple, @prompt))}
+        >
+          <div data-trigger-content class="flex flex-wrap gap-1 items-center min-w-0 flex-1"></div>
+          <svg class="w-4 h-4 text-muted shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+
+        <div data-dropdown class="hidden fixed z-50 rounded-lg border border-border bg-surface shadow-lg w-full">
+          <div class="p-2 border-b border-border">
+            <input
+              data-search
+              type="text"
+              name={"_q_" <> @name}
+              value=""
+              placeholder={@placeholder}
+              phx-debounce="200"
+              autocomplete="off"
+              class="w-full rounded-md border border-border-input bg-input text-foreground px-3 py-1.5 text-sm focus:border-accent-focus-border focus:ring-1 focus:ring-accent"
+            />
+          </div>
+          <div data-results class="max-h-60 overflow-auto">
+            <div :if={@options == []} class="px-3 py-2 text-sm text-muted">{@empty_label}</div>
+            <div
+              :for={{label, value} <- @options}
+              data-option
+              data-value={value}
+              data-label={label}
+              class="px-3 py-2 text-sm hover:bg-select-bg cursor-pointer flex items-center gap-2"
+            >
+              <span :if={@multiple} data-check class="text-accent w-4"></span>
+              <span class="truncate">{label}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p :if={@hint} class="mt-1 text-xs text-muted">{@hint}</p>
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Combobox">
+      export default {
+        mounted() {
+          this.isOpen = false
+          this.multiple = this.el.dataset.multiple === "true"
+          this.name = this.el.dataset.name
+          this.prompt = this.el.dataset.prompt
+
+          this.inputs = this.el.querySelector("[data-inputs]")
+          this.trigger = this.el.querySelector("[data-trigger]")
+          this.triggerContent = this.trigger.querySelector("[data-trigger-content]")
+          this.dropdown = this.el.querySelector("[data-dropdown]")
+          this.search = this.dropdown.querySelector("[data-search]")
+          this.results = this.dropdown.querySelector("[data-results]")
+
+          // Selected state: array of {label, value} for both modes (single = max 1)
+          let initial = JSON.parse(this.trigger.dataset.initial || "[]")
+          this.selected = initial
+          this.renderTrigger()
+
+          this.trigger.addEventListener("click", (e) => {
+            if (e.target.closest("[data-chip-remove]")) return
+            e.preventDefault()
+            this.isOpen ? this.close() : this.open()
+          })
+
+          this.trigger.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              this.isOpen ? this.close() : this.open()
+            } else if (e.key === "Escape") {
+              this.close()
+            }
+          })
+
+          this.trigger.addEventListener("click", (e) => {
+            let removeBtn = e.target.closest("[data-chip-remove]")
+            if (!removeBtn) return
+            e.preventDefault()
+            e.stopPropagation()
+            this.removeSelected(removeBtn.dataset.value)
+          })
+
+          this.results.addEventListener("click", (e) => {
+            let opt = e.target.closest("[data-option]")
+            if (!opt) return
+            e.preventDefault()
+            this.toggleOption(opt.dataset.value, opt.dataset.label)
+          })
+
+          this.search.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+              e.preventDefault()
+              this.close()
+              this.trigger.focus()
+            }
+          })
+
+          this._close = (e) => { if (!this.el.contains(e.target)) this.close() }
+          document.addEventListener("click", this._close)
+        },
+
+        updated() {
+          // Re-sync result option visual state with current selection
+          this.markSelectedOptions()
+        },
+
+        destroyed() {
+          document.removeEventListener("click", this._close)
+          if (this._reposition) {
+            window.removeEventListener("scroll", this._reposition, true)
+            window.removeEventListener("resize", this._reposition)
+          }
+        },
+
+        toggleOption(value, label) {
+          if (this.multiple) {
+            let existing = this.selected.find(s => s.value === value)
+            if (existing) {
+              this.selected = this.selected.filter(s => s.value !== value)
+            } else {
+              this.selected = [...this.selected, { label, value }]
+            }
+          } else {
+            this.selected = [{ label, value }]
+          }
+          this.syncInputs()
+          this.renderTrigger()
+          this.markSelectedOptions()
+          this.notify()
+          if (!this.multiple) this.close()
+        },
+
+        removeSelected(value) {
+          this.selected = this.selected.filter(s => s.value !== value)
+          this.syncInputs()
+          this.renderTrigger()
+          this.markSelectedOptions()
+          this.notify()
+        },
+
+        syncInputs() {
+          let html = ""
+          if (this.multiple) {
+            this.selected.forEach(s => {
+              html += `<input type="hidden" name="${this.name}[]" value="${this.esc(s.value)}" data-selected-value="${this.esc(s.value)}" />`
+            })
+          } else {
+            let v = this.selected[0]?.value || ""
+            html = `<input type="hidden" name="${this.name}" value="${this.esc(v)}" />`
+          }
+          this.inputs.innerHTML = html
+        },
+
+        renderTrigger() {
+          if (this.selected.length === 0) {
+            this.triggerContent.innerHTML = `<span class="text-muted">${this.esc(this.prompt)}</span>`
+            return
+          }
+          if (this.multiple) {
+            this.triggerContent.innerHTML = this.selected.map(s => `
+              <span class="inline-flex items-center gap-1 rounded-md bg-inset text-foreground text-xs px-2 py-0.5">
+                <span class="truncate max-w-[180px]">${this.esc(s.label)}</span>
+                <button type="button" data-chip-remove data-value="${this.esc(s.value)}" class="text-muted hover:text-foreground leading-none">&times;</button>
+              </span>
+            `).join("")
+          } else {
+            this.triggerContent.innerHTML = `<span class="truncate">${this.esc(this.selected[0].label)}</span>`
+          }
+        },
+
+        markSelectedOptions() {
+          let selectedValues = new Set(this.selected.map(s => s.value))
+          this.results.querySelectorAll("[data-option]").forEach(opt => {
+            let isSel = selectedValues.has(opt.dataset.value)
+            opt.classList.toggle("bg-select-bg", isSel)
+            opt.classList.toggle("text-select-text", isSel)
+            let check = opt.querySelector("[data-check]")
+            if (check) check.textContent = isSel ? "\u2713" : ""
+          })
+        },
+
+        notify() {
+          // Bubble an input event so the enclosing <form phx-change> fires.
+          let synthetic = this.inputs.querySelector("input") || this.inputs
+          synthetic.dispatchEvent(new Event("input", { bubbles: true }))
+        },
+
+        open() {
+          this.isOpen = true
+          this.dropdown.style.visibility = "hidden"
+          this.dropdown.classList.remove("hidden")
+          this.position()
+          this.dropdown.style.visibility = ""
+          this.search.value = ""
+          this.search.focus()
+          this._reposition = () => this.position()
+          window.addEventListener("scroll", this._reposition, true)
+          window.addEventListener("resize", this._reposition)
+        },
+
+        close() {
+          this.isOpen = false
+          this.dropdown.classList.add("hidden")
+          if (this._reposition) {
+            window.removeEventListener("scroll", this._reposition, true)
+            window.removeEventListener("resize", this._reposition)
+            this._reposition = null
+          }
+        },
+
+        position() {
+          let r = this.trigger.getBoundingClientRect()
+          let dropdownHeight = Math.min(this.dropdown.scrollHeight, 320)
+          let spaceBelow = window.innerHeight - r.bottom
+          let placeAbove = spaceBelow < dropdownHeight + 8 && r.top > dropdownHeight + 8
+
+          this.dropdown.style.left = `${r.left}px`
+          this.dropdown.style.width = `${r.width}px`
+          if (placeAbove) {
+            this.dropdown.style.top = `${r.top - dropdownHeight - 4}px`
+          } else {
+            this.dropdown.style.top = `${r.bottom + 4}px`
+          }
+        },
+
+        esc(s) {
+          let d = document.createElement("div")
+          d.textContent = s == null ? "" : String(s)
+          return d.innerHTML
+        }
+      }
+    </script>
+    """
+  end
+
+  defp normalize_selected(%{multiple: true, selected: nil}), do: []
+  defp normalize_selected(%{multiple: true, selected: list}) when is_list(list), do: list
+  defp normalize_selected(%{multiple: false, selected: nil}), do: []
+  defp normalize_selected(%{multiple: false, selected: {_l, _v} = pair}), do: [pair]
+  defp normalize_selected(_), do: []
+
+  defp selected_single_value([]), do: ""
+  defp selected_single_value([{_label, value} | _]), do: value
+
+  defp initial_payload(selected_list, _multiple, _prompt) do
+    Enum.map(selected_list, fn {label, value} -> %{label: label, value: value} end)
+  end
+
   # -- Error --
 
   slot :inner_block, required: true

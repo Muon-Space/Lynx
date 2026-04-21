@@ -17,11 +17,6 @@ defmodule LynxWeb.ProjectsLive do
       workspace ->
         user = socket.assigns.current_user
 
-        all_teams =
-          if user.role == "super",
-            do: TeamContext.get_teams(0, LynxWeb.Limits.dropdown_max()),
-            else: TeamContext.get_user_teams_paged(user.id, 0, LynxWeb.Limits.dropdown_max())
-
         socket =
           socket
           |> assign(:workspace, workspace)
@@ -30,7 +25,8 @@ defmodule LynxWeb.ProjectsLive do
           |> assign(:add_slug, "")
           |> assign(:editing_project, nil)
           |> assign(:editing_teams, [])
-          |> assign(:all_teams, all_teams)
+          |> assign(:add_team_options, team_options(user, ""))
+          |> assign(:editing_team_options, [])
           |> assign(:confirm, nil)
           |> load_projects()
 
@@ -55,11 +51,11 @@ defmodule LynxWeb.ProjectsLive do
 
       <.modal :if={@show_add} id="add-project" show on_close="hide_add">
         <h3 class="text-lg font-semibold mb-4">Add New Project</h3>
-        <form phx-submit="create_project" phx-change="form_change" class="space-y-4">
+        <form phx-submit="create_project" phx-change="add_form_change" class="space-y-4">
           <.input name="name" label="Name" value="" required />
           <.input name="slug" label="Slug" value={@add_slug} required />
           <.input name="description" label="Description" type="textarea" value="" required />
-          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={[]} hint="Click to select multiple" />
+          <.combobox id="add-project-teams" name="team_ids" label="Teams" multiple options={@add_team_options} selected={[]} hint="Type to search; click to select multiple" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Create</.button>
             <.button phx-click="hide_add" variant="secondary">Cancel</.button>
@@ -69,11 +65,11 @@ defmodule LynxWeb.ProjectsLive do
 
       <.modal :if={@editing_project} id="edit-project" show on_close="hide_edit">
         <h3 class="text-lg font-semibold mb-4">Edit Project</h3>
-        <form phx-submit="update_project" class="space-y-4">
+        <form phx-submit="update_project" phx-change="edit_form_change" class="space-y-4">
           <.input name="name" label="Name" value={@editing_project.name} required />
           <.input name="slug" label="Slug" value={@editing_project.slug} required />
           <.input name="description" label="Description" type="textarea" value={@editing_project.description} required />
-          <.input name="team_ids" label="Teams" type="select" multiple options={Enum.map(@all_teams, &{&1.name, &1.uuid})} value={@editing_teams} hint="Click to select multiple" />
+          <.combobox id={"edit-project-teams-#{@editing_project.uuid}"} name="team_ids" label="Teams" multiple options={@editing_team_options} selected={@editing_teams} hint="Type to search; click to add or remove" />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Update</.button>
             <.button phx-click="hide_edit" variant="secondary">Cancel</.button>
@@ -108,21 +104,34 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   @impl true
-  def handle_event("show_add", _, socket),
-    do: {:noreply, assign(socket, show_add: true, add_slug: "")}
+  def handle_event("show_add", _, socket) do
+    {:noreply,
+     assign(socket,
+       show_add: true,
+       add_slug: "",
+       add_team_options: team_options(socket.assigns.current_user, "")
+     )}
+  end
 
   def handle_event("hide_add", _, socket), do: {:noreply, assign(socket, :show_add, false)}
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_project, nil)}
 
-  def handle_event("form_change", %{"name" => name}, socket) do
+  def handle_event("add_form_change", params, socket) do
     slug =
-      name
+      (params["name"] || "")
       |> String.downcase()
       |> String.replace(~r/[^a-z0-9]/, "-")
       |> String.replace(~r/-+/, "-")
       |> String.trim("-")
 
-    {:noreply, assign(socket, :add_slug, slug)}
+    options = team_options(socket.assigns.current_user, params["_q_team_ids"] || "")
+
+    {:noreply, socket |> assign(:add_slug, slug) |> assign(:add_team_options, options)}
+  end
+
+  def handle_event("edit_form_change", params, socket) do
+    options = team_options(socket.assigns.current_user, params["_q_team_ids"] || "")
+    {:noreply, assign(socket, :editing_team_options, options)}
   end
 
   def handle_event("view_project", %{"uuid" => uuid}, socket) do
@@ -160,8 +169,14 @@ defmodule LynxWeb.ProjectsLive do
   def handle_event("edit_project", %{"uuid" => uuid}, socket) do
     case ProjectContext.fetch_project_by_uuid(uuid) do
       {:ok, project} ->
-        teams = ProjectContext.get_project_team_uuids(project.id)
-        {:noreply, assign(socket, editing_project: project, editing_teams: teams)}
+        teams = ProjectContext.get_project_team_options(project.id)
+
+        {:noreply,
+         assign(socket,
+           editing_project: project,
+           editing_teams: teams,
+           editing_team_options: team_options(socket.assigns.current_user, "")
+         )}
 
       _ ->
         {:noreply, put_flash(socket, :error, "Project not found")}
@@ -219,6 +234,12 @@ defmodule LynxWeb.ProjectsLive do
       do: {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_projects()},
       else: {:noreply, socket}
   end
+
+  defp team_options(%{role: "super"}, query),
+    do: TeamContext.search_teams(query) |> Enum.map(&{&1.name, &1.uuid})
+
+  defp team_options(user, query),
+    do: TeamContext.search_user_teams(user.id, query) |> Enum.map(&{&1.name, &1.uuid})
 
   defp load_projects(socket) do
     user = socket.assigns.current_user
