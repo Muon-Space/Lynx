@@ -135,7 +135,7 @@ defmodule Lynx.Context.ProjectContext do
   autocomplete inputs. Returns at most `limit` matches ordered by name.
   """
   def search_projects(query, limit \\ 25) when is_binary(query) do
-    pattern = "%#{escape_like(query)}%"
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
 
     from(p in Project,
       where: ilike(p.name, ^pattern) or ilike(p.slug, ^pattern),
@@ -155,7 +155,7 @@ defmodule Lynx.Context.ProjectContext do
       |> Lynx.Context.UserContext.get_user_teams()
       |> Enum.map(& &1.id)
 
-    pattern = "%#{escape_like(query)}%"
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
 
     from(p in Project,
       join: pt in ProjectTeam,
@@ -168,13 +168,6 @@ defmodule Lynx.Context.ProjectContext do
     )
     |> Repo.all()
   end
-
-  defp escape_like(query),
-    do:
-      query
-      |> String.replace("\\", "\\\\")
-      |> String.replace("%", "\\%")
-      |> String.replace("_", "\\_")
 
   @doc """
   Count projects

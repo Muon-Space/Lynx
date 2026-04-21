@@ -162,7 +162,7 @@ defmodule Lynx.Context.TeamContext do
   dropdowns; returns at most `limit` matches ordered by name.
   """
   def search_teams(query, limit \\ 25) when is_binary(query) do
-    pattern = "%#{String.replace(query, ~w(\\ % _), fn c -> "\\" <> c end)}%"
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
 
     from(t in Team,
       where: ilike(t.name, ^pattern) or ilike(t.slug, ^pattern),
@@ -177,7 +177,7 @@ defmodule Lynx.Context.TeamContext do
   autocomplete inputs.
   """
   def search_user_teams(user_id, query, limit \\ 25) when is_binary(query) do
-    pattern = "%#{String.replace(query, ~w(\\ % _), fn c -> "\\" <> c end)}%"
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
 
     from(t in Team,
       join: ut in Lynx.Model.UserTeam,
