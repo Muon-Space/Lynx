@@ -109,15 +109,8 @@ defmodule Lynx.Module.PermissionModule do
   end
 
   defp get_user_teams_ids(user_id) do
-    user_teams = TeamModule.get_user_teams(user_id)
-
-    teams_ids = []
-
-    teams_ids =
-      for user_team <- user_teams do
-        teams_ids ++ user_team.id
-      end
-
-    teams_ids
+    user_id
+    |> TeamModule.get_user_teams()
+    |> Enum.map(& &1.id)
   end
 end

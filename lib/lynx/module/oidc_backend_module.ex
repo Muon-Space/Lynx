@@ -48,24 +48,46 @@ defmodule Lynx.Module.OIDCBackendModule do
     end
   end
 
-  defp evaluate_access(provider_id, environment_id, claims) do
+  @doc """
+  Resolve a token's claims against the rules for `(provider_id, environment_id)`
+  and return the union of permissions from every matching rule.
+
+  Why a union: a token can legitimately match multiple rules at once (e.g. a
+  permissive `planner` rule matching just `repository=...` AND a more
+  specific `applier` rule matching `repository=... AND environment=prod`).
+  Picking the "first" was both non-deterministic (the underlying query was
+  unordered) and semantically wrong — a less-specific rule could shadow the
+  more-permissive one. Unioning means stacking rules is additive and
+  predictable, matching how team grants compose in `RoleModule`.
+
+  Public so it's testable end-to-end without going through JWT validation.
+  """
+  def evaluate_access(provider_id, environment_id, claims) do
     rules =
       OIDCAccessRuleContext.list_rules_by_provider_and_environment(provider_id, environment_id)
 
-    if rules == [] do
-      {:error, "No access rules configured for this environment"}
-    else
-      matching_rule =
-        Enum.find(rules, fn rule ->
-          claim_rules = Jason.decode!(rule.claim_rules)
-          all_claims_match?(claim_rules, claims)
-        end)
+    cond do
+      rules == [] ->
+        {:error, "No access rules configured for this environment"}
 
-      if matching_rule do
-        {:ok, RoleContext.permissions_for(matching_rule.role_id)}
-      else
-        {:error, "Token claims do not match any access rule"}
-      end
+      true ->
+        matching_rules =
+          Enum.filter(rules, fn rule ->
+            rule.claim_rules
+            |> Jason.decode!()
+            |> all_claims_match?(claims)
+          end)
+
+        if matching_rules == [] do
+          {:error, "Token claims do not match any access rule"}
+        else
+          permissions =
+            Enum.reduce(matching_rules, MapSet.new(), fn rule, acc ->
+              MapSet.union(acc, RoleContext.permissions_for(rule.role_id))
+            end)
+
+          {:ok, permissions}
+        end
     end
   end
 

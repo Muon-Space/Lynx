@@ -316,29 +316,15 @@ defmodule Lynx.Context.UserContext do
   end
 
   @doc """
-  Get user teams
+  Get every Team a user belongs to.
   """
   def get_user_teams(user_id) do
-    teams = []
-
-    items =
-      from(
-        u in UserTeam,
-        where: u.user_id == ^user_id
-      )
-      |> Repo.all()
-
-    for item <- items do
-      team = Repo.get(Team, item.team_id)
-
-      case team do
-        nil ->
-          nil
-
-        _ ->
-          teams ++ team
-      end
-    end
+    from(t in Team,
+      join: ut in UserTeam,
+      on: ut.team_id == t.id,
+      where: ut.user_id == ^user_id
+    )
+    |> Repo.all()
   end
 
   @doc """

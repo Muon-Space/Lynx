@@ -94,14 +94,10 @@ defmodule Lynx.Module.SnapshotModule do
   Get User Snapshots
   """
   def get_snapshots(user_id, offset, limit) do
-    user_teams = TeamModule.get_user_teams(user_id)
-
-    teams_ids = []
-
     teams_ids =
-      for user_team <- user_teams do
-        teams_ids ++ user_team.id
-      end
+      user_id
+      |> TeamModule.get_user_teams()
+      |> Enum.map(& &1.id)
 
     SnapshotContext.get_snapshots_by_teams(teams_ids, offset, limit)
   end
@@ -124,14 +120,10 @@ defmodule Lynx.Module.SnapshotModule do
   Count User Snapshots
   """
   def count_snapshots(user_id) do
-    user_teams = TeamModule.get_user_teams(user_id)
-
-    teams_ids = []
-
     teams_ids =
-      for user_team <- user_teams do
-        teams_ids ++ user_team.id
-      end
+      user_id
+      |> TeamModule.get_user_teams()
+      |> Enum.map(& &1.id)
 
     SnapshotContext.count_snapshots_by_teams(teams_ids)
   end
