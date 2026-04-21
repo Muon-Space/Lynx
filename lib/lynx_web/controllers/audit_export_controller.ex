@@ -2,7 +2,7 @@ defmodule LynxWeb.AuditExportController do
   @moduledoc """
   Streams the current `/admin/audit` filter set as a CSV download.
 
-  The filter params (`action`, `resource_type`, `resource_id`, `actor_email`,
+  The filter params (`action`, `resource_type`, `resource_id`, `actor`,
   `from`, `to`) match the LV's URL state, so an admin can copy the filtered
   audit URL, change `/admin/audit?...` → `/admin/audit/export.csv?...`, and
   get the same set as a downloadable file.
@@ -60,7 +60,8 @@ defmodule LynxWeb.AuditExportController do
       action: blank_to_nil(params["action"]),
       resource_type: blank_to_nil(params["resource_type"]),
       resource_id: blank_to_nil(params["resource_id"]),
-      actor_email: blank_to_nil(params["actor_email"]),
+      # Back-compat with old `actor_email` URLs.
+      actor: blank_to_nil(params["actor"] || params["actor_email"]),
       date_from: parse_datetime(params["from"], :start_of_day),
       date_to: parse_datetime(params["to"], :end_of_day)
     }

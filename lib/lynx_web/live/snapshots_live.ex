@@ -89,19 +89,19 @@ defmodule LynxWeb.SnapshotsLive do
             </thead>
             <tbody id="snapshots-list" phx-update="stream">
               <tr :for={{dom_id, s} <- @streams.snapshots} id={dom_id} class="border-b border-border hover:bg-surface-secondary cursor-pointer">
-                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                <td class="px-4 py-3" phx-click={JS.navigate("/admin/snapshots/#{s.uuid}")}>
                   <span class="font-medium text-clickable">{s.title}</span>
                 </td>
-                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                <td class="px-4 py-3" phx-click={JS.navigate("/admin/snapshots/#{s.uuid}")}>
                   <.badge color={snapshot_badge_color(s.record_type)}>{s.record_type}</.badge>
                 </td>
-                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                <td class="px-4 py-3" phx-click={JS.navigate("/admin/snapshots/#{s.uuid}")}>
                   <span class="text-xs">{snapshot_target(s)}</span>
                 </td>
-                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                <td class="px-4 py-3" phx-click={JS.navigate("/admin/snapshots/#{s.uuid}")}>
                   <.badge color={if s.status == "success", do: "green", else: "yellow"}>{s.status}</.badge>
                 </td>
-                <td class="px-4 py-3" phx-click={JS.push("view_snapshot", value: %{uuid: s.uuid})}>
+                <td class="px-4 py-3" phx-click={JS.navigate("/admin/snapshots/#{s.uuid}")}>
                   <span class="text-xs text-muted">{Calendar.strftime(s.inserted_at, "%Y-%m-%d %H:%M")}</span>
                 </td>
                 <td class="px-4 py-3">

@@ -27,7 +27,7 @@ defmodule LynxWeb.AuditLive do
       action: "",
       resource_type: "",
       resource_id: "",
-      actor_email: "",
+      actor: "",
       from: "",
       to: ""
     }
@@ -43,7 +43,8 @@ defmodule LynxWeb.AuditLive do
       action: params["action"] || "",
       resource_type: params["resource_type"] || "",
       resource_id: params["resource_id"] || "",
-      actor_email: params["actor_email"] || "",
+      # Back-compat with bookmarked URLs from the previous `actor_email` name.
+      actor: params["actor"] || params["actor_email"] || "",
       from: params["from"] || "",
       to: params["to"] || ""
     }
@@ -66,20 +67,20 @@ defmodule LynxWeb.AuditLive do
 
       <.card>
         <form phx-change="filter" phx-submit="filter" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-          <.input name="action" type="select" value={@filters.action} prompt="All Actions" options={[
+          <.input name="action" type="select" label="Action" value={@filters.action} prompt="All Actions" options={[
             {"Created", "created"}, {"Updated", "updated"}, {"Deleted", "deleted"},
             {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"},
             {"Login", "login"}, {"SSO Login", "sso_login"}, {"Generated", "generated"}, {"Revoked", "revoked"}
           ]} />
-          <.input name="resource_type" type="select" value={@filters.resource_type} prompt="All Resources" options={[
+          <.input name="resource_type" type="select" label="Resource type" value={@filters.resource_type} prompt="All Resources" options={[
             {"Project", "project"}, {"Environment", "environment"}, {"Team", "team"},
             {"User", "user"}, {"Snapshot", "snapshot"}, {"Settings", "settings"},
             {"SCIM Token", "scim_token"}, {"OIDC Provider", "oidc_provider"}
           ]} />
-          <.input name="resource_id" type="text" value={@filters.resource_id} placeholder="Resource ID (UUID or path)" />
-          <.input name="actor_email" type="text" value={@filters.actor_email} placeholder="Actor email contains…" phx-debounce="300" />
-          <.input name="from" type="date" value={@filters.from} hint="From (UTC)" />
-          <.input name="to" type="date" value={@filters.to} hint="To (UTC)" />
+          <.input name="resource_id" type="text" label="Resource ID" value={@filters.resource_id} placeholder="UUID or path" />
+          <.input name="actor" type="text" label="Actor" value={@filters.actor} placeholder="Name, email, or 'system'…" phx-debounce="300" />
+          <.input name="from" type="date" label="From (UTC)" value={@filters.from} />
+          <.input name="to" type="date" label="To (UTC)" value={@filters.to} />
         </form>
 
         <div class="flex justify-between items-center mb-3">
@@ -173,7 +174,7 @@ defmodule LynxWeb.AuditLive do
       action: non_empty(f.action),
       resource_type: non_empty(f.resource_type),
       resource_id: non_empty(f.resource_id),
-      actor_email: non_empty(f.actor_email),
+      actor: non_empty(f.actor),
       date_from: parse_date(f.from, :start_of_day),
       date_to: parse_date(f.to, :end_of_day)
     }

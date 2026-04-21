@@ -32,16 +32,42 @@ defmodule Lynx.Context.AuditFiltersTest do
     end
   end
 
-  describe ":actor_email" do
-    test "ilike-substring matches against the actor's email", %{alice: alice, bob: bob} do
+  describe ":actor" do
+    test "matches against the actor's email", %{alice: alice, bob: bob} do
       AuditContext.log_user(alice, "created", "project", "p1", "Alice's project")
       AuditContext.log_user(bob, "created", "project", "p2", "Bob's project")
 
-      {events, _} = AuditContext.list_events(%{actor_email: "alice@"})
+      {events, _} = AuditContext.list_events(%{actor: "alice@"})
       assert Enum.map(events, & &1.resource_name) == ["Alice's project"]
 
-      {events, _} = AuditContext.list_events(%{actor_email: "example.com"})
+      {events, _} = AuditContext.list_events(%{actor: "example.com"})
       assert length(events) == 2
+    end
+
+    test "matches against the actor's name (works for system events)", %{alice: alice} do
+      AuditContext.log_user(alice, "created", "project", "p1", "Alice's project")
+      AuditContext.log_system("state_pushed", "environment", "e1", "background backup")
+
+      # System events have actor_id: nil so they don't join the users table —
+      # the LEFT JOIN + actor_name match is what makes this work.
+      {events, _} = AuditContext.list_events(%{actor: "system"})
+      assert Enum.map(events, & &1.resource_name) == ["background backup"]
+    end
+
+    test "matches against actor_type", %{alice: alice} do
+      AuditContext.log_user(alice, "created", "project", "p1", "Alice's")
+      AuditContext.log_system("state_pushed", "environment", "e1", "Sys's")
+
+      {events, _} = AuditContext.list_events(%{actor: "user"})
+      assert Enum.any?(events, &(&1.resource_name == "Alice's"))
+      refute Enum.any?(events, &(&1.resource_name == "Sys's"))
+    end
+
+    test "back-compat: :actor_email still works", %{alice: alice} do
+      AuditContext.log_user(alice, "created", "project", "p1", "Alice")
+
+      {events, _} = AuditContext.list_events(%{actor_email: "alice@"})
+      assert length(events) == 1
     end
 
     test "escapes LIKE wildcards in the search term", %{alice: alice} do
@@ -49,7 +75,7 @@ defmodule Lynx.Context.AuditFiltersTest do
 
       # `%` would match everything if not escaped — here it shouldn't match
       # alice's literal email which has no `%` in it.
-      assert AuditContext.list_events(%{actor_email: "%"}) == {[], 0}
+      assert AuditContext.list_events(%{actor: "%"}) == {[], 0}
     end
   end
 

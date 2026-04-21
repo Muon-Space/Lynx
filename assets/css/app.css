@@ -288,3 +288,37 @@
   --color-flash-error-text: var(--flash-error-text);
   --color-flash-error-border: var(--flash-error-border);
 }
+
+
+/* -- Native date input chrome --
+ * The browser-native <input type="date"> renders its inner pseudo-elements
+ * with default styles that clash with our themed inputs. Theme them so the
+ * digit display, separators, and calendar-picker icon match the rest of the
+ * form. The actual calendar popup is OS-controlled and not stylable.
+ */
+input[type="date"]::-webkit-datetime-edit {
+  color: var(--text-foreground);
+  font-variant-numeric: tabular-nums;
+}
+input[type="date"]::-webkit-datetime-edit-text {
+  color: var(--text-muted);
+  padding: 0 0.15rem;
+}
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  color: var(--text-foreground);
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.55;
+  filter: invert(0);
+  transition: opacity 0.15s;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  /* Native icon is black; invert so it's visible in dark mode. */
+  filter: invert(1);
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.9;
+}

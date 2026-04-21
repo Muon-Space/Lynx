@@ -28,8 +28,12 @@ defmodule LynxWeb.OpenAPIController do
   def spec_yaml(conn, _params) do
     yaml = ApiSpec.spec() |> spec_to_yaml()
 
+    # `text/yaml` renders inline in the browser; `application/yaml` would
+    # trigger a download. The spec is small enough that inline preview is
+    # the friendlier default — consumers that want to save it can still
+    # right-click → Save As.
     conn
-    |> put_resp_content_type("application/yaml")
+    |> put_resp_content_type("text/yaml")
     |> send_resp(200, yaml)
   end
 

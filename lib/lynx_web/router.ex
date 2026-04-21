@@ -213,6 +213,7 @@ defmodule LynxWeb.Router do
     # every REST controller and assembled by `LynxWeb.ApiSpec`. No auth gate.
     get "/openapi.json", OpenAPIController, :spec_json
     get "/openapi.yml", OpenAPIController, :spec_yaml
+    get "/openapi.yaml", OpenAPIController, :spec_yaml
   end
 
   scope "/tf", LynxWeb do

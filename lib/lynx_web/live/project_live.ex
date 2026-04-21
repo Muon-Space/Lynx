@@ -179,7 +179,7 @@ defmodule LynxWeb.ProjectLive do
 
       <%!-- Environments Table --%>
       <.card>
-        <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
+        <.table rows={@environments} row_click={fn env -> JS.navigate("/admin/projects/#{@project_uuid}/environments/#{env.uuid}") end}>
           <:col :let={env} label="Name"><span class="font-medium text-clickable">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
             <% can_act = if env.is_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>

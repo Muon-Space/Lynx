@@ -91,7 +91,10 @@ defmodule Lynx.Context.AuditContext do
     * `:resource_type` — exact resource type (`"project"`, `"environment"`, ...)
     * `:resource_id` — exact resource ID (string match)
     * `:actor_id` — exact actor primary key
-    * `:actor_email` — substring match against the actor's email (joins users)
+    * `:actor` — substring match against the event's `actor_name`, the
+      joined user's `email`, and the `actor_type` field. Uses a LEFT JOIN so
+      system-actor events (`actor_id: nil`) still surface when the term
+      matches their `actor_name` (`"system"`) or `actor_type` (`"system"`).
     * `:date_from` — events at or after this `DateTime`
     * `:date_to` — events at or before this `DateTime`
 
@@ -173,7 +176,9 @@ defmodule Lynx.Context.AuditContext do
   defp datetime_to_iso8601(%NaiveDateTime{} = dt), do: NaiveDateTime.to_iso8601(dt)
 
   defp filtered_query(opts) do
-    actor_email = opts[:actor_email]
+    # Back-compat: callers still passing `:actor_email` get folded into the
+    # broader `:actor` filter below.
+    actor_term = opts[:actor] || opts[:actor_email]
 
     from(e in AuditEvent)
     |> maybe_filter(:action, opts[:action])
@@ -182,7 +187,7 @@ defmodule Lynx.Context.AuditContext do
     |> maybe_filter(:actor_id, opts[:actor_id])
     |> maybe_filter(:date_from, opts[:date_from])
     |> maybe_filter(:date_to, opts[:date_to])
-    |> maybe_filter_actor_email(actor_email)
+    |> maybe_filter_actor(actor_term)
   end
 
   defp to_string_or_nil(nil), do: nil
@@ -220,16 +225,21 @@ defmodule Lynx.Context.AuditContext do
 
   defp maybe_filter(query, _, _), do: query
 
-  defp maybe_filter_actor_email(query, nil), do: query
-  defp maybe_filter_actor_email(query, ""), do: query
+  defp maybe_filter_actor(query, nil), do: query
+  defp maybe_filter_actor(query, ""), do: query
 
-  defp maybe_filter_actor_email(query, email) when is_binary(email) do
-    pattern = "%#{Lynx.Search.escape_like(email)}%"
+  defp maybe_filter_actor(query, term) when is_binary(term) do
+    pattern = "%#{Lynx.Search.escape_like(term)}%"
 
+    # LEFT JOIN preserves system-actor rows (actor_id: nil) so a search for
+    # `"system"` still matches them via actor_name / actor_type.
     from(e in query,
-      join: u in Lynx.Model.User,
+      left_join: u in Lynx.Model.User,
       on: u.id == e.actor_id,
-      where: ilike(u.email, ^pattern)
+      where:
+        ilike(e.actor_name, ^pattern) or
+          ilike(e.actor_type, ^pattern) or
+          ilike(u.email, ^pattern)
     )
   end
 end
