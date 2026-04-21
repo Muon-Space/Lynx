@@ -138,14 +138,32 @@ defmodule Lynx.Context.UserContext do
   end
 
   @doc """
-  Retrieve all users
+  Search users by name or email substring (case-insensitive). For autocomplete
+  dropdowns where loading every user upfront isn't viable. Returns at most
+  `limit` matches ordered by name.
   """
-  def get_users() do
-    Repo.all(User)
+  def search_users(query, limit \\ 25) when is_binary(query) do
+    pattern = "%#{escape_like(query)}%"
+
+    from(u in User,
+      where: ilike(u.name, ^pattern) or ilike(u.email, ^pattern),
+      order_by: [asc: u.name],
+      limit: ^limit
+    )
+    |> Repo.all()
   end
 
+  defp escape_like(query),
+    do:
+      query
+      |> String.replace("\\", "\\\\")
+      |> String.replace("%", "\\%")
+      |> String.replace("_", "\\_")
+
   @doc """
-  Retrieve users
+  Retrieve users (paginated). Caller is responsible for capping `limit` —
+  see `LynxWeb.Limits` for the platform-wide caps used by admin pages and
+  `search_users/2` for autocomplete-style lookups.
   """
   def get_users(offset, limit) do
     from(u in User,

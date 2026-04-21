@@ -19,8 +19,8 @@ defmodule LynxWeb.ProjectsLive do
 
         all_teams =
           if user.role == "super",
-            do: TeamContext.get_teams(0, 10000),
-            else: TeamContext.get_user_teams_paged(user.id, 0, 10000)
+            do: TeamContext.get_teams(0, LynxWeb.Limits.dropdown_max()),
+            else: TeamContext.get_user_teams_paged(user.id, 0, LynxWeb.Limits.dropdown_max())
 
         socket =
           socket

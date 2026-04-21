@@ -123,13 +123,6 @@ defmodule Lynx.Context.EnvironmentContext do
   end
 
   @doc """
-  Retrieve all environments
-  """
-  def get_envs() do
-    Repo.all(Environment)
-  end
-
-  @doc """
   Retrieve project environments
   """
   def get_project_envs(project_id, offset, limit) do

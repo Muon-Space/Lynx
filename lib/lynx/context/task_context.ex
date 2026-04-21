@@ -80,13 +80,6 @@ defmodule Lynx.Context.TaskContext do
   end
 
   @doc """
-  Retrieve all tasks
-  """
-  def get_tasks() do
-    Repo.all(Task)
-  end
-
-  @doc """
   Retrieve tasks
   """
   def get_tasks(offset, limit) do
