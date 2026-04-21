@@ -121,8 +121,7 @@ Lynx.Application
 ├── Phoenix.PubSub           # cluster-wide PubSub
 ├── Finch                    # HTTP client (OIDC discovery, JWKS)
 ├── :sleeplocks              # named single-slot lock used by LockContext
-├── LynxWeb.Endpoint         # Phoenix HTTP endpoint
-└── OpenIDConnect.Worker     # only started if AUTH_SSO_ENABLED=true and SSO_PROTOCOL=oidc
+└── LynxWeb.Endpoint         # Phoenix HTTP endpoint
 ```
 
 `:sleeplocks` is registered with the supervisor so it survives across requests; serializes lock-acquisition attempts to avoid races between concurrent TF clients.
@@ -141,7 +140,7 @@ lib/lynx/
 └── repo.ex                  # Ecto.Repo
 
 lib/lynx_web/
-├── components/core_components.ex   # Function components (button, modal, badge, role_assignments_summary, ...)
+├── components/core_components.ex   # Function components (button, modal, badge, combobox, role_assignments_summary, ...)
 ├── live/                            # LiveViews (one per route)
 ├── controllers/                     # JSON / HTTP controllers
 ├── router.ex                        # Pipelines and route table

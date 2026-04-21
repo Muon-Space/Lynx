@@ -9,11 +9,9 @@ defmodule LynxWeb.AuditLive do
   def mount(_params, _session, socket) do
     socket =
       socket
-      |> assign(:page, 1)
-      |> assign(:per_page, @per_page)
       |> assign(:filter_action, "")
       |> assign(:filter_resource, "")
-      |> load_events()
+      |> reset_stream()
 
     {:ok, socket}
   end
@@ -45,27 +43,47 @@ defmodule LynxWeb.AuditLive do
           </form>
         </div>
 
-        <.table rows={@events}>
-          <:col :let={event} label="Time">
-            <span class="text-muted text-xs">{format_datetime(event.inserted_at)}</span>
-          </:col>
-          <:col :let={event} label="Actor">
-            <.badge color={if event.actor_type == "system", do: "gray", else: "blue"}>
-              {event.actor_name || "system"}
-            </.badge>
-          </:col>
-          <:col :let={event} label="Action">
-            <.badge color={action_color(event.action)}>{event.action}</.badge>
-          </:col>
-          <:col :let={event} label="Resource">
-            <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
-          </:col>
-          <:col :let={event} label="Name">
-            {event.resource_name || event.resource_id || "-"}
-          </:col>
-        </.table>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="border-b border-border text-left text-secondary font-medium">
+              <tr>
+                <th class="px-4 py-3">Time</th>
+                <th class="px-4 py-3">Actor</th>
+                <th class="px-4 py-3">Action</th>
+                <th class="px-4 py-3">Resource</th>
+                <th class="px-4 py-3">Name</th>
+              </tr>
+            </thead>
+            <tbody id="audit-events" phx-update="stream">
+              <tr :for={{dom_id, event} <- @streams.events} id={dom_id} class="border-b border-border hover:bg-surface-secondary">
+                <td class="px-4 py-3">
+                  <span class="text-muted text-xs">{format_datetime(event.inserted_at)}</span>
+                </td>
+                <td class="px-4 py-3">
+                  <.badge color={if event.actor_type == "system", do: "gray", else: "blue"}>
+                    {event.actor_name || "system"}
+                  </.badge>
+                </td>
+                <td class="px-4 py-3">
+                  <.badge color={action_color(event.action)}>{event.action}</.badge>
+                </td>
+                <td class="px-4 py-3">
+                  <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
+                </td>
+                <td class="px-4 py-3">
+                  {event.resource_name || event.resource_id || "-"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div :if={@empty?} class="px-4 py-8 text-center text-muted">No records found.</div>
+        </div>
 
-        <.pagination page={@page} total_pages={@total_pages} />
+        <div :if={@has_more?} class="flex justify-center mt-4">
+          <button phx-click="load_more" class="px-4 py-2 text-sm rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+            Load more
+          </button>
+        </div>
       </.card>
     </div>
     """
@@ -77,47 +95,41 @@ defmodule LynxWeb.AuditLive do
       socket
       |> assign(:filter_action, params["action"] || "")
       |> assign(:filter_resource, params["resource_type"] || "")
-      |> assign(:page, 1)
-      |> load_events()
+      |> reset_stream()
 
     {:noreply, socket}
   end
 
-  @impl true
-  def handle_event("next_page", _, socket) do
-    if socket.assigns.page < socket.assigns.total_pages do
-      {:noreply, socket |> assign(:page, socket.assigns.page + 1) |> load_events()}
-    else
-      {:noreply, socket}
-    end
+  def handle_event("load_more", _, socket) do
+    {events, total} = fetch_events(socket, socket.assigns.next_offset)
+    new_offset = socket.assigns.next_offset + length(events)
+
+    {:noreply,
+     socket
+     |> stream(:events, events)
+     |> assign(:next_offset, new_offset)
+     |> assign(:has_more?, new_offset < total)}
   end
 
-  @impl true
-  def handle_event("prev_page", _, socket) do
-    if socket.assigns.page > 1 do
-      {:noreply, socket |> assign(:page, socket.assigns.page - 1) |> load_events()}
-    else
-      {:noreply, socket}
-    end
+  defp reset_stream(socket) do
+    {events, total} = fetch_events(socket, 0)
+
+    socket
+    |> stream(:events, events, reset: true)
+    |> assign(:next_offset, length(events))
+    |> assign(:has_more?, length(events) < total)
+    |> assign(:empty?, events == [])
   end
 
-  defp load_events(socket) do
-    offset = (socket.assigns.page - 1) * socket.assigns.per_page
-
+  defp fetch_events(socket, offset) do
     opts = %{
       offset: offset,
-      limit: socket.assigns.per_page,
+      limit: @per_page,
       action: non_empty(socket.assigns.filter_action),
       resource_type: non_empty(socket.assigns.filter_resource)
     }
 
-    {events, total} = AuditContext.list_events(opts)
-    total_pages = max(ceil(total / socket.assigns.per_page), 1)
-
-    socket
-    |> assign(:events, events)
-    |> assign(:total_count, total)
-    |> assign(:total_pages, total_pages)
+    AuditContext.list_events(opts)
   end
 
   defp non_empty(""), do: nil

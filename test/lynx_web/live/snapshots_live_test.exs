@@ -103,6 +103,63 @@ defmodule LynxWeb.SnapshotsLiveTest do
     end
   end
 
+  describe "stream + load_more" do
+    test "renders the snapshots stream container", %{conn: conn} do
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id})
+
+      {:ok, _} =
+        SnapshotContext.create_snapshot_from_data(%{
+          title: "Streamed Snap",
+          description: "x",
+          record_type: "project",
+          record_uuid: project.uuid,
+          status: "success",
+          data: ~s({"name":"x","environments":[]}),
+          team_id: nil
+        })
+
+      {:ok, _view, html} = live(conn, "/admin/snapshots")
+      assert html =~ ~s(id="snapshots-list")
+      assert html =~ ~s(phx-update="stream")
+      assert html =~ "Streamed Snap"
+    end
+
+    test "Load more appears with >per_page snapshots and load_more appends", %{conn: conn} do
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id})
+
+      # @per_page is 10 — insert 12 snapshots so a second page exists.
+      for i <- 1..12 do
+        {:ok, _} =
+          SnapshotContext.create_snapshot_from_data(%{
+            title: "Snap-#{i}",
+            description: "x",
+            record_type: "project",
+            record_uuid: project.uuid,
+            status: "success",
+            data: ~s({"name":"x","environments":[]}),
+            team_id: nil
+          })
+      end
+
+      {:ok, view, html} = live(conn, "/admin/snapshots")
+      assert count_snapshots(html) == 10
+      assert html =~ "Load more"
+
+      render_click(view, "load_more", %{})
+      html2 = render(view)
+
+      assert count_snapshots(html2) == 12
+      refute html2 =~ "Load more"
+    end
+  end
+
+  defp count_snapshots(html) do
+    {:ok, doc} = Floki.parse_fragment(html)
+    doc |> Floki.find("tbody#snapshots-list > tr") |> length()
+  end
+
   describe "Delete snapshot" do
     test "delete_snapshot removes it", %{conn: conn} do
       ws = create_workspace()

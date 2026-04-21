@@ -39,6 +39,22 @@ defmodule Lynx.Context.WorkspaceContext do
     |> Repo.all()
   end
 
+  @doc """
+  Search workspaces by name or slug substring (case-insensitive). For
+  autocomplete inputs that need server-side search instead of eager-loading.
+  Returns at most `limit` matches ordered by name.
+  """
+  def search_workspaces(query, limit \\ 25) when is_binary(query) do
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
+
+    from(w in Workspace,
+      where: ilike(w.name, ^pattern) or ilike(w.slug, ^pattern),
+      order_by: [asc: w.name],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
   def count_workspaces do
     from(w in Workspace, select: count(w.id))
     |> Repo.one()

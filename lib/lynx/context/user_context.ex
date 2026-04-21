@@ -143,7 +143,7 @@ defmodule Lynx.Context.UserContext do
   `limit` matches ordered by name.
   """
   def search_users(query, limit \\ 25) when is_binary(query) do
-    pattern = "%#{escape_like(query)}%"
+    pattern = "%#{Lynx.Search.escape_like(query)}%"
 
     from(u in User,
       where: ilike(u.name, ^pattern) or ilike(u.email, ^pattern),
@@ -152,13 +152,6 @@ defmodule Lynx.Context.UserContext do
     )
     |> Repo.all()
   end
-
-  defp escape_like(query),
-    do:
-      query
-      |> String.replace("\\", "\\\\")
-      |> String.replace("%", "\\%")
-      |> String.replace("_", "\\_")
 
   @doc """
   Retrieve users (paginated). Caller is responsible for capping `limit` —

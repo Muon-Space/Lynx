@@ -417,6 +417,98 @@ defmodule LynxWeb.ProjectLiveTest do
       assert UserProjectContext.get_role_id_for(target_user.id, project.id) == applier.id
     end
 
+    test "add_team_form_change populates options matching `_q_team_id`", %{
+      conn: conn,
+      project: project
+    } do
+      {:ok, _findme} =
+        Lynx.Context.TeamContext.create_team_from_data(%{
+          name: "Findable Team",
+          slug: "findable",
+          description: "x"
+        })
+
+      {:ok, _other} =
+        Lynx.Context.TeamContext.create_team_from_data(%{
+          name: "Other Team",
+          slug: "other",
+          description: "x"
+        })
+
+      {:ok, view, _} = live(conn, project_path(project))
+
+      html =
+        render_change(view, "add_team_form_change", %{"team_id" => "", "_q_team_id" => "find"})
+
+      assert html =~ "Findable Team"
+      refute html =~ "Other Team"
+    end
+
+    test "add_team_form_change excludes already-attached teams from results", %{
+      conn: conn,
+      project: project
+    } do
+      {:ok, attached} =
+        Lynx.Context.TeamContext.create_team_from_data(%{
+          name: "AttachedTeam",
+          slug: "attachedt",
+          description: "x"
+        })
+
+      planner = RoleContext.get_role_by_name("planner")
+      ProjectContext.add_project_to_team(project.id, attached.id, planner.id)
+
+      {:ok, view, _} = live(conn, project_path(project))
+
+      html =
+        render_change(view, "add_team_form_change", %{
+          "team_id" => "",
+          "_q_team_id" => "attached"
+        })
+
+      # Already-attached teams should be filtered out so admins don't try to
+      # double-grant them.
+      refute html =~ ~s(data-value="#{attached.uuid}")
+    end
+
+    test "add_user_form_change populates options matching `_q_user_id`", %{
+      conn: conn,
+      project: project
+    } do
+      _u1 = create_user(%{name: "Search Hit", email: "hit@example.com"})
+      _u2 = create_user(%{name: "Quiet Bystander", email: "quiet@example.com"})
+
+      {:ok, view, _} = live(conn, project_path(project))
+
+      html =
+        render_change(view, "add_user_form_change", %{
+          "user_id" => "",
+          "_q_user_id" => "search"
+        })
+
+      assert html =~ "Search Hit"
+      refute html =~ "Quiet Bystander"
+    end
+
+    test "add_user_form_change excludes already-granted users from results", %{
+      conn: conn,
+      project: project
+    } do
+      attached = create_user(%{name: "AlreadyGranted", email: "g@example.com"})
+      applier = RoleContext.get_role_by_name("applier")
+      UserProjectContext.assign_role(attached.id, project.id, applier.id)
+
+      {:ok, view, _} = live(conn, project_path(project))
+
+      html =
+        render_change(view, "add_user_form_change", %{
+          "user_id" => "",
+          "_q_user_id" => "alreadygranted"
+        })
+
+      refute html =~ ~s(data-value="#{attached.uuid}")
+    end
+
     test "OIDC rule create form persists the chosen role", %{conn: conn, project: project} do
       env = create_env(project, %{name: "Prod", slug: "prod"})
       provider = create_provider!()

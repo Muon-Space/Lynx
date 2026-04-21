@@ -96,13 +96,26 @@ Phoenix LiveView 1.1+. We use **colocated hooks** — JS for a component lives i
 
 `assets/js/app.js` is intentionally minimal: it imports `phoenix-colocated/lynx` and merges the hooks into the LiveSocket. New hooks should be colocated with their owner component, never added to `app.js`.
 
+### Streams for unbounded lists
+
+`audit_live` and `snapshots_live` use LV 1.0+ `stream/4` instead of `assign(:rows, list)`. Filter changes call `stream(socket, :events, page, reset: true)`; "Load more" appends with no `reset:`. Tracking `:has_more?` and `:next_offset` assigns drives the button visibility. `phx-update="stream"` on the `<tbody>` lets LV emit per-row patches instead of re-rendering the whole list.
+
+### Combobox (`<.combobox>`) for autocomplete dropdowns
+
+`<.combobox>` (in `lib/lynx_web/components/core_components.ex`) replaces eager-loaded `<.input type="select">` for picking users / teams / projects / workspaces. The pattern:
+
+1. Server provides `:options` (current search results, `[{label, value}, ...]`) and `:selected` (`{label, value}` or list for multi).
+2. Search input is wrapped in `phx-update="ignore"` so the typed value persists across re-renders. The enclosing `<form phx-change>` reads `_q_<name>` from params and re-runs the search.
+3. The colocated `.Combobox` hook owns chip rendering, open/close, and hidden-input mutation. After every server re-render the hook re-applies its `isOpen` state in `updated()` (otherwise morphdom would reset `class="hidden"` on the dropdown).
+4. Each context that backs a combobox has a paired `search_<resource>(query, limit \\ 25)` function. LIKE-special chars (`%`, `_`, `\`) are escaped via `Lynx.Search.escape_like/1` so user input can't break the query.
+
 ### Theming
 
 All colors are CSS variables in `assets/css/app.css`:
 
 * Use semantic Tailwind classes (`bg-surface`, `text-foreground`, `border-border`, `bg-flash-success-bg`, ...) — not raw `bg-gray-100` etc.
 * Both light (`:root`) and dark (`.dark`) variable sets are defined; toggling the `.dark` class on `<html>` flips everything atomically.
-* Native `<select>` elements need explicit `text-foreground` since the OS default text color won't follow the theme. Prefer `<.input type="select">` (the custom select component) for dropdowns.
+* Native `<select>` elements need explicit `text-foreground` since the OS default text color won't follow the theme. Prefer `<.input type="select">` for static option lists, `<.combobox>` for searchable lists from larger collections.
 
 ## Testing
 
@@ -125,7 +138,7 @@ Common test helpers:
 * **`UserContext.create_user_from_data/1` reads `app_key` for bcrypt salt.** Without `mark_installed/0`, bcrypt raises `ArgumentError: salt must be 29 bytes long`.
 * **API auth returns 403 (not 401)** for missing key — controllers use a `regular_user`/`super_user` plug that returns Forbidden.
 * **JSON shape:** API uses camelCase + `id` (sourced from `uuid`). `LockJSON` is the one PascalCase exception (Terraform protocol requirement).
-* **Custom select uses `phx-update="ignore"`.** The `form()` test helper validates form values against rendered options, but our select only renders the current value. Bypass with `render_change(view, "event_name", params)` directly.
+* **Custom select / combobox uses `phx-update="ignore"`.** The `form()` test helper validates form values against rendered options, but our select / combobox only renders the current value. Bypass with `render_change(view, "event_name", params)` directly. For combobox autocomplete tests, pass `_q_<name>` in params to drive the search.
 * **Renaming `Lynx.Module.X` is gone.** Everything is `Lynx.Context.X` or `Lynx.Service.X` now (PR #22).
 
 ### Coverage gate
