@@ -13,7 +13,7 @@ defmodule Lynx.Middleware.UIAuthMiddleware do
 
   import Plug.Conn
 
-  alias Lynx.Module.UserModule
+  alias Lynx.Context.UserContext
   alias Lynx.Service.AuthService
 
   def init(_opts), do: nil
@@ -62,7 +62,7 @@ defmodule Lynx.Middleware.UIAuthMiddleware do
 
         {true, session} ->
           conn =
-            case UserModule.get_user_by_id(session.user_id) do
+            case UserContext.fetch_user_by_id(session.user_id) do
               {:ok, user} ->
                 if user.is_active do
                   conn

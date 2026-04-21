@@ -1,8 +1,8 @@
 defmodule LynxWeb.SettingsLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.OIDCBackendModule
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Service.OIDCBackend
+  alias Lynx.Service.Settings
 
   setup %{conn: conn} do
     # save_general updates configs that must already exist (app_name, etc.)
@@ -64,9 +64,9 @@ defmodule LynxWeb.SettingsLiveTest do
       })
 
       assert render(view) =~ "Settings saved"
-      assert SettingsModule.get_config("app_name", "") == "Lynx Prod"
-      assert SettingsModule.get_config("app_url", "") == "https://lynx.prod"
-      assert SettingsModule.get_config("state_retention_count", "") == "5"
+      assert Settings.get_config("app_name", "") == "Lynx Prod"
+      assert Settings.get_config("app_url", "") == "https://lynx.prod"
+      assert Settings.get_config("state_retention_count", "") == "5"
     end
 
     test "treats empty state_retention as 0", %{conn: conn} do
@@ -79,7 +79,7 @@ defmodule LynxWeb.SettingsLiveTest do
         "state_retention" => ""
       })
 
-      assert SettingsModule.get_config("state_retention_count", "") == "0"
+      assert Settings.get_config("state_retention_count", "") == "0"
     end
   end
 
@@ -104,9 +104,9 @@ defmodule LynxWeb.SettingsLiveTest do
       })
 
       assert render(view) =~ "SSO settings saved"
-      assert SettingsModule.get_sso_config("auth_sso_enabled", "false") == "true"
-      assert SettingsModule.get_sso_config("sso_protocol", "oidc") == "saml"
-      assert SettingsModule.get_sso_config("sso_login_label", "") == "Acme"
+      assert Settings.get_sso_config("auth_sso_enabled", "false") == "true"
+      assert Settings.get_sso_config("sso_protocol", "oidc") == "saml"
+      assert Settings.get_sso_config("sso_login_label", "") == "Acme"
     end
 
     test "sso_form_change toggles protocol display in real time", %{conn: conn} do
@@ -149,12 +149,12 @@ defmodule LynxWeb.SettingsLiveTest do
 
       assert render(view) =~ "Provider created"
       assert render(view) =~ "github-actions"
-      assert OIDCBackendModule.list_providers() |> Enum.any?(&(&1.name == "github-actions"))
+      assert OIDCBackend.list_providers() |> Enum.any?(&(&1.name == "github-actions"))
     end
 
     test "delete_provider removes it", %{conn: conn} do
       {:ok, provider} =
-        OIDCBackendModule.create_provider(%{
+        OIDCBackend.create_provider(%{
           name: "to-delete",
           discovery_url: "https://example.com/.well-known/openid-configuration",
           audience: "x"
@@ -164,7 +164,7 @@ defmodule LynxWeb.SettingsLiveTest do
       render_click(view, "delete_provider", %{"uuid" => provider.uuid})
 
       assert render(view) =~ "Provider deleted"
-      assert OIDCBackendModule.list_providers() |> Enum.find(&(&1.uuid == provider.uuid)) == nil
+      assert OIDCBackend.list_providers() |> Enum.find(&(&1.uuid == provider.uuid)) == nil
     end
   end
 
@@ -173,10 +173,10 @@ defmodule LynxWeb.SettingsLiveTest do
       {:ok, view, _} = live(conn, "/admin/settings")
 
       render_click(view, "toggle_scim", %{})
-      assert SettingsModule.get_sso_config("scim_enabled", "false") == "true"
+      assert Settings.get_sso_config("scim_enabled", "false") == "true"
 
       render_click(view, "toggle_scim", %{})
-      assert SettingsModule.get_sso_config("scim_enabled", "false") == "false"
+      assert Settings.get_sso_config("scim_enabled", "false") == "false"
     end
 
     test "generate_scim_token creates a token", %{conn: conn} do
@@ -184,7 +184,7 @@ defmodule LynxWeb.SettingsLiveTest do
 
       render_click(view, "generate_scim_token", %{})
 
-      tokens = Lynx.Module.SCIMTokenModule.list_tokens()
+      tokens = Lynx.Context.SCIMTokenContext.list_tokens()
       assert tokens != []
     end
   end

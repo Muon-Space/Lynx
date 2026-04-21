@@ -3,7 +3,7 @@ defmodule LynxWeb.WorkspacesLive do
 
   alias Lynx.Context.WorkspaceContext
   alias Lynx.Context.ProjectContext
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.AuditContext
 
   @per_page 10
 
@@ -126,7 +126,7 @@ defmodule LynxWeb.WorkspacesLive do
 
     case WorkspaceContext.create_workspace(ws) do
       {:ok, workspace} ->
-        AuditModule.log_user(
+        AuditContext.log_user(
           socket.assigns.current_user,
           "created",
           "workspace",
@@ -218,7 +218,7 @@ defmodule LynxWeb.WorkspacesLive do
           if user.role == "super" do
             ProjectContext.count_projects_by_workspace(ws.id)
           else
-            user_teams = Lynx.Module.TeamModule.get_user_teams(user.id)
+            user_teams = Lynx.Context.TeamContext.get_user_teams(user.id)
             team_ids = Enum.map(user_teams, & &1.id)
             ProjectContext.count_projects_by_workspace_and_teams(ws.id, team_ids)
           end

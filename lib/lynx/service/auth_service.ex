@@ -167,7 +167,7 @@ defmodule Lynx.Service.AuthService do
   Check if password authentication is enabled
   """
   def password_auth_enabled? do
-    Lynx.Module.SSOModule.is_password_enabled?()
+    Lynx.Service.SSO.is_password_enabled?()
   end
 
   @doc """

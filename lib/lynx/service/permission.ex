@@ -2,7 +2,7 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.PermissionModule do
+defmodule Lynx.Service.Permission do
   @moduledoc """
   Permission Module
   """
@@ -10,7 +10,7 @@ defmodule Lynx.Module.PermissionModule do
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.SnapshotContext
   alias Lynx.Context.EnvironmentContext
-  alias Lynx.Module.TeamModule
+  alias Lynx.Context.TeamContext
 
   def can_access_project_id(:project, :anonymous, _id, _user_id) do
     false
@@ -110,7 +110,7 @@ defmodule Lynx.Module.PermissionModule do
 
   defp get_user_teams_ids(user_id) do
     user_id
-    |> TeamModule.get_user_teams()
+    |> TeamContext.get_user_teams()
     |> Enum.map(& &1.id)
   end
 end

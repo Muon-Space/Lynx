@@ -1,15 +1,15 @@
 defmodule LynxWeb.ProjectLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.ProjectModule
-  alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.StateModule
-  alias Lynx.Module.LockModule
-  alias Lynx.Module.OIDCBackendModule
-  alias Lynx.Module.AuditModule
-  alias Lynx.Module.RoleModule
-  alias Lynx.Module.TeamModule
-  alias Lynx.Module.UserModule
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.StateContext
+  alias Lynx.Context.LockContext
+  alias Lynx.Service.OIDCBackend
+  alias Lynx.Context.AuditContext
+  alias Lynx.Context.RoleContext
+  alias Lynx.Context.TeamContext
+  alias Lynx.Context.UserContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.RoleContext
@@ -17,7 +17,7 @@ defmodule LynxWeb.ProjectLive do
 
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
-    case ProjectModule.get_project_by_uuid(uuid) do
+    case ProjectContext.fetch_project_by_uuid(uuid) do
       {:not_found, _} ->
         {:ok, redirect(socket, to: "/admin/projects")}
 
@@ -30,8 +30,8 @@ defmodule LynxWeb.ProjectLive do
 
         envs_with_info =
           Enum.map(environments, fn env ->
-            state_count = StateModule.count_states(env.id)
-            is_locked = EnvironmentModule.is_environment_locked(env.id)
+            state_count = StateContext.count_states(env.id)
+            is_locked = EnvironmentContext.is_environment_locked(env.id)
 
             %{
               id: env.id,
@@ -47,7 +47,7 @@ defmodule LynxWeb.ProjectLive do
           end)
 
         roles = RoleContext.list_roles()
-        viewer_perms = RoleModule.effective_permissions(socket.assigns.current_user, project)
+        viewer_perms = RoleContext.effective_permissions(socket.assigns.current_user, project)
 
         socket =
           socket
@@ -60,14 +60,14 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:editing_env, nil)
           |> assign(:show_oidc_rules, nil)
           |> assign(:oidc_rules, [])
-          |> assign(:oidc_providers, OIDCBackendModule.list_providers())
+          |> assign(:oidc_providers, OIDCBackend.list_providers())
           |> assign(:show_add_rule, false)
           |> assign(:rule_provider_id, "")
           |> assign(:rule_role_id, default_role_id(roles, "applier"))
           |> assign(:roles, roles)
           |> assign(:viewer_perms, viewer_perms)
-          |> assign(:all_teams, TeamModule.get_teams(0, 10000))
-          |> assign(:all_users, UserModule.get_users(0, 10000))
+          |> assign(:all_teams, TeamContext.get_teams(0, 10000))
+          |> assign(:all_users, UserContext.get_users(0, 10000))
           |> assign(:add_team_id, "")
           |> assign(:add_team_role_id, default_role_id(roles, "applier"))
           |> assign(:add_user_id, "")
@@ -341,7 +341,7 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("create_env", params, socket) do
-    case EnvironmentModule.create_environment(%{
+    case EnvironmentContext.create_environment(%{
            name: params["name"],
            slug: params["slug"],
            username: params["username"],
@@ -349,7 +349,7 @@ defmodule LynxWeb.ProjectLive do
            project_id: socket.assigns.project.uuid
          }) do
       {:ok, env} ->
-        AuditModule.log_user(
+        AuditContext.log_user(
           socket.assigns.current_user,
           "created",
           "environment",
@@ -374,7 +374,7 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("update_env", params, socket) do
-    case EnvironmentModule.update_environment(%{
+    case EnvironmentContext.update_environment(%{
            uuid: socket.assigns.editing_env.uuid,
            name: params["name"],
            slug: params["slug"],
@@ -396,7 +396,7 @@ defmodule LynxWeb.ProjectLive do
   def handle_event("delete_env", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case EnvironmentModule.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
+    case EnvironmentContext.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
     end
@@ -411,8 +411,8 @@ defmodule LynxWeb.ProjectLive do
         {:noreply, put_flash(socket, :error, "Environment not found")}
 
       env_id ->
-        LockModule.force_lock(env_id, socket.assigns.current_user.name)
-        AuditModule.log_user(socket.assigns.current_user, "locked", "environment", uuid)
+        LockContext.force_lock(env_id, socket.assigns.current_user.name)
+        AuditContext.log_user(socket.assigns.current_user, "locked", "environment", uuid)
         {:noreply, socket |> put_flash(:info, "Environment locked") |> reload_envs()}
     end
   end
@@ -425,8 +425,8 @@ defmodule LynxWeb.ProjectLive do
         {:noreply, put_flash(socket, :error, "Environment not found")}
 
       env_id ->
-        LockModule.force_unlock(env_id)
-        AuditModule.log_user(socket.assigns.current_user, "unlocked", "environment", uuid)
+        LockContext.force_unlock(env_id)
+        AuditContext.log_user(socket.assigns.current_user, "unlocked", "environment", uuid)
         {:noreply, socket |> put_flash(:info, "Environment unlocked") |> reload_envs()}
     end
   end
@@ -434,7 +434,7 @@ defmodule LynxWeb.ProjectLive do
   # -- OIDC Rules --
   def handle_event("show_oidc_rules", %{"uuid" => uuid}, socket) do
     env = Enum.find(socket.assigns.environments, &(&1.uuid == uuid))
-    rules = OIDCBackendModule.list_rules_by_environment(env.id)
+    rules = OIDCBackend.list_rules_by_environment(env.id)
     {:noreply, assign(socket, show_oidc_rules: env, oidc_rules: rules, show_add_rule: false)}
   end
 
@@ -485,7 +485,7 @@ defmodule LynxWeb.ProjectLive do
         {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
 
       true ->
-        case OIDCBackendModule.create_rule(%{
+        case OIDCBackend.create_rule(%{
                name: params["rule_name"],
                claim_rules: claim_rules,
                provider_id: provider.id,
@@ -493,7 +493,7 @@ defmodule LynxWeb.ProjectLive do
                role_id: role_id
              }) do
           {:ok, rule} ->
-            AuditModule.log_user(
+            AuditContext.log_user(
               socket.assigns.current_user,
               "created",
               "oidc_rule",
@@ -501,7 +501,7 @@ defmodule LynxWeb.ProjectLive do
               params["rule_name"]
             )
 
-            rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+            rules = OIDCBackend.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
 
             {:noreply,
              socket
@@ -521,9 +521,9 @@ defmodule LynxWeb.ProjectLive do
     socket = assign(socket, :confirm, nil)
 
     if can_manage_oidc_rules?(socket.assigns) do
-      AuditModule.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
-      OIDCBackendModule.delete_rule(uuid)
-      rules = OIDCBackendModule.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
+      AuditContext.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
+      OIDCBackend.delete_rule(uuid)
+      rules = OIDCBackend.list_rules_by_environment(socket.assigns.show_oidc_rules.id)
       {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}
     else
       {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
@@ -557,7 +557,7 @@ defmodule LynxWeb.ProjectLive do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
       ProjectContext.add_project_to_team(socket.assigns.project.id, team.id, role_id)
 
-      AuditModule.log_user(
+      AuditContext.log_user(
         socket.assigns.current_user,
         "granted",
         "project_team",
@@ -599,7 +599,7 @@ defmodule LynxWeb.ProjectLive do
          %{} = team <- find_team_by_uuid(socket.assigns.all_teams, team_uuid) do
       ProjectContext.remove_project_from_team(socket.assigns.project.id, team.id)
 
-      AuditModule.log_user(
+      AuditContext.log_user(
         socket.assigns.current_user,
         "revoked",
         "project_team",
@@ -620,7 +620,7 @@ defmodule LynxWeb.ProjectLive do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
       UserProjectContext.assign_role(user.id, socket.assigns.project.id, role_id)
 
-      AuditModule.log_user(
+      AuditContext.log_user(
         socket.assigns.current_user,
         "granted",
         "user_project",
@@ -662,7 +662,7 @@ defmodule LynxWeb.ProjectLive do
          %{} = user <- find_user_by_uuid(socket.assigns.all_users, user_uuid) do
       UserProjectContext.remove(user.id, socket.assigns.project.id)
 
-      AuditModule.log_user(
+      AuditContext.log_user(
         socket.assigns.current_user,
         "revoked",
         "user_project",
@@ -683,8 +683,8 @@ defmodule LynxWeb.ProjectLive do
 
     envs_with_info =
       Enum.map(environments, fn env ->
-        state_count = StateModule.count_states(env.id)
-        is_locked = EnvironmentModule.is_environment_locked(env.id)
+        state_count = StateContext.count_states(env.id)
+        is_locked = EnvironmentContext.is_environment_locked(env.id)
 
         %{
           id: env.id,
@@ -748,13 +748,13 @@ defmodule LynxWeb.ProjectLive do
   defp can_manage_access?(_viewer_perms, %{role: "super"}), do: true
 
   defp can_manage_access?(viewer_perms, _user) do
-    RoleModule.has?(viewer_perms || MapSet.new(), "access:manage")
+    RoleContext.has?(viewer_perms || MapSet.new(), "access:manage")
   end
 
   defp can_manage_oidc_rules?(%{current_user: %{role: "super"}}), do: true
 
   defp can_manage_oidc_rules?(%{viewer_perms: perms}) do
-    RoleModule.has?(perms || MapSet.new(), "oidc_rule:manage")
+    RoleContext.has?(perms || MapSet.new(), "oidc_rule:manage")
   end
 
   defp ensure_can_manage_access(socket) do

@@ -2,7 +2,7 @@ defmodule LynxWeb.SSOControllerTest do
   use LynxWeb.ConnCase
 
   alias Lynx.Context.ConfigContext
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Service.Settings
 
   setup %{conn: conn} do
     install_admin_and_get_api_key(conn)
@@ -152,7 +152,7 @@ defmodule LynxWeb.SSOControllerTest do
   describe "GET /saml/metadata" do
     test "returns SP metadata XML when SAML cert is configured", %{conn: conn} do
       # Set required SP config so SAMLService can render metadata
-      SettingsModule.upsert_config("sso_saml_sp_entity_id", "lynx-test-sp")
+      Settings.upsert_config("sso_saml_sp_entity_id", "lynx-test-sp")
 
       conn = get(conn, "/saml/metadata")
 

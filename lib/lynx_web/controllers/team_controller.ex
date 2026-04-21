@@ -9,8 +9,8 @@ defmodule LynxWeb.TeamController do
 
   use LynxWeb, :controller
 
-  alias Lynx.Module.TeamModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.TeamContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
 
   require Logger
@@ -71,10 +71,10 @@ defmodule LynxWeb.TeamController do
 
     {teams, count} =
       if conn.assigns[:is_super] do
-        {TeamModule.get_teams(offset, limit), TeamModule.count_teams()}
+        {TeamContext.get_teams(offset, limit), TeamContext.count_teams()}
       else
-        {TeamModule.get_user_teams(conn.assigns[:user_id], offset, limit),
-         TeamModule.count_user_teams(conn.assigns[:user_id])}
+        {TeamContext.get_user_teams_paged(conn.assigns[:user_id], offset, limit),
+         TeamContext.count_user_teams(conn.assigns[:user_id])}
       end
 
     render(conn, "list.json", %{
@@ -94,7 +94,7 @@ defmodule LynxWeb.TeamController do
     case validate_create_request(params) do
       {:ok, _} ->
         result =
-          TeamModule.create_team(%{
+          TeamContext.create_team_from_data(%{
             slug: params["slug"],
             name: params["name"],
             description: params["description"]
@@ -102,8 +102,8 @@ defmodule LynxWeb.TeamController do
 
         case result do
           {:ok, team} ->
-            TeamModule.sync_team_members(team.id, params["members"])
-            AuditModule.log(conn, "created", "team", team.uuid, team.name)
+            TeamContext.sync_team_members(team.id, params["members"])
+            AuditContext.log(conn, "created", "team", team.uuid, team.name)
 
             conn
             |> put_status(:created)
@@ -126,7 +126,7 @@ defmodule LynxWeb.TeamController do
   Index Action Endpoint
   """
   def index(conn, %{"uuid" => uuid}) do
-    case TeamModule.get_team_by_uuid(uuid) do
+    case TeamContext.fetch_team_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -146,7 +146,7 @@ defmodule LynxWeb.TeamController do
     case validate_update_request(params, params["uuid"]) do
       {:ok, _} ->
         result =
-          TeamModule.update_team(%{
+          TeamContext.update_team_from_data(%{
             uuid: params["uuid"],
             slug: params["slug"],
             name: params["name"],
@@ -155,7 +155,7 @@ defmodule LynxWeb.TeamController do
 
         case result do
           {:ok, team} ->
-            TeamModule.sync_team_members(team.id, params["members"])
+            TeamContext.sync_team_members(team.id, params["members"])
 
             conn
             |> put_status(:ok)
@@ -180,7 +180,7 @@ defmodule LynxWeb.TeamController do
   def delete(conn, %{"uuid" => uuid}) do
     Logger.info("Attempt to delete team with uuid #{uuid}")
 
-    case TeamModule.delete_team_by_uuid(uuid) do
+    case TeamContext.delete_team_by_uuid(uuid) do
       {:not_found, msg} ->
         Logger.info("Team with uuid #{uuid} not found")
 

@@ -7,8 +7,8 @@ defmodule Lynx.Service.SCIMService do
   SCIM 2.0 Service - JSON parsing and formatting per RFC 7643/7644
   """
 
-  alias Lynx.Module.SCIMModule
-  alias Lynx.Module.TeamModule
+  alias Lynx.Service.SCIM
+  alias Lynx.Context.TeamContext
 
   @user_schema "urn:ietf:params:scim:schemas:core:2.0:User"
   @group_schema "urn:ietf:params:scim:schemas:core:2.0:Group"
@@ -30,7 +30,7 @@ defmodule Lynx.Service.SCIMService do
 
     name =
       if body["name"] do
-        SCIMModule.format_scim_name(body["name"])
+        SCIM.format_scim_name(body["name"])
       else
         body["displayName"] || email
       end
@@ -141,7 +141,7 @@ defmodule Lynx.Service.SCIMService do
   Format a team as a SCIM Group resource
   """
   def format_group_resource(team) do
-    members = TeamModule.get_team_members(team.id)
+    members = TeamContext.get_team_members(team.id)
 
     member_list =
       Enum.map(members, fn member_uuid ->

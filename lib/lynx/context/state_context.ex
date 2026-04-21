@@ -11,6 +11,8 @@ defmodule Lynx.Context.StateContext do
 
   alias Lynx.Repo
   alias Lynx.Model.{StateMeta, State}
+  alias Lynx.Context.{EnvironmentContext, ProjectContext, WorkspaceContext}
+  alias Lynx.Service.Settings
 
   @doc """
   Get a new state
@@ -257,5 +259,96 @@ defmodule Lynx.Context.StateContext do
       where: s.state_id == ^state_id
     )
     |> Repo.all()
+  end
+
+  # -- Workspace/project/env-aware orchestration --
+
+  def get_latest_state(params \\ %{}) do
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
+
+      {:ok, env} ->
+        sub_path = params[:sub_path] || ""
+
+        case get_latest_state_by_environment_and_path(env.id, sub_path) do
+          nil -> {:no_state, ""}
+          state -> {:state_found, state}
+        end
+    end
+  end
+
+  def add_state(params \\ %{}) do
+    case resolve_env(params) do
+      {:error, msg} ->
+        {:not_found, msg}
+
+      {:ok, env} ->
+        state =
+          new_state(%{
+            environment_id: env.id,
+            name: params[:name],
+            value: params[:value],
+            sub_path: params[:sub_path] || ""
+          })
+
+        case create_state(state) do
+          {:ok, _} ->
+            trim_if_configured(env.id, params[:sub_path] || "")
+            {:success, ""}
+
+          {:error, changeset} ->
+            messages =
+              changeset.errors
+              |> Enum.map(fn {field, {message, _options}} -> "#{field}: #{message}" end)
+
+            {:error, Enum.at(messages, 0)}
+        end
+    end
+  end
+
+  def get_latest_state_by_env_uuid(uuid) do
+    case EnvironmentContext.get_env_by_uuid(uuid) do
+      nil -> nil
+      env -> get_latest_state_by_environment_id(env.id)
+    end
+  end
+
+  defp resolve_env(params) do
+    workspace = WorkspaceContext.get_workspace_by_slug(params[:w_slug])
+
+    project =
+      if workspace do
+        ProjectContext.get_project_by_slug_and_workspace(params[:p_slug], workspace.id)
+      else
+        nil
+      end
+
+    case project do
+      nil ->
+        {:error, "Project not found"}
+
+      project ->
+        case EnvironmentContext.get_env_by_slug_project(project.id, params[:e_slug]) do
+          nil -> {:error, "Environment not found"}
+          env -> {:ok, env}
+        end
+    end
+  end
+
+  defp trim_if_configured(environment_id, sub_path) do
+    case Settings.get_config("state_retention_count", "0") do
+      "0" ->
+        :ok
+
+      "" ->
+        :ok
+
+      count_str ->
+        case Integer.parse(count_str) do
+          {count, _} when count > 0 -> trim_old_states(environment_id, sub_path, count)
+          _ -> :ok
+        end
+    end
   end
 end

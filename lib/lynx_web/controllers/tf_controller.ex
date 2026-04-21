@@ -3,10 +3,10 @@ defmodule LynxWeb.TfController do
 
   require Logger
 
-  alias Lynx.Module.StateModule
-  alias Lynx.Module.LockModule
-  alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.RoleModule
+  alias Lynx.Context.StateContext
+  alias Lynx.Context.LockContext
+  alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.RoleContext
 
   plug :auth
 
@@ -15,7 +15,7 @@ defmodule LynxWeb.TfController do
       w_slug = conn.params["w_slug"] || find_workspace_for_project(conn.params["p_slug"])
 
       result =
-        EnvironmentModule.is_access_allowed(%{
+        EnvironmentContext.is_access_allowed(%{
           workspace_slug: w_slug,
           project_slug: conn.params["p_slug"],
           env_slug: conn.params["e_slug"],
@@ -90,7 +90,7 @@ defmodule LynxWeb.TfController do
   end
 
   defp require_permission(conn, permission, then_fn) do
-    if RoleModule.has?(conn.assigns[:tf_permissions] || MapSet.new(), permission) do
+    if RoleContext.has?(conn.assigns[:tf_permissions] || MapSet.new(), permission) do
       then_fn.(conn)
     else
       Logger.info("tf access denied: user=#{conn.assigns[:tf_username]} missing #{permission}")
@@ -132,7 +132,7 @@ defmodule LynxWeb.TfController do
   end
 
   defp get_state(conn, w_slug, p_slug, e_slug, sub_path) do
-    case StateModule.get_latest_state(%{
+    case StateContext.get_latest_state(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
@@ -156,7 +156,7 @@ defmodule LynxWeb.TfController do
   end
 
   defp push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
-    case LockModule.is_locked(%{
+    case LockContext.is_locked(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
@@ -190,7 +190,7 @@ defmodule LynxWeb.TfController do
   defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
     body = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
 
-    case StateModule.add_state(%{
+    case StateContext.add_state(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
@@ -232,7 +232,7 @@ defmodule LynxWeb.TfController do
   end
 
   defp lock(conn, w_slug, p_slug, e_slug, sub_path, params) do
-    case LockModule.is_locked(%{
+    case LockContext.is_locked(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
@@ -252,7 +252,7 @@ defmodule LynxWeb.TfController do
 
       {:success, _} ->
         action =
-          LockModule.lock_action(%{
+          LockContext.lock_action(%{
             w_slug: w_slug,
             p_slug: p_slug,
             e_slug: e_slug,
@@ -285,7 +285,7 @@ defmodule LynxWeb.TfController do
   end
 
   defp unlock(conn, w_slug, p_slug, e_slug, sub_path) do
-    case LockModule.unlock_action(%{
+    case LockContext.unlock_action(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,

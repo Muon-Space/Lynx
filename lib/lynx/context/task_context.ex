@@ -162,4 +162,15 @@ defmodule Lynx.Context.TaskContext do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Fetch a task by UUID — returns `{:ok, task}` or `{:not_found, msg}`. Use
+  this instead of `get_task_by_uuid/1` when you want a tagged tuple result.
+  """
+  def fetch_task_by_uuid(uuid) do
+    case get_task_by_uuid(uuid) do
+      nil -> {:not_found, "Task with UUID #{uuid} not found"}
+      task -> {:ok, task}
+    end
+  end
 end

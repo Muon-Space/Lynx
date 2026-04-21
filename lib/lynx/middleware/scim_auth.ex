@@ -11,8 +11,8 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
 
   require Logger
 
-  alias Lynx.Module.SCIMTokenModule
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Context.SCIMTokenContext
+  alias Lynx.Service.Settings
 
   def init(_opts), do: nil
 
@@ -43,7 +43,7 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
           |> halt()
 
         token ->
-          if SCIMTokenModule.validate_token(token) do
+          if SCIMTokenContext.validate_token(token) do
             conn
             |> assign(:scim_authenticated, true)
           else
@@ -70,6 +70,6 @@ defmodule Lynx.Middleware.SCIMAuthMiddleware do
   end
 
   defp scim_enabled? do
-    SettingsModule.get_sso_config("scim_enabled", "false") == "true"
+    Settings.get_sso_config("scim_enabled", "false") == "true"
   end
 end

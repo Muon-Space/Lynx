@@ -11,10 +11,10 @@ defmodule LynxWeb.EnvironmentController do
 
   require Logger
 
-  alias Lynx.Module.EnvironmentModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
-  alias Lynx.Module.PermissionModule
+  alias Lynx.Service.Permission
 
   @name_min_length 2
   @name_max_length 60
@@ -51,7 +51,7 @@ defmodule LynxWeb.EnvironmentController do
   defp access_check(conn, _opts) do
     Logger.info("Validate if user can access project")
 
-    if not PermissionModule.can_access_project_uuid(
+    if not Permission.can_access_project_uuid(
          :project,
          conn.assigns[:user_role],
          conn.params["p_uuid"],
@@ -77,8 +77,8 @@ defmodule LynxWeb.EnvironmentController do
     limit = params["limit"] || @default_list_limit
     offset = params["offset"] || @default_list_offset
 
-    result = EnvironmentModule.get_project_environments(params["p_uuid"], offset, limit)
-    count = EnvironmentModule.count_project_environments(params["p_uuid"])
+    result = EnvironmentContext.get_project_environments(params["p_uuid"], offset, limit)
+    count = EnvironmentContext.count_project_environments(params["p_uuid"])
 
     case result do
       {:not_found, msg} ->
@@ -105,7 +105,7 @@ defmodule LynxWeb.EnvironmentController do
     case validate_create_request(params, params["p_uuid"]) do
       {:ok, ""} ->
         result =
-          EnvironmentModule.create_environment(%{
+          EnvironmentContext.create_environment(%{
             name: params["name"],
             slug: params["slug"],
             username: params["username"],
@@ -136,7 +136,7 @@ defmodule LynxWeb.EnvironmentController do
   Index Action Endpoint
   """
   def index(conn, %{"p_uuid" => p_uuid, "e_uuid" => e_uuid}) do
-    case EnvironmentModule.get_environment_by_uuid(p_uuid, e_uuid) do
+    case EnvironmentContext.get_environment_by_uuid(p_uuid, e_uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -156,7 +156,7 @@ defmodule LynxWeb.EnvironmentController do
     case validate_update_request(params, params["p_uuid"], params["e_uuid"]) do
       {:ok, ""} ->
         result =
-          EnvironmentModule.update_environment(%{
+          EnvironmentContext.update_environment(%{
             uuid: params["e_uuid"],
             name: params["name"],
             slug: params["slug"],
@@ -188,7 +188,7 @@ defmodule LynxWeb.EnvironmentController do
   Delete Action Endpoint
   """
   def delete(conn, %{"p_uuid" => p_uuid, "e_uuid" => e_uuid}) do
-    case EnvironmentModule.delete_environment_by_uuid(p_uuid, e_uuid) do
+    case EnvironmentContext.delete_environment_by_uuid(p_uuid, e_uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -204,7 +204,7 @@ defmodule LynxWeb.EnvironmentController do
   Force Lock Environment Endpoint
   """
   def force_lock(conn, %{"e_uuid" => e_uuid}) do
-    alias Lynx.Module.LockModule
+    alias Lynx.Context.LockContext
     alias Lynx.Context.EnvironmentContext
 
     case EnvironmentContext.get_env_id_with_uuid(e_uuid) do
@@ -214,9 +214,9 @@ defmodule LynxWeb.EnvironmentController do
         |> render(:error, %{message: "Environment not found"})
 
       env_id ->
-        case LockModule.force_lock(env_id, conn.assigns[:user_name] || "admin") do
+        case LockContext.force_lock(env_id, conn.assigns[:user_name] || "admin") do
           {:success, msg} ->
-            AuditModule.log(conn, "locked", "environment", e_uuid)
+            AuditContext.log(conn, "locked", "environment", e_uuid)
 
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 
@@ -233,7 +233,7 @@ defmodule LynxWeb.EnvironmentController do
   Force Unlock Environment Endpoint
   """
   def force_unlock(conn, %{"e_uuid" => e_uuid}) do
-    alias Lynx.Module.LockModule
+    alias Lynx.Context.LockContext
     alias Lynx.Context.EnvironmentContext
 
     case EnvironmentContext.get_env_id_with_uuid(e_uuid) do
@@ -243,9 +243,9 @@ defmodule LynxWeb.EnvironmentController do
         |> render(:error, %{message: "Environment not found"})
 
       env_id ->
-        case LockModule.force_unlock(env_id) do
+        case LockContext.force_unlock(env_id) do
           {:success, msg} ->
-            AuditModule.log(conn, "unlocked", "environment", e_uuid)
+            AuditContext.log(conn, "unlocked", "environment", e_uuid)
 
             conn |> put_status(:ok) |> json(%{successMessage: msg})
 

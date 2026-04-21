@@ -1,9 +1,9 @@
 defmodule LynxWeb.TeamsLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.TeamModule
-  alias Lynx.Module.UserModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.TeamContext
+  alias Lynx.Context.UserContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.RoleContext
 
@@ -18,7 +18,7 @@ defmodule LynxWeb.TeamsLive do
       |> assign(:add_slug, "")
       |> assign(:editing_team, nil)
       |> assign(:editing_members, [])
-      |> assign(:all_users, UserModule.get_users(0, 10000))
+      |> assign(:all_users, UserContext.get_users(0, 10000))
       |> assign(:roles, RoleContext.list_roles())
       |> assign(:confirm, nil)
       |> load_teams()
@@ -70,7 +70,7 @@ defmodule LynxWeb.TeamsLive do
         <.table rows={@teams}>
           <:col :let={team} label="Name">{team.name}</:col>
           <:col :let={team} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{team.slug}</code></:col>
-          <:col :let={team} label="Members">{UserModule.count_team_users(team.id)}</:col>
+          <:col :let={team} label="Members">{UserContext.count_team_users(team.id)}</:col>
           <:col :let={team} label="Projects & Roles">
             <.role_assignments_summary assignments={team.assignments} />
           </:col>
@@ -119,14 +119,21 @@ defmodule LynxWeb.TeamsLive do
   def handle_event("hide_edit", _, socket), do: {:noreply, assign(socket, :editing_team, nil)}
 
   def handle_event("create_team", params, socket) do
-    case TeamModule.create_team(%{
+    case TeamContext.create_team_from_data(%{
            name: params["name"],
            slug: params["slug"],
            description: params["description"]
          }) do
       {:ok, team} ->
-        TeamModule.sync_team_members(team.id, List.wrap(params["members"]))
-        AuditModule.log_user(socket.assigns.current_user, "created", "team", team.uuid, team.name)
+        TeamContext.sync_team_members(team.id, List.wrap(params["members"]))
+
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "created",
+          "team",
+          team.uuid,
+          team.name
+        )
 
         {:noreply,
          socket |> assign(:show_add, false) |> put_flash(:info, "Team created") |> load_teams()}
@@ -137,9 +144,9 @@ defmodule LynxWeb.TeamsLive do
   end
 
   def handle_event("edit_team", %{"uuid" => uuid}, socket) do
-    case TeamModule.get_team_by_uuid(uuid) do
+    case TeamContext.fetch_team_by_uuid(uuid) do
       {:ok, team} ->
-        members = TeamModule.get_team_members(team.id)
+        members = TeamContext.get_team_members(team.id)
         {:noreply, assign(socket, editing_team: team, editing_members: members)}
 
       _ ->
@@ -148,14 +155,14 @@ defmodule LynxWeb.TeamsLive do
   end
 
   def handle_event("update_team", params, socket) do
-    case TeamModule.update_team(%{
+    case TeamContext.update_team_from_data(%{
            uuid: socket.assigns.editing_team.uuid,
            name: params["name"],
            slug: params["slug"],
            description: params["description"]
          }) do
       {:ok, team} ->
-        TeamModule.sync_team_members(team.id, List.wrap(params["members"]))
+        TeamContext.sync_team_members(team.id, List.wrap(params["members"]))
 
         {:noreply,
          socket |> assign(:editing_team, nil) |> put_flash(:info, "Team updated") |> load_teams()}
@@ -168,7 +175,7 @@ defmodule LynxWeb.TeamsLive do
   def handle_event("delete_team", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case TeamModule.delete_team_by_uuid(uuid) do
+    case TeamContext.delete_team_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Team deleted") |> load_teams()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
     end
@@ -188,7 +195,7 @@ defmodule LynxWeb.TeamsLive do
 
   defp load_teams(socket) do
     offset = (socket.assigns.page - 1) * @per_page
-    teams = TeamModule.get_teams(offset, @per_page)
+    teams = TeamContext.get_teams(offset, @per_page)
     roles_by_id = Map.new(socket.assigns[:roles] || RoleContext.list_roles(), &{&1.id, &1.name})
 
     teams =
@@ -203,7 +210,7 @@ defmodule LynxWeb.TeamsLive do
         Map.put(team, :assignments, assignments)
       end)
 
-    total = TeamModule.count_teams()
+    total = TeamContext.count_teams()
     assign(socket, teams: teams, total_pages: max(ceil(total / @per_page), 1))
   end
 end

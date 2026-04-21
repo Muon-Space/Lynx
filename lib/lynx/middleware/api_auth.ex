@@ -12,7 +12,7 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
   require Logger
 
   alias Lynx.Service.AuthService
-  alias Lynx.Module.UserModule
+  alias Lynx.Context.UserContext
 
   def init(_opts), do: nil
 
@@ -68,7 +68,7 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
 
             {true, session} ->
               conn =
-                case UserModule.get_user_by_id(session.user_id) do
+                case UserContext.fetch_user_by_id(session.user_id) do
                   {:ok, user} ->
                     if user.is_active do
                       conn

@@ -1,7 +1,7 @@
 defmodule LynxWeb.SnapshotLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.SnapshotModule
+  alias Lynx.Context.SnapshotContext
 
   setup %{conn: conn} do
     user = create_super()
@@ -37,7 +37,7 @@ defmodule LynxWeb.SnapshotLiveTest do
       })
 
     {:ok, snapshot} =
-      SnapshotModule.create_snapshot(%{
+      SnapshotContext.create_snapshot_from_data(%{
         title: "Test Snapshot",
         description: "A test snapshot",
         record_type: "project",
@@ -121,7 +121,7 @@ defmodule LynxWeb.SnapshotLiveTest do
       result = render_click(view, "delete_snapshot", %{"uuid" => snapshot.uuid})
 
       assert {:error, {:redirect, %{to: "/admin/snapshots"}}} = result
-      assert {:not_found, _} = SnapshotModule.get_snapshot_by_uuid(snapshot.uuid)
+      assert {:not_found, _} = SnapshotContext.fetch_snapshot_by_uuid(snapshot.uuid)
     end
   end
 

@@ -13,7 +13,7 @@ defmodule Lynx.Service.SSOService do
 
   require Logger
 
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Service.Settings
 
   # -- OIDC --
 
@@ -36,8 +36,8 @@ defmodule Lynx.Service.SSOService do
   end
 
   defp oidc_authorize_url_from_db(state) do
-    issuer = SettingsModule.get_sso_config("sso_issuer", "")
-    client_id = SettingsModule.get_sso_config("sso_client_id", "")
+    issuer = Settings.get_sso_config("sso_issuer", "")
+    client_id = Settings.get_sso_config("sso_client_id", "")
     redirect_uri = build_redirect_uri()
 
     if issuer == "" or client_id == "" do
@@ -86,9 +86,9 @@ defmodule Lynx.Service.SSOService do
   end
 
   defp oidc_callback_from_db(code) do
-    issuer = SettingsModule.get_sso_config("sso_issuer", "")
-    client_id = SettingsModule.get_sso_config("sso_client_id", "")
-    client_secret = SettingsModule.get_sso_config("sso_client_secret", "")
+    issuer = Settings.get_sso_config("sso_issuer", "")
+    client_id = Settings.get_sso_config("sso_client_id", "")
+    client_secret = Settings.get_sso_config("sso_client_secret", "")
     redirect_uri = build_redirect_uri()
 
     if issuer == "" or client_id == "" or client_secret == "" do
@@ -182,7 +182,7 @@ defmodule Lynx.Service.SSOService do
   end
 
   defp build_redirect_uri do
-    app_url = SettingsModule.get_config("app_url", "http://localhost:4000")
+    app_url = Settings.get_config("app_url", "http://localhost:4000")
     String.trim_trailing(app_url, "/") <> "/auth/sso/callback"
   end
 

@@ -15,7 +15,7 @@ defmodule LynxWeb.ProfileController do
   @name_max_length 60
 
   alias Lynx.Service.AuthService
-  alias Lynx.Module.UserModule
+  alias Lynx.Context.UserContext
   alias Lynx.Service.ValidatorService
 
   plug :regular_user when action in [:update, :fetch_api_key, :rotate_api_key]
@@ -44,7 +44,7 @@ defmodule LynxWeb.ProfileController do
     case validate_update_request(params, conn.assigns[:user_uuid]) do
       {:ok, _} ->
         result =
-          UserModule.update_user(%{
+          UserContext.update_user_from_data(%{
             uuid: conn.assigns[:user_uuid],
             email: params["email"],
             name: params["name"],
@@ -79,7 +79,7 @@ defmodule LynxWeb.ProfileController do
   Fetch API Key Endpoint
   """
   def fetch_api_key(conn, _params) do
-    case UserModule.get_user_by_uuid(conn.assigns[:user_uuid]) do
+    case UserContext.fetch_user_by_uuid(conn.assigns[:user_uuid]) do
       {:not_found, msg} ->
         Logger.info(msg)
 
@@ -100,7 +100,7 @@ defmodule LynxWeb.ProfileController do
   def rotate_api_key(conn, _params) do
     api_key = AuthService.get_uuid()
 
-    case UserModule.rotate_api_key(conn.assigns[:user_uuid], api_key) do
+    case UserContext.rotate_api_key(conn.assigns[:user_uuid], api_key) do
       {:not_found, msg} ->
         Logger.info(msg)
 

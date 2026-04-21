@@ -2,7 +2,7 @@ defmodule Lynx.Service.SAMLServiceTest do
   use Lynx.DataCase
 
   alias Lynx.Context.ConfigContext
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Service.Settings
   alias Lynx.Service.SAMLService
 
   defp set_config(name, value) do
@@ -190,8 +190,8 @@ defmodule Lynx.Service.SAMLServiceTest do
           {:ok, %{cert_pem: cert_pem}} = SAMLService.generate_sp_certificate()
 
           set_app_basics()
-          SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
-          SettingsModule.upsert_config("sso_saml_sign_requests", "true")
+          Settings.upsert_config("sso_saml_sp_cert", cert_pem)
+          Settings.upsert_config("sso_saml_sign_requests", "true")
 
           {:ok, xml} = SAMLService.generate_sp_metadata()
           assert xml =~ "<md:KeyDescriptor use=\"signing\">"

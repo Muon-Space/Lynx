@@ -1,7 +1,7 @@
 defmodule LynxWeb.OIDCProviderControllerTest do
   use LynxWeb.ConnCase
 
-  alias Lynx.Module.OIDCBackendModule
+  alias Lynx.Service.OIDCBackend
   alias Lynx.Context.{EnvironmentContext, ProjectContext, UserContext, WorkspaceContext}
 
   setup %{conn: conn} do
@@ -45,7 +45,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
 
   defp create_test_provider do
     {:ok, provider} =
-      OIDCBackendModule.create_provider(%{
+      OIDCBackend.create_provider(%{
         name: "test-provider-#{System.unique_integer([:positive])}",
         discovery_url: "https://example.com/.well-known/openid-configuration",
         audience: "test-audience"
@@ -120,7 +120,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       body = json_response(conn, 201)
       assert body["name"] == "github-actions"
       assert body["successMessage"] =~ "created"
-      assert OIDCBackendModule.list_providers() |> Enum.any?(&(&1.name == "github-actions"))
+      assert OIDCBackend.list_providers() |> Enum.any?(&(&1.name == "github-actions"))
     end
 
     test "returns 400 when name is missing", %{conn: conn, api_key: api_key} do
@@ -175,7 +175,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
 
       body = json_response(conn, 200)
       assert body["successMessage"] =~ "deleted"
-      refute Enum.any?(OIDCBackendModule.list_providers(), &(&1.uuid == provider.uuid))
+      refute Enum.any?(OIDCBackend.list_providers(), &(&1.uuid == provider.uuid))
     end
 
     test "returns 404 for unknown uuid", %{conn: conn, api_key: api_key} do
@@ -194,7 +194,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       provider = create_test_provider()
 
       {:ok, rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "ci-deploy",
           claim_rules: ~s([{"claim":"repo","operator":"eq","value":"org/x"}]),
           provider_id: provider.id,
@@ -298,7 +298,7 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       provider = create_test_provider()
 
       {:ok, rule} =
-        OIDCBackendModule.create_rule(%{
+        OIDCBackend.create_rule(%{
           name: "to-delete",
           claim_rules: ~s([{"claim":"x","operator":"eq","value":"y"}]),
           provider_id: provider.id,

@@ -2,15 +2,15 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file.
 
-defmodule Lynx.Module.SCIMModule do
+defmodule Lynx.Service.SCIM do
   @moduledoc """
   SCIM 2.0 Module - orchestrates SCIM user and group operations
   """
 
   alias Lynx.Context.UserContext
   alias Lynx.Context.TeamContext
-  alias Lynx.Module.UserModule
-  alias Lynx.Module.TeamModule
+  alias Lynx.Context.UserContext
+  alias Lynx.Context.TeamContext
   alias Lynx.Service.SlugService
 
   # -- Users --
@@ -76,7 +76,7 @@ defmodule Lynx.Module.SCIMModule do
   end
 
   defp do_create_user(attrs) do
-    UserModule.create_sso_user(%{
+    UserContext.create_sso_user(%{
       email: attrs[:email],
       name: attrs[:name],
       auth_provider: "scim",
@@ -347,7 +347,7 @@ defmodule Lynx.Module.SCIMModule do
        })
        when is_list(members) do
     member_uuids = Enum.map(members, fn m -> m["value"] end)
-    TeamModule.sync_team_members(team.id, member_uuids)
+    TeamContext.sync_team_members(team.id, member_uuids)
   end
 
   defp apply_group_patch_operation(team, %{"op" => "replace", "value" => values})
@@ -382,7 +382,7 @@ defmodule Lynx.Module.SCIMModule do
 
   defp sync_group_members(team_id, members) when is_list(members) do
     member_uuids = Enum.map(members, fn m -> m["value"] end)
-    TeamModule.sync_team_members(team_id, member_uuids)
+    TeamContext.sync_team_members(team_id, member_uuids)
   end
 
   defp sync_group_members(_team_id, _), do: :ok

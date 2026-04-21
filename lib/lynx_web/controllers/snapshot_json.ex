@@ -3,7 +3,7 @@
 # license that can be found in the LICENSE file.
 
 defmodule LynxWeb.SnapshotJSON do
-  alias Lynx.Module.TeamModule
+  alias Lynx.Context.TeamContext
 
   # Render snapshots list
   def render("list.json", %{snapshots: snapshots, metadata: metadata}) do
@@ -34,7 +34,7 @@ defmodule LynxWeb.SnapshotJSON do
 
   # Format snapshot
   defp render_snapshot(snapshot) do
-    {_, team} = TeamModule.get_team_by_id(snapshot.team_id)
+    {_, team} = TeamContext.fetch_team_by_id(snapshot.team_id)
 
     %{
       id: snapshot.uuid,

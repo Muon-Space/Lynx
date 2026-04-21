@@ -13,7 +13,7 @@ defmodule Lynx.Service.SAMLService do
 
   import SweetXml, only: [parse: 2, xpath: 2, sigil_x: 2]
 
-  alias Lynx.Module.SettingsModule
+  alias Lynx.Service.Settings
 
   # Import esaml record definitions
   Record.defrecord(:esaml_org, Record.extract(:esaml_org, from_lib: "esaml/include/esaml.hrl"))
@@ -84,18 +84,18 @@ defmodule Lynx.Service.SAMLService do
   """
   def generate_sp_metadata do
     app_url =
-      SettingsModule.get_config("app_url", "http://localhost:4000")
+      Settings.get_config("app_url", "http://localhost:4000")
       |> String.trim_trailing("/")
 
     consume_uri = app_url <> "/auth/sso/saml_callback"
     metadata_uri = app_url <> "/saml/metadata"
-    configured_entity_id = SettingsModule.get_sso_config("sso_saml_sp_entity_id", "")
+    configured_entity_id = Settings.get_sso_config("sso_saml_sp_entity_id", "")
     sp_entity_id = if configured_entity_id == "", do: metadata_uri, else: configured_entity_id
-    app_name = SettingsModule.get_config("app_name", "Lynx")
-    app_email = SettingsModule.get_config("app_email", "admin@localhost")
+    app_name = Settings.get_config("app_name", "Lynx")
+    app_email = Settings.get_config("app_email", "admin@localhost")
 
-    cert_pem = SettingsModule.get_sso_config("sso_saml_sp_cert", "")
-    sign_requests = SettingsModule.get_sso_config("sso_saml_sign_requests", "false") == "true"
+    cert_pem = Settings.get_sso_config("sso_saml_sp_cert", "")
+    sign_requests = Settings.get_sso_config("sso_saml_sign_requests", "false") == "true"
 
     cert_b64 =
       if cert_pem != "" do
@@ -200,9 +200,9 @@ defmodule Lynx.Service.SAMLService do
   # -- Private --
 
   defp load_idp_metadata do
-    idp_sso_url = SettingsModule.get_sso_config("sso_saml_idp_sso_url", "")
-    idp_cert_pem = SettingsModule.get_sso_config("sso_saml_idp_cert", "")
-    metadata_url = SettingsModule.get_sso_config("sso_saml_idp_metadata_url", "")
+    idp_sso_url = Settings.get_sso_config("sso_saml_idp_sso_url", "")
+    idp_cert_pem = Settings.get_sso_config("sso_saml_idp_cert", "")
+    metadata_url = Settings.get_sso_config("sso_saml_idp_metadata_url", "")
 
     # If metadata URL is available, fetch it for NameID format and other details
     metadata_extras = fetch_metadata_extras(metadata_url)
@@ -254,7 +254,7 @@ defmodule Lynx.Service.SAMLService do
   end
 
   defp build_idp_from_direct_config(sso_url, cert_pem, metadata_extras) do
-    idp_issuer = SettingsModule.get_sso_config("sso_saml_idp_issuer", "")
+    idp_issuer = Settings.get_sso_config("sso_saml_idp_issuer", "")
     idp_issuer = if idp_issuer == "", do: metadata_extras[:entity_id] || sso_url, else: idp_issuer
 
     nameid_format =
@@ -364,17 +364,17 @@ defmodule Lynx.Service.SAMLService do
 
   defp build_sp_record(fingerprints) do
     app_url =
-      SettingsModule.get_config("app_url", "http://localhost:4000")
+      Settings.get_config("app_url", "http://localhost:4000")
       |> String.trim_trailing("/")
 
     consume_uri = app_url <> "/auth/sso/saml_callback"
     metadata_uri = app_url <> "/saml/metadata"
-    configured_entity_id = SettingsModule.get_sso_config("sso_saml_sp_entity_id", "")
+    configured_entity_id = Settings.get_sso_config("sso_saml_sp_entity_id", "")
     sp_entity_id = if configured_entity_id == "", do: metadata_uri, else: configured_entity_id
     metadata_uri = app_url <> "/auth/sso/metadata"
 
     {key, cert} = load_sp_credentials()
-    sign_requests = SettingsModule.get_sso_config("sso_saml_sign_requests", "false") == "true"
+    sign_requests = Settings.get_sso_config("sso_saml_sign_requests", "false") == "true"
 
     sp =
       esaml_sp(
@@ -403,8 +403,8 @@ defmodule Lynx.Service.SAMLService do
   end
 
   defp load_sp_credentials do
-    cert_pem = SettingsModule.get_sso_config("sso_saml_sp_cert", "")
-    key_pem = SettingsModule.get_sso_config("sso_saml_sp_key", "")
+    cert_pem = Settings.get_sso_config("sso_saml_sp_cert", "")
+    key_pem = Settings.get_sso_config("sso_saml_sp_key", "")
 
     if cert_pem == "" or key_pem == "" do
       {:undefined, :undefined}

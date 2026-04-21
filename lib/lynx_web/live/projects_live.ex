@@ -1,9 +1,9 @@
 defmodule LynxWeb.ProjectsLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Module.ProjectModule
-  alias Lynx.Module.TeamModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.TeamContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Context.WorkspaceContext
 
   @per_page 10
@@ -19,8 +19,8 @@ defmodule LynxWeb.ProjectsLive do
 
         all_teams =
           if user.role == "super",
-            do: TeamModule.get_teams(0, 10000),
-            else: TeamModule.get_user_teams(user.id, 0, 10000)
+            do: TeamContext.get_teams(0, 10000),
+            else: TeamContext.get_user_teams_paged(user.id, 0, 10000)
 
         socket =
           socket
@@ -87,9 +87,9 @@ defmodule LynxWeb.ProjectsLive do
         <.table rows={@projects} row_click={fn project -> JS.push("view_project", value: %{uuid: project.uuid}) end}>
           <:col :let={project} label="Name"><span class="font-medium text-clickable">{project.name}</span></:col>
           <:col :let={project} label="Slug"><code class="text-xs bg-inset px-1.5 py-0.5 rounded">{project.slug}</code></:col>
-          <:col :let={project} label="Environments">{Lynx.Module.EnvironmentModule.count_project_envs(project.id)}</:col>
+          <:col :let={project} label="Environments">{Lynx.Context.EnvironmentContext.count_project_envs(project.id)}</:col>
           <:col :let={project} label="Teams">
-            <%= for team <- ProjectModule.get_project_teams(project.id) do %>
+            <%= for team <- ProjectContext.get_project_teams(project.id) do %>
               <.badge color="blue">{team.name}</.badge>
             <% end %>
           </:col>
@@ -130,7 +130,7 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   def handle_event("create_project", params, socket) do
-    case ProjectModule.create_project(%{
+    case ProjectContext.create_project_from_data(%{
            name: params["name"],
            slug: params["slug"],
            description: params["description"],
@@ -138,7 +138,7 @@ defmodule LynxWeb.ProjectsLive do
            workspace_id: socket.assigns.workspace.id
          }) do
       {:ok, project} ->
-        AuditModule.log_user(
+        AuditContext.log_user(
           socket.assigns.current_user,
           "created",
           "project",
@@ -158,9 +158,9 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   def handle_event("edit_project", %{"uuid" => uuid}, socket) do
-    case ProjectModule.get_project_by_uuid(uuid) do
+    case ProjectContext.fetch_project_by_uuid(uuid) do
       {:ok, project} ->
-        teams = ProjectModule.get_project_team_uuids(project.id)
+        teams = ProjectContext.get_project_team_uuids(project.id)
         {:noreply, assign(socket, editing_project: project, editing_teams: teams)}
 
       _ ->
@@ -169,7 +169,7 @@ defmodule LynxWeb.ProjectsLive do
   end
 
   def handle_event("update_project", params, socket) do
-    case ProjectModule.update_project(%{
+    case ProjectContext.update_project_from_data(%{
            uuid: socket.assigns.editing_project.uuid,
            name: params["name"],
            slug: params["slug"],
@@ -202,7 +202,7 @@ defmodule LynxWeb.ProjectsLive do
   def handle_event("delete_project", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
 
-    case ProjectModule.delete_project_by_uuid(uuid) do
+    case ProjectContext.delete_project_by_uuid(uuid) do
       {:ok, _} -> {:noreply, socket |> put_flash(:info, "Project deleted") |> load_projects()}
       _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
     end
@@ -230,7 +230,7 @@ defmodule LynxWeb.ProjectsLive do
         {Lynx.Context.ProjectContext.get_projects_by_workspace(workspace.id, offset, @per_page),
          Lynx.Context.ProjectContext.count_projects_by_workspace(workspace.id)}
       else
-        user_teams = TeamModule.get_user_teams(user.id)
+        user_teams = TeamContext.get_user_teams(user.id)
         team_ids = Enum.map(user_teams, & &1.id)
 
         {Lynx.Context.ProjectContext.get_projects_by_workspace_and_teams(

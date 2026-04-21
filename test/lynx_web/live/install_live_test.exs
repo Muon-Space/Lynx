@@ -1,7 +1,7 @@
 defmodule LynxWeb.InstallLiveTest do
   use LynxWeb.LiveCase
 
-  alias Lynx.Module.InstallModule
+  alias Lynx.Service.Install
   alias Lynx.Context.UserContext
 
   describe "mount" do
@@ -34,7 +34,7 @@ defmodule LynxWeb.InstallLiveTest do
         })
 
       assert {:error, {:redirect, %{to: "/login"}}} = result
-      assert InstallModule.is_installed()
+      assert Install.is_installed()
       assert UserContext.get_user_by_email("alice@example.com") != nil
     end
 

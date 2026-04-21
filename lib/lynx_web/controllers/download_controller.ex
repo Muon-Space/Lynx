@@ -1,8 +1,8 @@
 defmodule LynxWeb.DownloadController do
   use LynxWeb, :controller
 
-  alias Lynx.Module.PermissionModule
-  alias Lynx.Module.StateModule
+  alias Lynx.Service.Permission
+  alias Lynx.Context.StateContext
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.StateContext
 
@@ -12,7 +12,7 @@ defmodule LynxWeb.DownloadController do
         redirect(conn, to: "/login")
 
       true ->
-        if not PermissionModule.can_access_snapshot_uuid(
+        if not Permission.can_access_snapshot_uuid(
              :snapshot,
              conn.assigns[:user_role],
              uuid,
@@ -20,7 +20,7 @@ defmodule LynxWeb.DownloadController do
            ) do
           redirect(conn, to: "/404")
         else
-          case StateModule.get_state_by_uuid(uuid) do
+          case StateContext.get_state_by_uuid(uuid) do
             nil ->
               redirect(conn, to: "/404")
 
@@ -43,7 +43,7 @@ defmodule LynxWeb.DownloadController do
         redirect(conn, to: "/login")
 
       true ->
-        if not PermissionModule.can_access_environment_uuid(
+        if not Permission.can_access_environment_uuid(
              :environment,
              conn.assigns[:user_role],
              uuid,

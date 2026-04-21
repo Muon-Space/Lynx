@@ -14,9 +14,9 @@ defmodule LynxWeb.SettingsController do
   @app_name_min_length 2
   @app_name_max_length 60
 
-  alias Lynx.Module.SettingsModule
-  alias Lynx.Module.SCIMTokenModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Service.Settings
+  alias Lynx.Context.SCIMTokenContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
 
   plug :super_user
@@ -52,13 +52,13 @@ defmodule LynxWeb.SettingsController do
   def update(conn, params) do
     case validate_update_request(params) do
       {:ok, _} ->
-        SettingsModule.update_configs(%{
+        Settings.update_configs(%{
           app_name: params["app_name"],
           app_url: params["app_url"],
           app_email: params["app_email"]
         })
 
-        AuditModule.log(conn, "updated", "settings", nil, "general")
+        AuditContext.log(conn, "updated", "settings", nil, "general")
 
         conn
         |> put_status(:ok)
@@ -98,12 +98,12 @@ defmodule LynxWeb.SettingsController do
         "scim_enabled"
       ])
 
-    SettingsModule.update_sso_configs(configs)
+    Settings.update_sso_configs(configs)
 
     # Write SAML cert/key to temp files if provided
     write_saml_temp_files(params["sso_saml_sp_cert"], params["sso_saml_sp_key"])
 
-    AuditModule.log(conn, "updated", "settings", nil, "sso_scim", configs)
+    AuditContext.log(conn, "updated", "settings", nil, "sso_scim", configs)
 
     conn
     |> put_status(:ok)
@@ -128,10 +128,10 @@ defmodule LynxWeb.SettingsController do
   def generate_saml_cert(conn, _params) do
     case Lynx.Service.SAMLService.generate_sp_certificate() do
       {:ok, %{cert_pem: cert_pem, key_pem: key_pem}} ->
-        SettingsModule.upsert_config("sso_saml_sp_cert", cert_pem)
-        SettingsModule.upsert_config("sso_saml_sp_key", key_pem)
-        SettingsModule.upsert_config("sso_saml_sign_requests", "true")
-        AuditModule.log(conn, "generated", "saml_certificate")
+        Settings.upsert_config("sso_saml_sp_cert", cert_pem)
+        Settings.upsert_config("sso_saml_sp_key", key_pem)
+        Settings.upsert_config("sso_saml_sign_requests", "true")
+        AuditContext.log(conn, "generated", "saml_certificate")
 
         conn
         |> put_status(:ok)
@@ -153,9 +153,9 @@ defmodule LynxWeb.SettingsController do
   def generate_scim_token(conn, params) do
     description = params["description"] || ""
 
-    case SCIMTokenModule.generate_token(description) do
+    case SCIMTokenContext.generate_token(description) do
       {:ok, result} ->
-        AuditModule.log(conn, "generated", "scim_token", result.uuid, description)
+        AuditContext.log(conn, "generated", "scim_token", result.uuid, description)
 
         conn
         |> put_status(:created)
@@ -176,7 +176,7 @@ defmodule LynxWeb.SettingsController do
   List SCIM Tokens Endpoint
   """
   def list_scim_tokens(conn, _params) do
-    tokens = SCIMTokenModule.list_tokens()
+    tokens = SCIMTokenContext.list_tokens()
 
     conn
     |> put_status(:ok)
@@ -187,9 +187,9 @@ defmodule LynxWeb.SettingsController do
   Revoke SCIM Token Endpoint
   """
   def revoke_scim_token(conn, %{"uuid" => uuid}) do
-    case SCIMTokenModule.revoke_token(uuid) do
+    case SCIMTokenContext.revoke_token_by_uuid(uuid) do
       {:ok, _} ->
-        AuditModule.log(conn, "revoked", "scim_token", uuid)
+        AuditContext.log(conn, "revoked", "scim_token", uuid)
 
         conn
         |> put_status(:ok)

@@ -11,10 +11,10 @@ defmodule LynxWeb.ProjectController do
 
   require Logger
 
-  alias Lynx.Module.ProjectModule
-  alias Lynx.Module.AuditModule
+  alias Lynx.Context.ProjectContext
+  alias Lynx.Context.AuditContext
   alias Lynx.Service.ValidatorService
-  alias Lynx.Module.PermissionModule
+  alias Lynx.Service.Permission
 
   @name_min_length 2
   @name_max_length 60
@@ -49,7 +49,7 @@ defmodule LynxWeb.ProjectController do
   defp access_check(conn, _opts) do
     Logger.info("Validate if user can access project")
 
-    if not PermissionModule.can_access_project_uuid(
+    if not Permission.can_access_project_uuid(
          :project,
          conn.assigns[:user_role],
          conn.params["uuid"],
@@ -77,10 +77,10 @@ defmodule LynxWeb.ProjectController do
 
     {projects, count} =
       if conn.assigns[:is_super] do
-        {ProjectModule.get_projects(offset, limit), ProjectModule.count_projects()}
+        {ProjectContext.get_projects(offset, limit), ProjectContext.count_projects()}
       else
-        {ProjectModule.get_projects(conn.assigns[:user_id], offset, limit),
-         ProjectModule.count_projects(conn.assigns[:user_id])}
+        {ProjectContext.get_projects_for_user(conn.assigns[:user_id], offset, limit),
+         ProjectContext.count_projects_for_user(conn.assigns[:user_id])}
       end
 
     render(conn, "list.json", %{
@@ -100,7 +100,7 @@ defmodule LynxWeb.ProjectController do
     case validate_create_request(params) do
       {:ok, _} ->
         result =
-          ProjectModule.create_project(%{
+          ProjectContext.create_project_from_data(%{
             name: params["name"],
             description: params["description"],
             slug: params["slug"],
@@ -110,7 +110,7 @@ defmodule LynxWeb.ProjectController do
 
         case result do
           {:ok, project} ->
-            AuditModule.log(conn, "created", "project", project.uuid, project.name)
+            AuditContext.log(conn, "created", "project", project.uuid, project.name)
 
             conn
             |> put_status(:created)
@@ -133,7 +133,7 @@ defmodule LynxWeb.ProjectController do
   Index Project Endpoint
   """
   def index(conn, %{"uuid" => uuid}) do
-    case ProjectModule.get_project_by_uuid(uuid) do
+    case ProjectContext.fetch_project_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
@@ -153,7 +153,7 @@ defmodule LynxWeb.ProjectController do
     case validate_update_request(params, params["uuid"]) do
       {:ok, _} ->
         result =
-          ProjectModule.update_project(%{
+          ProjectContext.update_project_from_data(%{
             uuid: params["uuid"],
             name: params["name"],
             description: params["description"],
@@ -163,7 +163,7 @@ defmodule LynxWeb.ProjectController do
 
         case result do
           {:ok, project} ->
-            AuditModule.log(conn, "updated", "project", project.uuid, project.name)
+            AuditContext.log(conn, "updated", "project", project.uuid, project.name)
 
             conn
             |> put_status(:ok)
@@ -186,14 +186,14 @@ defmodule LynxWeb.ProjectController do
   Delete Project Endpoint
   """
   def delete(conn, %{"uuid" => uuid}) do
-    case ProjectModule.delete_project_by_uuid(uuid) do
+    case ProjectContext.delete_project_by_uuid(uuid) do
       {:not_found, msg} ->
         conn
         |> put_status(:not_found)
         |> render(:error, %{message: msg})
 
       {:ok, _} ->
-        AuditModule.log(conn, "deleted", "project", uuid)
+        AuditContext.log(conn, "deleted", "project", uuid)
 
         conn
         |> send_resp(:no_content, "")
