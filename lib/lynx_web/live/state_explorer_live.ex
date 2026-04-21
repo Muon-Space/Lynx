@@ -3,6 +3,7 @@ defmodule LynxWeb.StateExplorerLive do
 
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.RoleContext
   alias Lynx.Context.StateContext
 
   @impl true
@@ -40,6 +41,8 @@ defmodule LynxWeb.StateExplorerLive do
               Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) !=
                 nil
 
+            viewer_perms = RoleContext.effective_permissions(socket.assigns.current_user, project)
+
             socket =
               socket
               |> assign(:project, project)
@@ -53,6 +56,7 @@ defmodule LynxWeb.StateExplorerLive do
               |> assign(:is_locked, is_locked)
               |> assign(:confirm, nil)
               |> assign(:snapshot_version, nil)
+              |> assign(:viewer_perms, viewer_perms)
 
             {:ok, socket}
         end
@@ -99,9 +103,11 @@ defmodule LynxWeb.StateExplorerLive do
           <span>/</span>
           <span class="text-foreground font-medium">{if @sub_path == "", do: "(root)", else: @sub_path}</span>
         </nav>
+        <% can_act = if @is_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
         <span
-          class="cursor-pointer"
-          phx-click="confirm_action"
+          class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
+          title={unless can_act, do: if(@is_locked, do: "Requires the admin role to force-unlock", else: "Requires the planner role to lock"), else: nil}
+          phx-click={if can_act, do: "confirm_action"}
           phx-value-event={if @is_locked, do: "unlock_unit", else: "lock_unit"}
           phx-value-uuid={@sub_path}
           phx-value-message={if @is_locked, do: "Force unlock this unit?", else: "Lock this unit?"}
@@ -225,58 +231,60 @@ defmodule LynxWeb.StateExplorerLive do
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
   def handle_event("lock_unit", _, socket) do
-    socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
-    sub_path = socket.assigns.sub_path
+    with_perm(socket, "state:lock", fn socket ->
+      env = socket.assigns.env
+      sub_path = socket.assigns.sub_path
 
-    Lynx.Context.LockContext.create_lock(
-      Lynx.Context.LockContext.new_lock(%{
-        environment_id: env.id,
-        operation: "manual",
-        info: "Locked via UI",
-        who: socket.assigns.current_user.name,
-        version: "",
-        path: "",
-        sub_path: sub_path,
-        uuid: Ecto.UUID.generate(),
-        is_active: true
-      })
-    )
+      Lynx.Context.LockContext.create_lock(
+        Lynx.Context.LockContext.new_lock(%{
+          environment_id: env.id,
+          operation: "manual",
+          info: "Locked via UI",
+          who: socket.assigns.current_user.name,
+          version: "",
+          path: "",
+          sub_path: sub_path,
+          uuid: Ecto.UUID.generate(),
+          is_active: true
+        })
+      )
 
-    label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
+      label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
 
-    Lynx.Context.AuditContext.log_user(
-      socket.assigns.current_user,
-      "locked",
-      "unit",
-      env.uuid,
-      label
-    )
+      Lynx.Context.AuditContext.log_user(
+        socket.assigns.current_user,
+        "locked",
+        "unit",
+        env.uuid,
+        label
+      )
 
-    {:noreply, socket |> assign(:is_locked, true) |> put_flash(:info, "Unit locked")}
+      {:noreply, socket |> assign(:is_locked, true) |> put_flash(:info, "Unit locked")}
+    end)
   end
 
   def handle_event("unlock_unit", _, socket) do
-    socket = assign(socket, :confirm, nil)
-    env = socket.assigns.env
-    sub_path = socket.assigns.sub_path
+    with_perm(socket, "state:force_unlock", fn socket ->
+      env = socket.assigns.env
+      sub_path = socket.assigns.sub_path
 
-    case Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
-      nil -> :ok
-      lock -> Lynx.Context.LockContext.update_lock(lock, %{is_active: false})
-    end
+      case Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
+        nil -> :ok
+        lock -> Lynx.Context.LockContext.update_lock(lock, %{is_active: false})
+      end
 
-    label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
+      label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
 
-    Lynx.Context.AuditContext.log_user(
-      socket.assigns.current_user,
-      "unlocked",
-      "unit",
-      env.uuid,
-      label
-    )
+      Lynx.Context.AuditContext.log_user(
+        socket.assigns.current_user,
+        "unlocked",
+        "unit",
+        env.uuid,
+        label
+      )
 
-    {:noreply, socket |> assign(:is_locked, false) |> put_flash(:info, "Unit unlocked")}
+      {:noreply, socket |> assign(:is_locked, false) |> put_flash(:info, "Unit unlocked")}
+    end)
   end
 
   def handle_event("version_change", params, socket) do
@@ -295,6 +303,16 @@ defmodule LynxWeb.StateExplorerLive do
       end
 
     {:noreply, socket |> assign(:selected_version, version) |> assign(:compare_version, compare)}
+  end
+
+  defp with_perm(socket, perm, fun) do
+    socket = assign(socket, :confirm, nil)
+
+    if RoleContext.has?(socket.assigns.viewer_perms, perm) do
+      fun.(socket)
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission for #{perm}")}
+    end
   end
 
   defp get_version_state(versions, version_num) when is_integer(version_num) do

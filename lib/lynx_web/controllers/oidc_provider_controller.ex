@@ -14,7 +14,20 @@ defmodule LynxWeb.OIDCProviderController do
   alias Lynx.Service.OIDCBackend
   alias Lynx.Context.AuditContext
 
+  # Provider CRUD stays super-only — these are global SSO/IdP configs.
   plug :super_user
+       when action in [:list_providers, :create_provider, :update_provider, :delete_provider]
+
+  # Rule CRUD widens to anyone with `oidc_rule:manage` on the env's project
+  # (admin role grants it by default). Project admins can now manage their
+  # own envs' rules without going through a platform super user.
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "oidc_rule:manage", from: :oidc_rule_env]
+       when action in [:list_rules, :create_rule]
+
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "oidc_rule:manage", from: :oidc_rule_uuid]
+       when action == :delete_rule
 
   defp super_user(conn, _opts) do
     if not conn.assigns[:is_super] do

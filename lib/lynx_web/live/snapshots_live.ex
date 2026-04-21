@@ -4,6 +4,7 @@ defmodule LynxWeb.SnapshotsLive do
   alias Lynx.Context.SnapshotContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.AuditContext
+  alias Lynx.Context.RoleContext
 
   @per_page 10
 
@@ -335,10 +336,27 @@ defmodule LynxWeb.SnapshotsLive do
 
   def handle_event("restore_snapshot", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+    user = socket.assigns.current_user
 
-    case SnapshotContext.restore_snapshot(uuid) do
-      {:ok, _} -> {:noreply, put_flash(socket, :info, "Snapshot restored successfully")}
-      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+    with {:snapshot, %{} = snapshot} <-
+           {:snapshot, SnapshotContext.get_snapshot_by_uuid(uuid)},
+         {:project, %{} = project} <-
+           {:project, SnapshotContext.get_project_for_snapshot(snapshot)},
+         true <- RoleContext.can?(user, project, "snapshot:restore") do
+      case SnapshotContext.restore_snapshot(uuid) do
+        {:ok, _} -> {:noreply, put_flash(socket, :info, "Snapshot restored successfully")}
+        {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      end
+    else
+      false ->
+        {:noreply,
+         put_flash(socket, :error, "You do not have permission to restore this snapshot")}
+
+      {:snapshot, nil} ->
+        {:noreply, put_flash(socket, :error, "Snapshot not found")}
+
+      {:project, nil} ->
+        {:noreply, put_flash(socket, :error, "Project for snapshot not found")}
     end
   end
 

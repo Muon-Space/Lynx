@@ -68,6 +68,24 @@ defmodule Lynx.Context.SnapshotContext do
   end
 
   @doc """
+  Resolve the project a snapshot belongs to. Snapshots can be scoped to a
+  project, an environment, or a unit (which is keyed by env_uuid in
+  practice — see snapshots_live's `create_snapshot` handler).
+  """
+  def get_project_for_snapshot(%Snapshot{record_type: "project", record_uuid: uuid}),
+    do: Lynx.Context.ProjectContext.get_project_by_uuid(uuid)
+
+  def get_project_for_snapshot(%Snapshot{record_uuid: env_uuid})
+      when is_binary(env_uuid) do
+    case Lynx.Context.EnvironmentContext.get_env_by_uuid(env_uuid) do
+      nil -> nil
+      env -> Lynx.Context.ProjectContext.get_project_by_id(env.project_id)
+    end
+  end
+
+  def get_project_for_snapshot(_), do: nil
+
+  @doc """
   Get snapshot by UUID and team ids
   """
   def get_snapshot_by_uuid_teams(uuid, teams_ids) do

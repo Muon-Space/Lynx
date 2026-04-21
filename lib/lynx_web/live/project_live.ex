@@ -99,7 +99,7 @@ defmodule LynxWeb.ProjectLive do
           <span :if={@workspace}>/</span>
           <span class="text-foreground font-medium">{@project.name}</span>
         </nav>
-        <.button phx-click="show_add_env" variant="primary">+ Add Environment</.button>
+        <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
       </div>
 
       <%!-- Add Environment Modal --%>
@@ -177,9 +177,11 @@ defmodule LynxWeb.ProjectLive do
         <.table rows={@environments} row_click={fn env -> JS.push("view_env", value: %{uuid: env.uuid}) end}>
           <:col :let={env} label="Name"><span class="font-medium text-clickable">{env.name}</span></:col>
           <:col :let={env} label="Lock Status">
+            <% can_act = if env.is_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
             <span
-              class="cursor-pointer"
-              phx-click="confirm_action"
+              class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
+              title={unless can_act, do: if(env.is_locked, do: "Requires the admin role to force-unlock", else: "Requires the planner role to lock"), else: nil}
+              phx-click={if can_act, do: "confirm_action"}
               phx-value-event={if env.is_locked, do: "force_unlock", else: "force_lock"}
               phx-value-uuid={env.uuid}
               phx-value-message={if env.is_locked, do: "Force unlock this environment?", else: "Lock this environment?"}
@@ -194,9 +196,9 @@ defmodule LynxWeb.ProjectLive do
             <span class="text-xs text-muted">{Calendar.strftime(env.inserted_at, "%Y-%m-%d %H:%M")}</span>
           </:col>
           <:action :let={env}>
-            <.button phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>
-            <.button phx-click="edit_env" phx-value-uuid={env.uuid} variant="ghost" size="sm">Edit</.button>
-            <.button phx-click="confirm_action" phx-value-event="delete_env" phx-value-message="Delete this environment?" phx-value-uuid={env.uuid} variant="ghost" size="sm">Delete</.button>
+            <.button :if={can_manage_oidc_rules?(assigns)} phx-click="show_oidc_rules" phx-value-uuid={env.uuid} variant="ghost" size="sm">OIDC</.button>
+            <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="edit_env" phx-value-uuid={env.uuid} variant="ghost" size="sm">Edit</.button>
+            <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="confirm_action" phx-value-event="delete_env" phx-value-message="Delete this environment?" phx-value-uuid={env.uuid} variant="ghost" size="sm">Delete</.button>
           </:action>
         </.table>
       </.card>
@@ -330,31 +332,33 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("create_env", params, socket) do
-    case EnvironmentContext.create_environment(%{
-           name: params["name"],
-           slug: params["slug"],
-           username: params["username"],
-           secret: params["secret"],
-           project_id: socket.assigns.project.uuid
-         }) do
-      {:ok, env} ->
-        AuditContext.log_user(
-          socket.assigns.current_user,
-          "created",
-          "environment",
-          env.uuid,
-          env.name
-        )
+    with_perm(socket, "env:manage", fn socket ->
+      case EnvironmentContext.create_environment(%{
+             name: params["name"],
+             slug: params["slug"],
+             username: params["username"],
+             secret: params["secret"],
+             project_id: socket.assigns.project.uuid
+           }) do
+        {:ok, env} ->
+          AuditContext.log_user(
+            socket.assigns.current_user,
+            "created",
+            "environment",
+            env.uuid,
+            env.name
+          )
 
-        {:noreply,
-         socket
-         |> assign(:show_add_env, false)
-         |> put_flash(:info, "Environment created")
-         |> reload_envs()}
+          {:noreply,
+           socket
+           |> assign(:show_add_env, false)
+           |> put_flash(:info, "Environment created")
+           |> reload_envs()}
 
-      {:error, msg} ->
-        {:noreply, put_flash(socket, :error, msg)}
-    end
+        {:error, msg} ->
+          {:noreply, put_flash(socket, :error, msg)}
+      end
+    end)
   end
 
   def handle_event("edit_env", %{"uuid" => uuid}, socket) do
@@ -363,61 +367,63 @@ defmodule LynxWeb.ProjectLive do
   end
 
   def handle_event("update_env", params, socket) do
-    case EnvironmentContext.update_environment(%{
-           uuid: socket.assigns.editing_env.uuid,
-           name: params["name"],
-           slug: params["slug"],
-           username: params["username"],
-           secret: params["secret"]
-         }) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:editing_env, nil)
-         |> put_flash(:info, "Environment updated")
-         |> reload_envs()}
+    with_perm(socket, "env:manage", fn socket ->
+      case EnvironmentContext.update_environment(%{
+             uuid: socket.assigns.editing_env.uuid,
+             name: params["name"],
+             slug: params["slug"],
+             username: params["username"],
+             secret: params["secret"]
+           }) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign(:editing_env, nil)
+           |> put_flash(:info, "Environment updated")
+           |> reload_envs()}
 
-      {:error, msg} ->
-        {:noreply, put_flash(socket, :error, msg)}
-    end
+        {:error, msg} ->
+          {:noreply, put_flash(socket, :error, msg)}
+      end
+    end)
   end
 
   def handle_event("delete_env", %{"uuid" => uuid}, socket) do
-    socket = assign(socket, :confirm, nil)
-
-    case EnvironmentContext.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
-      {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
-      _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
-    end
+    with_perm(socket, "env:manage", fn socket ->
+      case EnvironmentContext.delete_environment_by_uuid(socket.assigns.project.uuid, uuid) do
+        {:ok, _} -> {:noreply, socket |> put_flash(:info, "Environment deleted") |> reload_envs()}
+        _ -> {:noreply, put_flash(socket, :error, "Failed to delete")}
+      end
+    end)
   end
 
   # -- Lock/Unlock --
   def handle_event("force_lock", %{"uuid" => uuid}, socket) do
-    socket = assign(socket, :confirm, nil)
+    with_perm(socket, "state:lock", fn socket ->
+      case EnvironmentContext.get_env_id_with_uuid(uuid) do
+        nil ->
+          {:noreply, put_flash(socket, :error, "Environment not found")}
 
-    case EnvironmentContext.get_env_id_with_uuid(uuid) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Environment not found")}
-
-      env_id ->
-        LockContext.force_lock(env_id, socket.assigns.current_user.name)
-        AuditContext.log_user(socket.assigns.current_user, "locked", "environment", uuid)
-        {:noreply, socket |> put_flash(:info, "Environment locked") |> reload_envs()}
-    end
+        env_id ->
+          LockContext.force_lock(env_id, socket.assigns.current_user.name)
+          AuditContext.log_user(socket.assigns.current_user, "locked", "environment", uuid)
+          {:noreply, socket |> put_flash(:info, "Environment locked") |> reload_envs()}
+      end
+    end)
   end
 
   def handle_event("force_unlock", %{"uuid" => uuid}, socket) do
-    socket = assign(socket, :confirm, nil)
+    with_perm(socket, "state:force_unlock", fn socket ->
+      case EnvironmentContext.get_env_id_with_uuid(uuid) do
+        nil ->
+          {:noreply, put_flash(socket, :error, "Environment not found")}
 
-    case EnvironmentContext.get_env_id_with_uuid(uuid) do
-      nil ->
-        {:noreply, put_flash(socket, :error, "Environment not found")}
-
-      env_id ->
-        LockContext.force_unlock(env_id)
-        AuditContext.log_user(socket.assigns.current_user, "unlocked", "environment", uuid)
-        {:noreply, socket |> put_flash(:info, "Environment unlocked") |> reload_envs()}
-    end
+        env_id ->
+          LockContext.force_unlock(env_id)
+          AuditContext.log_user(socket.assigns.current_user, "unlocked", "environment", uuid)
+          {:noreply, socket |> put_flash(:info, "Environment unlocked") |> reload_envs()}
+      end
+    end)
   end
 
   # -- OIDC Rules --
@@ -775,6 +781,20 @@ defmodule LynxWeb.ProjectLive do
 
   defp can_manage_oidc_rules?(%{viewer_perms: perms}) do
     RoleContext.has?(perms || MapSet.new(), "oidc_rule:manage")
+  end
+
+  # Server-side permission re-check for destructive event handlers. UI also
+  # disables matching buttons when the viewer lacks the perm — this is
+  # defense in depth for clients that bypass the disabled state (replay,
+  # devtools).
+  defp with_perm(socket, perm, fun) do
+    socket = assign(socket, :confirm, nil)
+
+    if RoleContext.has?(socket.assigns.viewer_perms || MapSet.new(), perm) do
+      fun.(socket)
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission for #{perm}")}
+    end
   end
 
   defp ensure_can_manage_access(socket) do
