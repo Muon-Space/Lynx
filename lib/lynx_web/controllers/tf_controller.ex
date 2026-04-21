@@ -162,15 +162,29 @@ defmodule LynxWeb.TfController do
            e_slug: e_slug,
            sub_path: sub_path
          }) do
-      {:locked, _} ->
-        conn
-        |> put_status(:locked)
-        |> put_view(LynxWeb.LockJSON)
-        |> render(:error, %{message: "Environment is locked"})
+      {:locked, lock} ->
+        # Terraform always presents the lock UUID as `?ID=<uuid>` on the state
+        # write that follows a successful lock. Allow the holder of the active
+        # lock to push state — otherwise the canonical lock → push → unlock
+        # cycle (used by `terraform apply` and `terraform import`) is impossible.
+        # Anyone else (no ID, mismatched ID) is correctly rejected.
+        if lock_holder?(conn, params, lock) do
+          do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+        else
+          conn
+          |> put_status(:locked)
+          |> put_view(LynxWeb.LockJSON)
+          |> render(:error, %{message: "Environment is locked"})
+        end
 
       _ ->
         do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
     end
+  end
+
+  defp lock_holder?(conn, params, lock) do
+    presented = conn.query_params["ID"] || params["ID"]
+    is_binary(presented) and presented == lock.uuid
   end
 
   defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
