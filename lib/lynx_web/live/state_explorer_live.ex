@@ -163,8 +163,12 @@ defmodule LynxWeb.StateExplorerLive do
                 <span class="inline-block w-2 h-2 rounded-full bg-flash-error-bg"></span>
                 <span class="font-semibold">{length(diff.removed)}</span> removed
               </span>
-              <span :if={diff.added == [] and diff.changed == [] and diff.removed == []} class="text-muted">
-                No resource-level changes between v{@selected_version} and v{@compare_version}.
+              <% bytes_match = bytes_match?(@versions, @selected_version, @compare_version) %>
+              <span :if={diff.added == [] and diff.changed == [] and diff.removed == [] and bytes_match} class="text-muted">
+                v{@selected_version} and v{@compare_version} are identical.
+              </span>
+              <span :if={diff.added == [] and diff.changed == [] and diff.removed == [] and not bytes_match} class="text-muted">
+                No resource-level changes between v{@selected_version} and v{@compare_version} — the states differ in non-resource fields (serial, lineage, outputs). Switch to <strong>Raw JSON</strong> to see them.
               </span>
             </div>
             <div class="flex gap-2">
@@ -392,6 +396,14 @@ defmodule LynxWeb.StateExplorerLive do
       {state, _} -> state.value
       nil -> nil
     end
+  end
+
+  # `true` only when the two states' raw JSON values are byte-identical.
+  # Used to differentiate "no change at all" from "non-resource fields
+  # changed (serial, lineage, outputs)" — the resource-level diff is empty
+  # for both, but they're meaningfully different cases for the operator.
+  defp bytes_match?(versions, a, b) do
+    raw_state(versions, a) == raw_state(versions, b)
   end
 
   attr :entry, :map, required: true

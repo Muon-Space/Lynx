@@ -171,6 +171,54 @@ defmodule LynxWeb.StateExplorerLiveTest do
       assert viewer_state(view, 2) == %{"v" => 2}
     end
 
+    test "empty diff distinguishes byte-identical states from serial-bumped same-resource states",
+         %{
+           user: user,
+           workspace: ws
+         } do
+      # Two real-world cases the operator confuses with "diff is broken":
+      # (1) v_a == v_b byte-for-byte → "are identical"
+      # (2) v_a and v_b have the same resources but differ in non-resource
+      #     fields (serial, lineage) → "No resource-level changes ... Switch to Raw JSON"
+      project = create_project(%{workspace_id: ws.id, name: "tf-empty"})
+      env = create_env(project, %{name: "p", slug: "p-empty"})
+
+      resources = [
+        %{
+          "mode" => "managed",
+          "type" => "okta_group",
+          "name" => "g",
+          "instances" => [%{"attributes" => %{"name" => "Managers"}}]
+        }
+      ]
+
+      v1 = Jason.encode!(%{"version" => 4, "serial" => 5, "resources" => resources})
+      # Same resources, bumped serial — terraform refresh-only push
+      v2 = Jason.encode!(%{"version" => 4, "serial" => 6, "resources" => resources})
+      # Identical to v2 (no-op push)
+      v3 = v2
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+      _ = create_state(env, %{value: v3})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      # v1 vs v2 — same resources, different bytes (serial bumped)
+      render_change(view, "version_change", %{"version" => "1", "compare" => "2"})
+      html = render(view)
+      assert html =~ "No resource-level changes"
+      assert html =~ "non-resource fields"
+
+      # v2 vs v3 — byte-identical
+      render_change(view, "version_change", %{"version" => "2", "compare" => "3"})
+      html = render(view)
+      assert html =~ "are identical"
+    end
+
     test "semantic diff renders summary counts + per-resource cards for real TF state", %{
       user: user,
       workspace: ws
