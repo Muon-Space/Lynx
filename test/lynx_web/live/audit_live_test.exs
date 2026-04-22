@@ -170,4 +170,147 @@ defmodule LynxWeb.AuditLiveTest do
       refute html =~ "DropMe"
     end
   end
+
+  describe "deep links" do
+    alias Lynx.Context.{ProjectContext, EnvironmentContext}
+
+    test "project resource_type → /admin/projects/:uuid", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "created", "project", "proj-uuid-123", "Foo")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/projects/proj-uuid-123")
+    end
+
+    test "snapshot resource_type → /admin/snapshots/:uuid", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "restored", "snapshot", "snap-uuid", "Snap")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/snapshots/snap-uuid")
+    end
+
+    test "role resource_type → /admin/roles/:uuid", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "created", "role", "role-uuid", "ghost")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/roles/role-uuid")
+    end
+
+    test "environment resource_type resolves project_uuid via batch lookup", %{
+      conn: conn,
+      user: user
+    } do
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id, name: "P"})
+      env = create_env(project, %{name: "prod", slug: "prod"})
+
+      AuditContext.log_user(user, "created", "environment", env.uuid, env.name)
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}/environments/#{env.uuid}")
+    end
+
+    test "unit resource_type lands on the parent env page", %{conn: conn, user: user} do
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id, name: "P"})
+      env = create_env(project, %{name: "dev", slug: "dev"})
+
+      # `unit` audit events store the env uuid in resource_id (audit_context.ex:207)
+      AuditContext.log_user(user, "locked", "unit", env.uuid, "#{env.name}/groups")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}/environments/#{env.uuid}")
+    end
+
+    test "project_team grants link via metadata project_uuid (no DB hit)", %{
+      conn: conn,
+      user: user
+    } do
+      AuditContext.log_user(
+        user,
+        "granted",
+        "project_team",
+        "team-uuid",
+        "Platform",
+        %{project_uuid: "proj-from-metadata"}
+      )
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/projects/proj-from-metadata")
+    end
+
+    test "user_project grants link via metadata project_uuid", %{conn: conn, user: user} do
+      AuditContext.log_user(
+        user,
+        "granted",
+        "user_project",
+        "user-uuid",
+        "alice@example.com",
+        %{project_uuid: "proj-via-metadata"}
+      )
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/projects/proj-via-metadata")
+    end
+
+    test "settings-family resources land on the right tab", %{conn: conn, user: user} do
+      # Cards live on different tabs in /admin/settings; the audit row should
+      # take the user straight to the relevant card, not just the page.
+      AuditContext.log_user(user, "updated", "settings", nil, "general")
+      AuditContext.log_user(user, "generated", "scim_token", "tok-uuid", "ci-token")
+      AuditContext.log_user(user, "generated", "saml_certificate", nil, "saml-cert")
+      AuditContext.log_user(user, "created", "oidc_provider", "prov-uuid", "github-actions")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      assert html =~ ~s(href="/admin/settings?tab=general")
+      assert html =~ ~s(href="/admin/settings?tab=scim")
+      assert html =~ ~s(href="/admin/settings?tab=sso")
+      assert html =~ ~s(href="/admin/settings?tab=oidc")
+    end
+
+    test "team and user rows deep-link to the edit modal via ?edit=UUID", %{
+      conn: conn,
+      user: user
+    } do
+      AuditContext.log_user(user, "created", "team", "t-uuid", "Platform")
+      AuditContext.log_user(user, "updated", "user", "u-uuid", "Alice")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      # The audit row jumps straight to the edit modal of the affected
+      # resource (teams_live + users_live each handle ?edit=UUID).
+      assert html =~ ~s(href="/admin/teams?edit=t-uuid")
+      assert html =~ ~s(href="/admin/users?edit=u-uuid")
+    end
+
+    test "oidc_rule has no detail page → no link", %{conn: conn, user: user} do
+      AuditContext.log_user(user, "created", "oidc_rule", "r-uuid", "deploy")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      refute html =~ ~s(href="/admin/projects/r-uuid")
+      # The plain text still renders.
+      assert html =~ "deploy"
+    end
+
+    test "load_more preserves links for the appended page", %{conn: conn, user: user} do
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id, name: "P"})
+      # First page (50): plain projects (link to themselves)
+      for i <- 1..50, do: AuditContext.log_user(user, "created", "project", "p#{i}", "P#{i}")
+      # Second page (10): env events that need project_uuid lookup
+      env = create_env(project, %{name: "prod", slug: "prod"})
+
+      for i <- 1..10,
+          do: AuditContext.log_user(user, "created", "environment", env.uuid, "evt-#{i}")
+
+      {:ok, view, _html} = live(conn, "/admin/audit")
+      render_click(view, "load_more", %{})
+      html = render(view)
+
+      # Both link types coexist after load_more — link_index merges across pages.
+      assert html =~ ~s(href="/admin/projects/p1")
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}/environments/#{env.uuid}")
+    end
+
+    # Quiet "imported but unused" if any context isn't referenced.
+    _ = {ProjectContext, EnvironmentContext}
+  end
 end

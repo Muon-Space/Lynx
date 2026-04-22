@@ -82,6 +82,22 @@ defmodule LynxWeb.TeamsLiveTest do
       assert render(view) =~ ~s(value="Old Name")
     end
 
+    test "?edit=UUID deep-link from /admin/audit opens the modal", %{conn: conn} do
+      {:ok, team} =
+        TeamContext.create_team_from_data(%{name: "Linked", slug: "linked", description: "x"})
+
+      {:ok, _view, html} = live(conn, "/admin/teams?edit=#{team.uuid}")
+
+      assert html =~ ~s(id="edit-team")
+      assert html =~ ~s(value="Linked")
+    end
+
+    test "?edit=UUID with unknown UUID is a no-op", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/teams?edit=00000000-0000-0000-0000-000000000000")
+
+      refute html =~ ~s(id="edit-team")
+    end
+
     test "update_team persists changes", %{conn: conn} do
       {:ok, team} =
         TeamContext.create_team_from_data(%{name: "Old", slug: "old", description: "x"})

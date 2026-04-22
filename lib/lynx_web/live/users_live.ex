@@ -21,6 +21,18 @@ defmodule LynxWeb.UsersLive do
     {:ok, socket}
   end
 
+  # `?edit=UUID` deep-links from the audit log open the edit modal directly,
+  # so an admin can jump from an audit row to the affected user's editor.
+  @impl true
+  def handle_params(%{"edit" => uuid}, _uri, socket) when is_binary(uuid) do
+    case UserContext.fetch_user_by_uuid(uuid) do
+      {:ok, user} -> {:noreply, assign(socket, :editing_user, user)}
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
   @impl true
   def render(assigns) do
     ~H"""

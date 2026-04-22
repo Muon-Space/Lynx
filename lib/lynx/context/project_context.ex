@@ -63,6 +63,18 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
+  Resolve `[project_id]` → `%{project_id => project_uuid}` in one query. Used
+  by `AuditLive` deep-linking to map env→project→URL without per-row lookups.
+  """
+  def get_uuids_by_ids([]), do: %{}
+
+  def get_uuids_by_ids(ids) when is_list(ids) do
+    from(p in Project, where: p.id in ^ids, select: {p.id, p.uuid})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Get project by UUID
   """
   def get_project_by_uuid(uuid) do

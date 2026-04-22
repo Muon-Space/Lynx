@@ -1,5 +1,5 @@
 <p align="center">
-    <img alt="Lynx Logo" src="/assets/img/logo.png?v=0.12.9" width="400" />
+    <img alt="Lynx Logo" src="/assets/img/logo.png" width="400" />
     <h3 align="center">Lynx</h3>
     <p align="center">A Fast, Secure and Reliable Terraform Backend, Set up in Minutes.</p>
     <p align="center">
@@ -7,7 +7,7 @@
             <img src="https://github.com/Muon-Space/Lynx/actions/workflows/server_ci.yml/badge.svg"/>
         </a>
         <a href="https://github.com/Muon-Space/Lynx/releases">
-            <img src="https://img.shields.io/badge/Version-0.12.9-1abc9c.svg">
+            <img src="https://img.shields.io/github/v/release/Muon-Space/Lynx?label=Version&color=1abc9c">
         </a>
         <a href="https://ghcr.io/muon-space/lynx">
             <img src="https://img.shields.io/badge/GHCR-latest-1abc9c.svg">

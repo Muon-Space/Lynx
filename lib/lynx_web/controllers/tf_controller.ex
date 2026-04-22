@@ -3,6 +3,7 @@ defmodule LynxWeb.TfController do
 
   require Logger
 
+  alias Lynx.Context.AuditContext
   alias Lynx.Context.StateContext
   alias Lynx.Context.LockContext
   alias Lynx.Context.EnvironmentContext
@@ -33,10 +34,11 @@ defmodule LynxWeb.TfController do
           |> render(:error, %{message: "Access is forbidden"})
           |> halt
 
-        {:ok, _project, _env, permissions} ->
+        {:ok, _project, _env, permissions, actor_type} ->
           conn
           |> assign(:tf_username, user)
           |> assign(:tf_permissions, permissions)
+          |> assign(:tf_actor_type, actor_type)
       end
     else
       _ -> conn |> Plug.BasicAuth.request_basic_auth() |> halt()
@@ -205,22 +207,7 @@ defmodule LynxWeb.TfController do
         |> render(:error, %{message: "Not found"})
 
       {:success, _} ->
-        path_label =
-          if sub_path == "", do: "#{p_slug}/#{e_slug}", else: "#{p_slug}/#{e_slug}/#{sub_path}"
-
-        actor_name = conn.assigns[:tf_username] || "system"
-
-        Lynx.Context.AuditContext.create_event(%{
-          actor_id: nil,
-          actor_name: actor_name,
-          actor_type: if(String.contains?(actor_name, "@"), do: "user", else: "system"),
-          action: "state_pushed",
-          resource_type: "environment",
-          resource_id: path_label,
-          resource_name: nil,
-          metadata: nil
-        })
-
+        log_tf_event(conn, "state_pushed", w_slug, p_slug, e_slug, sub_path)
         conn |> put_resp_content_type("application/json") |> send_resp(200, body)
 
       {:error, msg} ->
@@ -267,6 +254,7 @@ defmodule LynxWeb.TfController do
 
         case action do
           {:success, _} ->
+            log_tf_event(conn, "locked", w_slug, p_slug, e_slug, sub_path)
             conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:lock, %{})
 
           {:not_found, msg} ->
@@ -292,6 +280,7 @@ defmodule LynxWeb.TfController do
            sub_path: sub_path
          }) do
       {:success, _} ->
+        log_tf_event(conn, "unlocked", w_slug, p_slug, e_slug, sub_path)
         conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:unlock, %{})
 
       {:not_found, msg} ->
@@ -313,5 +302,30 @@ defmodule LynxWeb.TfController do
       {action, []} -> {"", action}
       {action, path_parts} -> {Enum.join(path_parts, "/"), action}
     end
+  end
+
+  # Single audit-emit path for /tf endpoint actions (state push, lock, unlock).
+  # `actor_type` is determined at auth time (oidc / user / env_secret) so OIDC
+  # pipeline activity is fully traceable in `/admin/audit`. Resource is the
+  # workspace/project/env path so it groups naturally in the audit timeline.
+  defp log_tf_event(conn, action, w_slug, p_slug, e_slug, sub_path) do
+    actor_name = conn.assigns[:tf_username] || "system"
+    actor_type = conn.assigns[:tf_actor_type] || "system"
+
+    path_label =
+      if sub_path == "",
+        do: "#{w_slug}/#{p_slug}/#{e_slug}",
+        else: "#{w_slug}/#{p_slug}/#{e_slug}/#{sub_path}"
+
+    AuditContext.create_event(%{
+      actor_id: nil,
+      actor_name: actor_name,
+      actor_type: actor_type,
+      action: action,
+      resource_type: "environment",
+      resource_id: path_label,
+      resource_name: nil,
+      metadata: nil
+    })
   end
 end

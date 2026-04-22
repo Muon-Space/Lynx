@@ -220,6 +220,40 @@ defmodule LynxWeb.TfControllerTest do
       assert unlock_conn.status == 200
     end
 
+    test "lock and unlock emit audit events with env_secret actor_type", %{conn: conn, env: env} do
+      lock_id = Ecto.UUID.generate()
+
+      lock_body = %{
+        "ID" => lock_id,
+        "Operation" => "OperationTypeApply",
+        "Info" => "",
+        "Who" => "test",
+        "Version" => "1.9.0",
+        "Path" => ""
+      }
+
+      conn
+      |> basic_auth(env.username, env.secret)
+      |> put_req_header("content-type", "application/json")
+      |> post("/tf/aws-govcloud/platform/production/lock", lock_body)
+
+      build_conn()
+      |> basic_auth(env.username, env.secret)
+      |> put_req_header("content-type", "application/json")
+      |> post("/tf/aws-govcloud/platform/production/unlock", %{})
+
+      {events, _} = Lynx.Context.AuditContext.list_events(%{resource_type: "environment"})
+      actions = Enum.map(events, & &1.action)
+      assert "locked" in actions
+      assert "unlocked" in actions
+
+      [lock_evt | _] = Enum.filter(events, &(&1.action == "locked"))
+      assert lock_evt.actor_type == "env_secret"
+      assert lock_evt.actor_name == env.username
+      # resource_id is the workspace/project/env path so audit groups naturally
+      assert lock_evt.resource_id == "aws-govcloud/platform/production"
+    end
+
     test "sub-path locks are independent", %{conn: conn, env: env} do
       lock_body = fn ->
         %{

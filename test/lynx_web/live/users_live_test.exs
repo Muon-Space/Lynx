@@ -93,6 +93,19 @@ defmodule LynxWeb.UsersLiveTest do
       assert render(view) =~ ~s(value="old@x.test")
     end
 
+    test "?edit=UUID deep-link from /admin/audit opens the modal", %{conn: conn} do
+      target = create_user(%{name: "Linked", email: "link@x.test"})
+      {:ok, _view, html} = live(conn, "/admin/users?edit=#{target.uuid}")
+
+      assert html =~ ~s(id="edit-user-modal")
+      assert html =~ ~s(value="Linked")
+    end
+
+    test "?edit=UUID with unknown UUID is a no-op", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/admin/users?edit=00000000-0000-0000-0000-000000000000")
+      refute html =~ ~s(id="edit-user-modal")
+    end
+
     test "update_user persists changes", %{conn: conn} do
       target = create_user(%{name: "Old", email: "x@y.test"})
       {:ok, view, _} = live(conn, "/admin/users")

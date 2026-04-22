@@ -41,18 +41,63 @@ defmodule LynxWeb.ProfileLive do
           <code id="api-key-content" class="flex-1 bg-inset text-foreground px-4 py-2 rounded-lg text-sm font-mono">{@api_key}</code>
           <.button :if={!@api_key_visible} phx-click="show_api_key" variant="secondary" size="sm" class="w-14">Show</.button>
           <.button :if={@api_key_visible} phx-click="hide_api_key" variant="secondary" size="sm" class="w-14">Hide</.button>
-          <button id="copy-api-key" phx-hook=".CopyApiKey" phx-click="copy_api_key" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
+          <button id="copy-api-key" phx-hook=".CopyApiKey" type="button" class="px-3 py-1.5 text-xs rounded-lg bg-input text-secondary border border-border-input hover:bg-surface-secondary cursor-pointer">Copy</button>
           <.button phx-click="confirm_action" phx-value-event="rotate_api_key" phx-value-message="Rotate API key? The old key will stop working immediately." variant="danger" size="sm">Rotate</.button>
         </div>
       </.card>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyApiKey">
+        // Browsers gate `navigator.clipboard.writeText` on a recent user
+        // activation (the click event). After an async LV roundtrip the
+        // activation has expired, so a fetch-then-copy chain silently fails
+        // in Safari/Firefox. Solution: prefetch the key on mount and on
+        // hover/focus into a hook-local variable, then the click handler
+        // writes synchronously while the activation is still live. The key
+        // sits in the hook closure (not the DOM); it crosses the wire on
+        // page entry, but the user is already viewing their own profile.
         export default {
           mounted() {
-            this.handleEvent("copy_api_key", ({value}) => {
-              if (!value) return
+            this.apiKey = null
+            this.fetching = false
+
+            const prefetch = () => {
+              if (this.apiKey || this.fetching) return
+              this.fetching = true
+              this.pushEvent("copy_api_key", {}, (reply) => {
+                this.apiKey = reply && reply.value
+                this.fetching = false
+              })
+            }
+
+            // Eager prefetch + warm again on hover in case it ever races.
+            prefetch()
+            this.el.addEventListener("mouseenter", prefetch)
+            this.el.addEventListener("focus", prefetch)
+
+            // Server pushes the new key after `rotate_api_key`, so the next
+            // click copies the rotated value (not the stale pre-rotation cache).
+            this.handleEvent("copy_api_key_set", ({value}) => {
+              this.apiKey = value
+            })
+
+            this.el.addEventListener("click", (e) => {
+              e.preventDefault()
+              const value = this.apiKey
+              if (!value) {
+                // Click landed before prefetch. Trigger one and ask the user
+                // to retry — silent failure was the original bug.
+                prefetch()
+                const orig = this.el.textContent
+                this.el.textContent = "Loading…"
+                setTimeout(() => { this.el.textContent = orig }, 800)
+                return
+              }
               navigator.clipboard.writeText(value).then(() => {
-                let orig = this.el.textContent
+                const orig = this.el.textContent
                 this.el.textContent = "Copied!"
+                setTimeout(() => { this.el.textContent = orig }, 1500)
+              }, () => {
+                const orig = this.el.textContent
+                this.el.textContent = "Copy failed"
                 setTimeout(() => { this.el.textContent = orig }, 1500)
               })
             })
@@ -96,10 +141,11 @@ defmodule LynxWeb.ProfileLive do
   end
 
   def handle_event("copy_api_key", _, socket) do
-    # Send the key over the LV socket on demand instead of embedding it in
-    # the rendered HTML; the CopyApiKey hook receives it and writes to the
-    # clipboard. The key still crosses the wire, but never sits in the DOM.
-    {:noreply, push_event(socket, "copy_api_key", %{value: socket.assigns.current_user.api_key})}
+    # Reply (correlated) instead of push_event (broadcast). The CopyApiKey
+    # hook calls `pushEvent("copy_api_key", {}, reply => …)` and writes the
+    # returned key to the clipboard. The key crosses the wire on demand and
+    # never sits in the DOM.
+    {:reply, %{value: socket.assigns.current_user.api_key}, socket}
   end
 
   def handle_event("hide_api_key", _, socket) do
@@ -112,12 +158,16 @@ defmodule LynxWeb.ProfileLive do
 
     case UserContext.rotate_api_key(socket.assigns.current_user.uuid, new_key) do
       {:ok, user} ->
+        # Push the new key to the CopyApiKey hook so its cached value is
+        # current. Without this, the click handler's prefetched cache still
+        # holds the old key and Copy returns the pre-rotation value.
         {:noreply,
          socket
          |> assign(:current_user, user)
          |> assign(:api_key, new_key)
          |> assign(:api_key_visible, true)
-         |> put_flash(:info, "API key rotated")}
+         |> put_flash(:info, "API key rotated")
+         |> push_event("copy_api_key_set", %{value: new_key})}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to rotate API key")}

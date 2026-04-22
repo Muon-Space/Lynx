@@ -636,11 +636,15 @@ info:
 
     All endpoints require the `x-api-key` header — find your key on
     `/admin/profile`.
+
+    `info.version` and the `x-server-version` response header both
+    report the running app version (single source of truth: `mix.exs`
+    `@version`, bumped by semantic-release).
   license:
     name: MIT
     url: https://github.com/Muon-Space/Lynx/blob/main/LICENSE
   title: Lynx
-  version: 0.12.9
+  version: 1.17.0
 openapi: 3.0.0
 paths:
   /api/v1/action/fetch_api_key:

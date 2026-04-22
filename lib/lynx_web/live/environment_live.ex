@@ -9,6 +9,24 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Context.StateContext
   alias Lynx.Context.RoleContext
   alias Lynx.Context.LockContext
+  alias Lynx.Service.OIDCBackend
+
+  # `?oidc=1` from the role-detail page's "Manage" link opens the OIDC modal
+  # on mount so the admin lands directly on the rules editor for this env.
+  @impl true
+  def handle_params(%{"oidc" => flag}, _uri, socket) when flag in ["1", "true"] do
+    if can_manage_oidc_rules?(socket.assigns) do
+      {:noreply,
+       socket
+       |> assign(:show_oidc, true)
+       |> assign(:oidc_rules, OIDCBackend.list_rules_by_environment(socket.assigns.env.id))
+       |> assign(:show_add_rule, false)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid}, _session, socket) do
@@ -35,6 +53,8 @@ defmodule LynxWeb.EnvironmentLive do
             viewer_perms =
               RoleContext.effective_permissions(socket.assigns.current_user, project, env)
 
+            roles = RoleContext.list_roles()
+
             socket =
               socket
               |> assign(:project, project)
@@ -45,6 +65,13 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:confirm, nil)
               |> assign(:config_tab, "terraform")
               |> assign(:viewer_perms, viewer_perms)
+              |> assign(:show_oidc, false)
+              |> assign(:oidc_rules, [])
+              |> assign(:oidc_providers, OIDCBackend.list_providers())
+              |> assign(:roles, roles)
+              |> assign(:show_add_rule, false)
+              |> assign(:rule_provider_id, "")
+              |> assign(:rule_role_id, default_role_id(roles, "applier"))
               |> load_units()
 
             {:ok, socket}
@@ -74,6 +101,7 @@ defmodule LynxWeb.EnvironmentLive do
           <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=environment&resource_id=#{@env.uuid}&include_children=1"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
             Audit history
           </a>
+          <.button :if={can_manage_oidc_rules?(assigns)} phx-click="show_oidc" variant="secondary" size="sm">OIDC</.button>
           <% can_act = if @env_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
           <span
             class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
@@ -89,6 +117,46 @@ defmodule LynxWeb.EnvironmentLive do
           </span>
         </div>
       </div>
+
+      <%!-- OIDC Rules Modal --%>
+      <.modal :if={@show_oidc} id="oidc-rules" show on_close="hide_oidc">
+        <h3 class="text-lg font-semibold mb-4">OIDC Access Rules — {@env.name}</h3>
+
+        <div :if={@show_add_rule} class="border border-border rounded-lg p-4 mb-4">
+          <form phx-submit="create_rule" phx-change="rule_form_change" class="space-y-3">
+            <.input name="provider_id" label="Provider" type="select" prompt="Select provider" options={Enum.map(@oidc_providers, &{&1.name, &1.uuid})} value={@rule_provider_id} required hint={if @rule_provider_id == "", do: "Provider is required."} />
+            <.input name="rule_name" label="Rule Name" value="" required placeholder="prod-deploy" />
+            <.input name="role_id" label="Role" type="select" options={role_options(@roles)} value={to_string(@rule_role_id)} required hint="Permissions granted when this rule matches" />
+            <.input name="claims" label="Claims (claim=value, comma separated)" value="" required placeholder="repository=myorg/infra,environment=production" hint="All claims must match (AND logic)" />
+            <div class="flex gap-3">
+              <.button type="submit" variant="primary" size="sm" disabled={@rule_provider_id == ""} class="disabled:opacity-50 disabled:cursor-not-allowed">Save Rule</.button>
+              <.button phx-click="hide_add_rule" variant="secondary" size="sm">Cancel</.button>
+            </div>
+          </form>
+        </div>
+
+        <div :if={!@show_add_rule} class="flex justify-end mb-3">
+          <.button phx-click="show_add_rule" variant="primary" size="sm">Add Rule</.button>
+        </div>
+
+        <.table rows={@oidc_rules} empty_message="No OIDC access rules for this environment.">
+          <:col :let={r} label="Name">{r.name}</:col>
+          <:col :let={r} label="Provider">
+            <.badge color="blue">{provider_name_for(@oidc_providers, r.provider_id)}</.badge>
+          </:col>
+          <:col :let={r} label="Role">
+            <.badge color="purple">{role_name_for(@roles, r.role_id)}</.badge>
+          </:col>
+          <:col :let={r} label="Claims">
+            <div :for={cr <- Jason.decode!(r.claim_rules)}>
+              <code class="text-xs">{cr["claim"]} {cr["operator"]} {cr["value"]}</code>
+            </div>
+          </:col>
+          <:action :let={r}>
+            <.button phx-click="confirm_action" phx-value-event="delete_rule" phx-value-message="Delete this rule?" phx-value-uuid={r.uuid} variant="ghost" size="sm">Delete</.button>
+          </:action>
+        </.table>
+      </.modal>
 
       <%!-- Backend Config --%>
       <.card class="mb-6">
@@ -233,6 +301,108 @@ defmodule LynxWeb.EnvironmentLive do
     end)
   end
 
+  # -- OIDC Rules --
+  def handle_event("show_oidc", _, socket) do
+    rules = OIDCBackend.list_rules_by_environment(socket.assigns.env.id)
+
+    {:noreply,
+     socket
+     |> assign(:show_oidc, true)
+     |> assign(:oidc_rules, rules)
+     |> assign(:show_add_rule, false)}
+  end
+
+  def handle_event("hide_oidc", _, socket) do
+    {:noreply, socket |> assign(:show_oidc, false) |> assign(:oidc_rules, [])}
+  end
+
+  def handle_event("show_add_rule", _, socket),
+    do: {:noreply, socket |> assign(:show_add_rule, true) |> assign(:rule_provider_id, "")}
+
+  def handle_event("hide_add_rule", _, socket),
+    do: {:noreply, socket |> assign(:show_add_rule, false) |> assign(:rule_provider_id, "")}
+
+  def handle_event("rule_form_change", params, socket) do
+    socket =
+      socket
+      |> assign(:rule_provider_id, params["provider_id"] || socket.assigns.rule_provider_id)
+      |> assign(
+        :rule_role_id,
+        parse_role_id(params["role_id"], socket.assigns.rule_role_id)
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event("create_rule", params, socket) do
+    provider = Lynx.Context.OIDCProviderContext.get_provider_by_uuid(params["provider_id"])
+    role_id = parse_role_id(params["role_id"], socket.assigns.rule_role_id)
+
+    claim_rules =
+      params["claims"]
+      |> String.split(",")
+      |> Enum.map(fn pair ->
+        case String.split(String.trim(pair), "=", parts: 2) do
+          [k, v] -> %{"claim" => String.trim(k), "operator" => "eq", "value" => String.trim(v)}
+          _ -> nil
+        end
+      end)
+      |> Enum.filter(& &1)
+      |> Jason.encode!()
+
+    cond do
+      provider == nil ->
+        {:noreply, put_flash(socket, :error, "Provider not found")}
+
+      not can_manage_oidc_rules?(socket.assigns) ->
+        {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
+
+      true ->
+        case OIDCBackend.create_rule(%{
+               name: params["rule_name"],
+               claim_rules: claim_rules,
+               provider_id: provider.id,
+               environment_id: socket.assigns.env.id,
+               role_id: role_id
+             }) do
+          {:ok, rule} ->
+            AuditContext.log_user(
+              socket.assigns.current_user,
+              "created",
+              "oidc_rule",
+              rule.uuid,
+              params["rule_name"]
+            )
+
+            rules = OIDCBackend.list_rules_by_environment(socket.assigns.env.id)
+
+            {:noreply,
+             socket
+             |> assign(:oidc_rules, rules)
+             |> assign(:show_add_rule, false)
+             |> assign(:rule_provider_id, "")
+             |> assign(:rule_role_id, default_role_id(socket.assigns.roles, "applier"))
+             |> put_flash(:info, "Rule created")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to create rule")}
+        end
+    end
+  end
+
+  def handle_event("delete_rule", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
+
+    if can_manage_oidc_rules?(socket.assigns) do
+      AuditContext.log_user(socket.assigns.current_user, "deleted", "oidc_rule", uuid)
+      OIDCBackend.delete_rule(uuid)
+      rules = OIDCBackend.list_rules_by_environment(socket.assigns.env.id)
+      {:noreply, socket |> assign(:oidc_rules, rules) |> put_flash(:info, "Rule deleted")}
+    else
+      {:noreply, put_flash(socket, :error, "You do not have permission to manage OIDC rules")}
+    end
+  end
+
   def handle_event("unlock_unit", %{"uuid" => sub_path}, socket) do
     with_perm(socket, "state:force_unlock", fn socket ->
       env = socket.assigns.env
@@ -302,6 +472,49 @@ defmodule LynxWeb.EnvironmentLive do
       }
     }\
     """
+  end
+
+  defp provider_name_for(providers, provider_id) do
+    case Enum.find(providers, &(&1.id == provider_id)) do
+      nil -> "(unknown)"
+      provider -> provider.name
+    end
+  end
+
+  defp role_name_for(roles, role_id) do
+    case Enum.find(roles, &(&1.id == role_id)) do
+      nil -> "(unknown)"
+      role -> String.capitalize(role.name)
+    end
+  end
+
+  defp role_options(roles) do
+    Enum.map(roles, fn r -> {String.capitalize(r.name), r.id} end)
+  end
+
+  defp default_role_id(roles, name) do
+    case Enum.find(roles, &(&1.name == name)) do
+      nil -> nil
+      r -> r.id
+    end
+  end
+
+  defp parse_role_id(nil, fallback), do: fallback
+  defp parse_role_id("", fallback), do: fallback
+
+  defp parse_role_id(role_id, fallback) when is_binary(role_id) do
+    case Integer.parse(role_id) do
+      {id, ""} -> id
+      _ -> fallback
+    end
+  end
+
+  defp parse_role_id(_, fallback), do: fallback
+
+  defp can_manage_oidc_rules?(%{current_user: %{role: "super"}}), do: true
+
+  defp can_manage_oidc_rules?(%{viewer_perms: perms}) do
+    RoleContext.has?(perms || MapSet.new(), "oidc_rule:manage")
   end
 
   defp terragrunt_config(app_url, workspace, project_slug, env) do

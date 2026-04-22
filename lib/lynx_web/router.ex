@@ -67,6 +67,7 @@ defmodule LynxWeb.Router do
       live "/admin/users", UsersLive
       live "/admin/teams", TeamsLive
       live "/admin/roles", RolesLive
+      live "/admin/roles/:uuid", RoleLive
       live "/admin/settings", SettingsLive
     end
 
@@ -232,9 +233,14 @@ defmodule LynxWeb.Router do
     post "/:t_slug/:p_slug/:e_slug/*rest", TfController, :legacy_post
   end
 
+  # `Application.spec(:lynx, :vsn)` derives from `mix.exs`'s `@version` at
+  # compile time and is fetched from an in-memory app spec at runtime — fast
+  # enough for every request. Single source of truth for the version: bump
+  # `@version` in mix.exs and this header (and api.yml, via `mix
+  # lynx.openapi.dump`) update automatically.
   defp add_server_header(conn, _opts) do
-    conn
-    |> put_resp_header("x-server-version", "lynx/0.12.9")
+    version = Application.spec(:lynx, :vsn) |> to_string()
+    put_resp_header(conn, "x-server-version", "lynx/#{version}")
   end
 
   # Enables LiveDashboard only for development
