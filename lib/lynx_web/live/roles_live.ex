@@ -65,11 +65,9 @@ defmodule LynxWeb.RolesLive do
       </.modal>
 
       <.card>
-        <.table rows={@roles}>
+        <.table rows={@roles} row_click={fn r -> JS.navigate("/admin/roles/#{r.uuid}") end}>
           <:col :let={r} label="Name">
-            <a href={"/admin/roles/#{r.uuid}"} class="font-medium text-clickable hover:text-clickable-hover">
-              {String.capitalize(r.name)}
-            </a>
+            <span class="font-medium">{String.capitalize(r.name)}</span>
             <.badge :if={r.is_system} color="gray" class="ml-2">system</.badge>
           </:col>
           <:col :let={r} label="Description">

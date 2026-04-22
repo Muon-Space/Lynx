@@ -41,6 +41,19 @@
         }
       }
     ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sed -i 's/@version \"[^\"]*\"/@version \"${nextRelease.version}\"/' mix.exs && sed -i 's/^  version: .*/  version: ${nextRelease.version}/' api.yml"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["mix.exs", "api.yml"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
     "@semantic-release/github"
   ]
 }

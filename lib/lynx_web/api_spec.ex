@@ -40,6 +40,10 @@ defmodule LynxWeb.ApiSpec do
 
         All endpoints require the `x-api-key` header — find your key on
         `/admin/profile`.
+
+        `info.version` and the `x-server-version` response header both
+        report the running app version (single source of truth: `mix.exs`
+        `@version`, bumped by semantic-release).
         """,
         version: lynx_version(),
         contact: %OpenApiSpex.Contact{
