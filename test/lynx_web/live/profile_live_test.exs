@@ -131,6 +131,19 @@ defmodule LynxWeb.ProfileLiveTest do
       # New key should be visible (not bullets) per rotate handler
       assert has_element?(view, "button[phx-click=\"hide_api_key\"]")
     end
+
+    test "rotate pushes copy_api_key_set so the hook's cache stays current", %{conn: conn} do
+      # Without this push_event, the hook's prefetched cache holds the
+      # pre-rotation key and Copy returns the stale value. The hook listens
+      # for "copy_api_key_set" and updates `this.apiKey` accordingly.
+      {:ok, view, _} = live(conn, "/admin/profile")
+
+      render_click(view, "rotate_api_key", %{})
+
+      assert_push_event(view, "copy_api_key_set", %{value: rotated_key})
+      assert is_binary(rotated_key)
+      assert String.length(rotated_key) > 0
+    end
   end
 
   describe "update_profile" do

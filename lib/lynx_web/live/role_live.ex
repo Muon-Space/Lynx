@@ -153,8 +153,8 @@ defmodule LynxWeb.RoleLive do
             </:col>
             <:action :let={g}>
               <a
-                href={"/admin/projects/#{g.project.uuid}/environments/#{g.env.uuid}"}
-                title="Open the env page; click OIDC to manage rules for this env"
+                href={"/admin/projects/#{g.project.uuid}/environments/#{g.env.uuid}?oidc=1"}
+                title="Open the env page with the OIDC rules modal already up"
                 class="text-secondary hover:text-foreground text-xs px-3 py-1.5"
               >
                 Manage

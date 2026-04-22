@@ -73,6 +73,12 @@ defmodule LynxWeb.ProfileLive do
             this.el.addEventListener("mouseenter", prefetch)
             this.el.addEventListener("focus", prefetch)
 
+            // Server pushes the new key after `rotate_api_key`, so the next
+            // click copies the rotated value (not the stale pre-rotation cache).
+            this.handleEvent("copy_api_key_set", ({value}) => {
+              this.apiKey = value
+            })
+
             this.el.addEventListener("click", (e) => {
               e.preventDefault()
               const value = this.apiKey
@@ -95,10 +101,6 @@ defmodule LynxWeb.ProfileLive do
                 setTimeout(() => { this.el.textContent = orig }, 1500)
               })
             })
-          },
-          // Force re-prefetch after `rotate_api_key` returns a new key.
-          updated() {
-            this.apiKey = null
           }
         }
       </script>
@@ -156,12 +158,16 @@ defmodule LynxWeb.ProfileLive do
 
     case UserContext.rotate_api_key(socket.assigns.current_user.uuid, new_key) do
       {:ok, user} ->
+        # Push the new key to the CopyApiKey hook so its cached value is
+        # current. Without this, the click handler's prefetched cache still
+        # holds the old key and Copy returns the pre-rotation value.
         {:noreply,
          socket
          |> assign(:current_user, user)
          |> assign(:api_key, new_key)
          |> assign(:api_key_visible, true)
-         |> put_flash(:info, "API key rotated")}
+         |> put_flash(:info, "API key rotated")
+         |> push_event("copy_api_key_set", %{value: new_key})}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to rotate API key")}

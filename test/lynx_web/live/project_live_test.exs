@@ -346,6 +346,43 @@ defmodule LynxWeb.ProjectLiveTest do
       assert html =~ "Project Access"
     end
 
+    test "?env=UUID restores the selected env tab on reload", %{conn: conn, project: project} do
+      env = create_env(project, %{name: "prod", slug: "prod-tab"})
+
+      {:ok, _view, html} = live(conn, project_path(project) <> "?env=#{env.uuid}")
+
+      # The tab for the selected env carries the active class (border-accent)
+      # and has phx-value-env=<env.id>; "All envs" tab is inactive.
+      assert html =~ "border-accent"
+      assert html =~ ~s(phx-value-env="#{env.id}")
+    end
+
+    test "select_env_tab patches URL with ?env=UUID", %{conn: conn, project: project} do
+      env = create_env(project, %{name: "stg", slug: "stg-tab"})
+
+      {:ok, view, _} = live(conn, project_path(project))
+
+      view
+      |> element(~s(button[phx-click="select_env_tab"][phx-value-env="#{env.id}"]))
+      |> render_click()
+
+      assert assert_patch(view) =~ "env=#{env.uuid}"
+    end
+
+    test "select_env_tab back to All envs drops the ?env param", %{conn: conn, project: project} do
+      env = create_env(project, %{name: "qa", slug: "qa-tab"})
+
+      {:ok, view, _} = live(conn, project_path(project) <> "?env=#{env.uuid}")
+
+      # Click the "All envs" tab (phx-value-env is empty string)
+      view
+      |> element(~s(button[phx-click="select_env_tab"][phx-value-env=""]))
+      |> render_click()
+
+      patched = assert_patch(view)
+      refute patched =~ "env="
+    end
+
     test "regular user without access:manage does NOT see the card" do
       user = create_user()
       workspace = create_workspace()

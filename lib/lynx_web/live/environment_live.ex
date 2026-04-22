@@ -11,6 +11,23 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Context.LockContext
   alias Lynx.Service.OIDCBackend
 
+  # `?oidc=1` from the role-detail page's "Manage" link opens the OIDC modal
+  # on mount so the admin lands directly on the rules editor for this env.
+  @impl true
+  def handle_params(%{"oidc" => flag}, _uri, socket) when flag in ["1", "true"] do
+    if can_manage_oidc_rules?(socket.assigns) do
+      {:noreply,
+       socket
+       |> assign(:show_oidc, true)
+       |> assign(:oidc_rules, OIDCBackend.list_rules_by_environment(socket.assigns.env.id))
+       |> assign(:show_add_rule, false)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid}, _session, socket) do
     case ProjectContext.fetch_project_by_uuid(project_uuid) do

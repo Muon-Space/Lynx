@@ -79,10 +79,11 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:add_user_options, [])
           |> assign(:add_user_role_id, default_role_id(roles, "planner"))
           |> assign(:add_user_expires_at, "")
-          # nil = "All envs" tab (project-wide grants); env_id = override tab
+          # nil = "All envs" tab (project-wide grants); env_id = override tab.
+          # Actual value comes from `?env=UUID` via handle_params/3 right after
+          # mount; reload_access also runs there to avoid double-loading.
           |> assign(:active_env_tab, nil)
           |> assign(:confirm, nil)
-          |> reload_access()
 
         {:ok, socket}
     end
@@ -338,6 +339,26 @@ defmodule LynxWeb.ProjectLive do
     """
   end
 
+  # `?env=UUID` keeps the selected Project Access env tab across reloads /
+  # bookmarks. Tab buttons push_patch with the new URL; this handler reads
+  # the param, resolves to env_id (if present + valid), and reloads access.
+  @impl true
+  def handle_params(params, _uri, socket) do
+    env_id = resolve_env_tab(params["env"], socket.assigns.environments)
+
+    {:noreply, socket |> assign(:active_env_tab, env_id) |> reload_access()}
+  end
+
+  defp resolve_env_tab(nil, _envs), do: nil
+  defp resolve_env_tab("", _envs), do: nil
+
+  defp resolve_env_tab(uuid, envs) when is_binary(uuid) do
+    case Enum.find(envs, &(&1.uuid == uuid)) do
+      nil -> nil
+      env -> env.id
+    end
+  end
+
   # -- Environment CRUD --
   @impl true
   def handle_event("confirm_action", params, socket) do
@@ -573,19 +594,22 @@ defmodule LynxWeb.ProjectLive do
 
   # -- Project Access (teams + users) --
   def handle_event("select_env_tab", %{"env" => env_id_str}, socket) do
-    env_id =
-      case env_id_str do
-        "" ->
-          nil
-
-        str ->
-          case Integer.parse(str) do
-            {n, _} -> n
-            _ -> nil
+    env_uuid =
+      case Integer.parse(env_id_str || "") do
+        {id, ""} ->
+          case Enum.find(socket.assigns.environments, &(&1.id == id)) do
+            nil -> nil
+            env -> env.uuid
           end
+
+        _ ->
+          nil
       end
 
-    {:noreply, socket |> assign(:active_env_tab, env_id) |> reload_access()}
+    query = if env_uuid, do: %{env: env_uuid}, else: %{}
+
+    {:noreply,
+     push_patch(socket, to: ~p"/admin/projects/#{socket.assigns.project_uuid}?#{query}")}
   end
 
   def handle_event("add_team_form_change", params, socket) do

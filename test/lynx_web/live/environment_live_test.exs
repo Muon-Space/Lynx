@@ -79,6 +79,25 @@ defmodule LynxWeb.EnvironmentLiveTest do
       {:ok, _view, html} = live(conn, env_path(project, env))
       assert html =~ "No units yet"
     end
+
+    test "?oidc=1 deep-link opens the OIDC rules modal on mount", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      # The role-detail page's "Manage" link on OIDC rules sends the admin
+      # straight to the env page with this query param so they land on the
+      # rules editor instead of having to click OIDC themselves.
+      {:ok, _view, html} = live(conn, env_path(project, env) <> "?oidc=1")
+
+      assert html =~ ~s(id="oidc-rules")
+      assert html =~ "OIDC Access Rules"
+    end
+
+    test "no ?oidc param leaves the modal closed", %{conn: conn, project: project, env: env} do
+      {:ok, _view, html} = live(conn, env_path(project, env))
+      refute html =~ ~s(id="oidc-rules")
+    end
   end
 
   describe "config tab switching" do
