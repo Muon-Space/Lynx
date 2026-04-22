@@ -119,6 +119,34 @@ Phoenix LiveView 1.1+. We use **colocated hooks** — JS for a component lives i
 3. The colocated `.Combobox` hook owns chip rendering, open/close, and hidden-input mutation. After every server re-render the hook re-applies its `isOpen` state in `updated()` (otherwise morphdom would reset `class="hidden"` on the dropdown).
 4. Each context that backs a combobox has a paired `search_<resource>(query, limit \\ 25)` function. LIKE-special chars (`%`, `_`, `\`) are escaped via `Lynx.Search.escape_like/1` so user input can't break the query.
 
+### Tracing (OpenTelemetry)
+
+Lynx ships with OpenTelemetry wired up — Phoenix HTTP requests + Ecto DB queries are auto-instrumented, and a handful of operationally-important code paths add explicit spans (see `Installation.md` for the operator-facing list + env vars).
+
+When adding new code, add explicit spans **only** where the auto-instrumented HTTP / DB / LiveView spans wouldn't already capture what an operator needs to debug. Examples worth wrapping: external HTTP calls, multi-step orchestration that crosses many DB queries, background workers, JWT/cert validation, anything where the failure mode is "auth gave up silently".
+
+```elixir
+# At the top of the module:
+require OpenTelemetry.Tracer, as: Tracer
+
+# Wrap a logical operation:
+def my_op(arg) do
+  Tracer.with_span "lynx.my_module.my_op", attributes: %{"lynx.arg" => arg} do
+    # ... real work ...
+  end
+end
+```
+
+Conventions:
+
+* **Span names** are dotted, lowercase, namespaced under `lynx.` (`lynx.is_access_allowed`, `tf.state.push`, `lynx.jwt.validate_token`). The `tf.*` prefix is reserved for `/tf/` HTTP entry points.
+* **Attribute keys** are also `lynx.*`-namespaced (`"lynx.project.uuid"`, `"lynx.auth.mode"`, `"lynx.jwks.cache"`). Values stay primitive — strings / numbers / booleans. Don't put PII or secrets (no JWTs, no API keys, no passwords) on a span.
+* **Errors** mark the span via `Tracer.set_status(:error, reason)` so trace UIs highlight the failed span. Error reason is a short string, not an exception struct.
+* **Cache hit/miss** is a useful boolean dimension — express it as an attribute (`Tracer.set_attribute("lynx.<thing>.cache", "hit" | "miss")`) rather than a separate span.
+* **Background workers**: wrap each tick / job entry point even if the body is currently a stub — the span is the contract, the body fills in later.
+* When wrapping a function that already had a `Logger` line for failures, **keep the log** and add the span — they serve different audiences (logs are for grepping, spans are for end-to-end correlation).
+* Spans are no-op when `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, so don't gate the calls behind a feature flag.
+
 ### Theming
 
 All colors are CSS variables in `assets/css/app.css`:
