@@ -21,6 +21,10 @@ defmodule LynxWeb.Endpoint do
 
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
 
+  # Public accessor so feature tests (PhoenixTest.Playwright) can hand the
+  # exact same options to `add_session_cookie/3` without duplicating keys.
+  def session_options, do: @session_options
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # You should set gzip to true if you are running phx.digest
@@ -45,6 +49,17 @@ defmodule LynxWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
+
+  # Gates the `Phoenix.Ecto.SQL.Sandbox` plug so PhoenixTest.Playwright
+  # browser sessions check out the same sandboxed connection the test owns
+  # (the lib injects a `User-Agent` header carrying the metadata). Compile
+  # gated to test only — never compiled into the prod release.
+  if Application.compile_env(:lynx, :sql_sandbox, false) do
+    plug Phoenix.Ecto.SQL.Sandbox,
+      at: "/sandbox",
+      header: "user-agent",
+      repo: Lynx.Repo
+  end
 
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

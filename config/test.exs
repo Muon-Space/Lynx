@@ -17,12 +17,33 @@ config :lynx, Lynx.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
+# `server: true` so PhoenixTest.Playwright (browser-driven feature tests)
+# can hit a real port. ConnTest / LiveViewTest don't need it but tolerate it.
 config :lynx, LynxWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "cBGndC+ZgHOIrWppfj45v3LYq7jFdXov339MuebP6HCEAEscZOUSkgC9y1YIZLmh",
-  server: false
+  server: true
+
+# Gates the `Phoenix.Ecto.SQL.Sandbox` plug in the endpoint so feature tests
+# can share their sandboxed DB connection with the running server.
+config :lynx, :sql_sandbox, true
+
+# PhoenixTest.Playwright config — chromium headless; clipboard-read permission
+# so feature tests can call `navigator.clipboard.readText()` to verify Copy
+# actions. Trace artifacts on demand via `PW_TRACE=true`. Sandbox stop delay
+# avoids `DBConnection.OwnershipError` on test exit while a LV is mid-render.
+config :phoenix_test,
+  otp_app: :lynx,
+  endpoint: LynxWeb.Endpoint,
+  playwright: [
+    assets_dir: "./assets",
+    browser: :chromium,
+    headless: true,
+    browser_context_opts: [permissions: ["clipboard-read", "clipboard-write"]],
+    trace: System.get_env("PW_TRACE", "false") in ~w(t true),
+    trace_dir: "tmp/playwright",
+    ecto_sandbox_stop_owner_delay: 100
+  ]
 
 # In test we don't send emails.
 config :lynx, Lynx.Mailer, adapter: Swoosh.Adapters.Test

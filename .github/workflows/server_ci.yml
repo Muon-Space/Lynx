@@ -54,3 +54,64 @@ jobs:
       # Regenerate locally with `mix lynx.openapi.dump` and commit the result.
       - name: Check OpenAPI spec drift
         run: make openapi_check
+
+  # Browser-driven feature tests via PhoenixTest.Playwright. Separate job so
+  # the chromium install + asset build don't slow the unit suite. Skipped by
+  # the `test` job (the :feature ExUnit tag is excluded by default).
+  feature:
+    runs-on: ubuntu-latest
+    name: Feature tests (Playwright)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - otp: '28.4.2'
+            elixir: '1.19.5'
+    services:
+      db:
+        image: postgres:latest
+        ports: ['5432:5432']
+        env:
+          POSTGRES_DB: lynx_dev
+          POSTGRES_USER: lynx
+          POSTGRES_PASSWORD: lynx
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: 'assets/package-lock.json'
+
+      - name: Get Dependencies
+        run: make deps
+
+      # Cache the chromium browser binary across runs. Keyed on the playwright
+      # JS version pinned in assets/package-lock.json so a bump invalidates.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('assets/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: make playwright_install
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: ${{ steps.playwright-cache.outputs.cache-hit == 'true' && '1' || '' }}
+
+      - name: Run feature tests
+        run: make feature_test
+
+      - name: Upload Playwright traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: tmp/playwright/
+          if-no-files-found: ignore
