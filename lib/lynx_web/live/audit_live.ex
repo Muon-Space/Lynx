@@ -266,10 +266,15 @@ defmodule LynxWeb.AuditLive do
   # project.uuid via env.project_id); grant rows already carry project_uuid
   # in `metadata` (no DB hit). Resources without a detail page (team, user,
   # oidc_rule) get nil and render as plain text.
+  #
+  # `resource_id` for `state_pushed` / `locked` / `unlocked` events from
+  # `tf_controller.log_tf_event` is a `ws/proj/env[/unit]` *path*, not a UUID.
+  # Filter to UUID-shaped values before sending to the SQL `WHERE uuid IN`,
+  # otherwise Postgres rejects the cast (22P02) and 400s the LV mount.
   defp build_link_index(events) do
     env_uuids =
       events
-      |> Enum.filter(&(&1.resource_type in ["environment", "unit"] and is_binary(&1.resource_id)))
+      |> Enum.filter(&(&1.resource_type in ["environment", "unit"] and uuid?(&1.resource_id)))
       |> Enum.map(& &1.resource_id)
       |> Enum.uniq()
 
@@ -282,6 +287,9 @@ defmodule LynxWeb.AuditLive do
       {ev.uuid, resource_link(ev, env_to_project_id, project_uuids)}
     end)
   end
+
+  defp uuid?(s) when is_binary(s), do: match?({:ok, _}, Ecto.UUID.cast(s))
+  defp uuid?(_), do: false
 
   defp resource_link(%{resource_type: "project", resource_id: id}, _, _) when is_binary(id),
     do: "/admin/projects/#{id}"

@@ -290,6 +290,55 @@ defmodule LynxWeb.AuditLiveTest do
       assert html =~ "deploy"
     end
 
+    test "tf-style environment events with a path resource_id don't crash the LV", %{
+      conn: conn,
+      user: user
+    } do
+      # `tf_controller.log_tf_event/6` writes `state_pushed` / `locked` /
+      # `unlocked` events with `resource_type: "environment"` and
+      # `resource_id: "ws/proj/env[/unit]"` — a path, not a UUID. The audit
+      # page must NOT pass that string into the env-uuid batch query —
+      # Postgres rejects the cast (22P02) and the LV 400s on mount.
+      AuditContext.create_event(%{
+        actor_id: nil,
+        actor_name: "github-actions",
+        actor_type: "oidc",
+        action: "state_pushed",
+        resource_type: "environment",
+        resource_id: "aws-govcloud/platform/production",
+        resource_name: nil,
+        metadata: nil
+      })
+
+      AuditContext.create_event(%{
+        actor_id: nil,
+        actor_name: "github-actions",
+        actor_type: "oidc",
+        action: "locked",
+        resource_type: "environment",
+        resource_id: "aws-govcloud/platform/production/dns",
+        resource_name: nil,
+        metadata: nil
+      })
+
+      # Mix in a real env event (UUID resource_id) so the deep-link path
+      # still works for the half that has valid UUIDs.
+      ws = create_workspace()
+      project = create_project(%{workspace_id: ws.id})
+      env = create_env(project, %{name: "p", slug: "p"})
+      _ = user
+      AuditContext.log_user(user, "created", "environment", env.uuid, env.name)
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+
+      # Page renders (would have 400d before the fix).
+      assert html =~ "Audit Log"
+      assert html =~ "state_pushed"
+      assert html =~ "aws-govcloud/platform/production"
+      # Real env event still gets a deep link.
+      assert html =~ ~s(href="/admin/projects/#{project.uuid}/environments/#{env.uuid}")
+    end
+
     test "load_more preserves links for the appended page", %{conn: conn, user: user} do
       ws = create_workspace()
       project = create_project(%{workspace_id: ws.id, name: "P"})
