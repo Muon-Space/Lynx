@@ -54,7 +54,11 @@ defmodule LynxWeb.StateExplorerLive do
               |> assign(:versions, versions)
               |> assign(:max_version, max_version)
               |> assign(:selected_version, selected)
-              |> assign(:compare_version, nil)
+              # Default both sides to the latest so the user can flip either
+              # dropdown to start a diff without first needing to pick a
+              # value here. Equal selected/compare suppresses the diff
+              # render (single-pane view), same as the previous nil default.
+              |> assign(:compare_version, selected)
               |> assign(:is_locked, is_locked)
               |> assign(:confirm, nil)
               |> assign(:snapshot_version, nil)
@@ -78,7 +82,15 @@ defmodule LynxWeb.StateExplorerLive do
         sv = find_version_by_uuid(socket.assigns.versions, snapshot_uuid)
 
         if sv do
-          {:noreply, socket |> assign(:selected_version, sv) |> assign(:snapshot_version, sv)}
+          # Snapshot deep links land the user on a specific version — show
+          # that version directly (single pane) instead of opening a diff
+          # against the latest. They can pick a different `compare with`
+          # if they want a diff afterwards.
+          {:noreply,
+           socket
+           |> assign(:selected_version, sv)
+           |> assign(:compare_version, sv)
+           |> assign(:snapshot_version, sv)}
         else
           {:noreply, socket}
         end

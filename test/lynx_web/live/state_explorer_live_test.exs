@@ -94,6 +94,22 @@ defmodule LynxWeb.StateExplorerLiveTest do
       refute html =~ "Unit Locked"
     end
 
+    test "mount defaults compare-with to the latest so single pane shows", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      # Both selects point at the latest version on a clean load — equal
+      # selected/compare suppresses the diff and renders the single pane,
+      # so the user can flip either dropdown to start a diff.
+      {:ok, view, html} = live(conn, explorer_path(project, env))
+
+      refute has_element?(view, "[id^=\"diff-\"]")
+      refute html =~ "would be added"
+      refute html =~ "would be removed"
+      assert viewer_state(view, 3) == %{"v" => 3}
+    end
+
     test "lock badge shows Locked when active lock exists", %{
       conn: conn,
       project: project,
