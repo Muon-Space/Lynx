@@ -274,7 +274,9 @@ defmodule LynxWeb.AuditLive do
       |> Enum.uniq()
 
     env_to_project_id = EnvironmentContext.get_project_ids_by_env_uuids(env_uuids)
-    project_uuids = ProjectContext.get_uuids_by_ids(env_to_project_id |> Map.values() |> Enum.uniq())
+
+    project_uuids =
+      ProjectContext.get_uuids_by_ids(env_to_project_id |> Map.values() |> Enum.uniq())
 
     Enum.into(events, %{}, fn ev ->
       {ev.uuid, resource_link(ev, env_to_project_id, project_uuids)}
@@ -300,7 +302,8 @@ defmodule LynxWeb.AuditLive do
     end
   end
 
-  defp resource_link(%{resource_type: type} = ev, _, _) when type in ["project_team", "user_project"] do
+  defp resource_link(%{resource_type: type} = ev, _, _)
+       when type in ["project_team", "user_project"] do
     case metadata_get(ev, "project_uuid") do
       nil -> nil
       project_uuid -> "/admin/projects/#{project_uuid}"
