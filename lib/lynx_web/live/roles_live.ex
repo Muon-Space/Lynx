@@ -99,16 +99,21 @@ defmodule LynxWeb.RolesLive do
     ~H"""
     <div>
       <label class="block text-sm font-medium text-secondary mb-2">Permissions</label>
-      <div class="grid grid-cols-2 gap-2">
-        <label :for={perm <- @all} class="flex items-center gap-2 text-sm cursor-pointer">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label :for={perm <- @all} class="flex items-start gap-2 text-sm cursor-pointer p-2 rounded hover:bg-surface-secondary">
           <input
             type="checkbox"
             name="permissions[]"
             value={perm}
             checked={MapSet.member?(@selected, perm)}
-            class="rounded border-border-input text-accent focus:ring-accent"
+            class="rounded border-border-input text-accent focus:ring-accent mt-0.5 shrink-0"
           />
-          <code class="text-xs">{perm}</code>
+          <div class="flex-1 min-w-0">
+            <code class="text-xs font-mono">{perm}</code>
+            <p class="text-xs text-muted mt-0.5 leading-snug">
+              {Lynx.Context.RoleContext.permission_description(perm)}
+            </p>
+          </div>
         </label>
       </div>
     </div>

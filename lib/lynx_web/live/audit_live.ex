@@ -29,7 +29,12 @@ defmodule LynxWeb.AuditLive do
       resource_id: "",
       actor: "",
       from: "",
-      to: ""
+      to: "",
+      # When true + (resource_type, resource_id) is set on a project or env,
+      # the AuditContext query expands to include child resources (env+unit
+      # under a project; unit under an env). Set by the "Audit history" links
+      # on project / env pages.
+      include_children: false
     }
   end
 
@@ -46,15 +51,18 @@ defmodule LynxWeb.AuditLive do
       # Back-compat with bookmarked URLs from the previous `actor_email` name.
       actor: params["actor"] || params["actor_email"] || "",
       from: params["from"] || "",
-      to: params["to"] || ""
+      to: params["to"] || "",
+      include_children: params["include_children"] in ["1", "true", true]
     }
   end
 
   defp non_empty_params(filters) do
     filters
-    |> Enum.reject(fn {_k, v} -> v in [nil, ""] end)
-    |> Enum.into(%{})
-    |> Enum.map(fn {k, v} -> {to_string(k), v} end)
+    |> Enum.reject(fn {_k, v} -> v in [nil, "", false] end)
+    |> Enum.map(fn
+      {k, true} -> {to_string(k), "1"}
+      {k, v} -> {to_string(k), to_string(v)}
+    end)
     |> Enum.into(%{})
   end
 
@@ -84,9 +92,22 @@ defmodule LynxWeb.AuditLive do
         </form>
 
         <div class="flex justify-between items-center mb-3">
-          <span class="text-xs text-muted">
-            <a href={"/admin/audit"} class="underline hover:text-foreground" :if={any_filters?(@filters)}>Clear filters</a>
-          </span>
+          <div class="flex items-center gap-4">
+            <a href={"/admin/audit"} class="text-xs underline text-muted hover:text-foreground" :if={any_filters?(@filters)}>Clear filters</a>
+            <%!-- include_children only meaningful when scoping by project / env --%>
+            <label :if={@filters.resource_type in ["project", "environment"] and @filters.resource_id != ""} class="flex items-center gap-2 text-xs text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                name="include_children"
+                checked={@filters.include_children}
+                phx-click="toggle_include_children"
+                class="rounded border-border-input text-accent focus:ring-accent"
+              />
+              {if @filters.resource_type == "project",
+                do: "Include env + unit + snapshot events",
+                else: "Include unit events"}
+            </label>
+          </div>
           <a href={export_url(@filters)} class="text-sm rounded-lg border border-border-input px-3 py-1.5 text-secondary hover:bg-surface-secondary">
             Export CSV
           </a>
@@ -144,6 +165,15 @@ defmodule LynxWeb.AuditLive do
     {:noreply, push_patch(socket, to: ~p"/admin/audit?#{non_empty_params(filters)}")}
   end
 
+  def handle_event("toggle_include_children", _, socket) do
+    filters = %{
+      socket.assigns.filters
+      | include_children: !socket.assigns.filters.include_children
+    }
+
+    {:noreply, push_patch(socket, to: ~p"/admin/audit?#{non_empty_params(filters)}")}
+  end
+
   def handle_event("load_more", _, socket) do
     {events, total} = fetch_events(socket, socket.assigns.next_offset)
     new_offset = socket.assigns.next_offset + length(events)
@@ -176,7 +206,8 @@ defmodule LynxWeb.AuditLive do
       resource_id: non_empty(f.resource_id),
       actor: non_empty(f.actor),
       date_from: parse_date(f.from, :start_of_day),
-      date_to: parse_date(f.to, :end_of_day)
+      date_to: parse_date(f.to, :end_of_day),
+      include_children: f.include_children
     }
 
     AuditContext.list_events(opts)

@@ -63,7 +63,8 @@ defmodule LynxWeb.AuditExportController do
       # Back-compat with old `actor_email` URLs.
       actor: blank_to_nil(params["actor"] || params["actor_email"]),
       date_from: parse_datetime(params["from"], :start_of_day),
-      date_to: parse_datetime(params["to"], :end_of_day)
+      date_to: parse_datetime(params["to"], :end_of_day),
+      include_children: params["include_children"] in ["1", "true", true]
     }
   end
 

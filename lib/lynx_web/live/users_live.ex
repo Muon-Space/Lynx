@@ -147,14 +147,39 @@ defmodule LynxWeb.UsersLive do
   end
 
   def handle_event("update_user", params, socket) do
+    # Capture before-state so we can emit a distinct audit event when the
+    # system role flips (super ↔ regular) — that's a much higher-impact
+    # change than a name/email tweak and deserves its own row in the log.
+    old = socket.assigns.editing_user
+
     case UserContext.update_user_from_data(%{
-           uuid: socket.assigns.editing_user.uuid,
+           uuid: old.uuid,
            name: params["name"],
            email: params["email"],
            password: params["password"],
            role: params["role"]
          }) do
-      {:ok, _} ->
+      {:ok, updated} ->
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "updated",
+          "user",
+          updated.uuid,
+          updated.email,
+          %{name: updated.name, email: updated.email, role: updated.role}
+        )
+
+        if old.role != updated.role do
+          AuditContext.log_user(
+            socket.assigns.current_user,
+            "role_changed",
+            "user",
+            updated.uuid,
+            updated.email,
+            %{from: old.role, to: updated.role}
+          )
+        end
+
         {:noreply,
          socket
          |> assign(:editing_user, nil)
