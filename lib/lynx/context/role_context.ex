@@ -257,6 +257,100 @@ defmodule Lynx.Context.RoleContext do
     |> Enum.sum()
   end
 
+  @doc """
+  Enumerate every grant of `role_id` across the three RBAC tables, with
+  enough joined context for the role-detail page to render rows + deep-link
+  back into the relevant Project Access card or env's OIDC modal.
+
+  Returns:
+
+      %{
+        teams:      [%{team:    %Team{},    project: %Project{}, env: %Environment{} | nil, expires_at: dt | nil}],
+        users:      [%{user:    %User{},    project: %Project{}, env: %Environment{} | nil, expires_at: dt | nil}],
+        oidc_rules: [%{rule:    %OIDCAccessRule{}, provider: %OIDCProvider{}, env: %Environment{}, project: %Project{}, claim_rules: map}]
+      }
+
+  Each list is ordered by project name + then env name (nil-env, i.e.
+  project-wide grants, sorts last with "All envs"). The per-row links
+  built off this in `RoleLive` are the recovery path when an admin needs
+  to remove or modify a grant — no need to scroll through every project.
+  """
+  def list_role_grants(role_id) when is_integer(role_id) do
+    alias Lynx.Model.{Environment, OIDCAccessRule, OIDCProvider, ProjectTeam, Team, UserProject}
+
+    teams =
+      from(pt in ProjectTeam,
+        join: t in Team,
+        on: t.id == pt.team_id,
+        join: p in Project,
+        on: p.id == pt.project_id,
+        left_join: e in Environment,
+        on: e.id == pt.environment_id,
+        where: pt.role_id == ^role_id,
+        select: %{
+          team: t,
+          project: p,
+          env: e,
+          expires_at: pt.expires_at
+        },
+        order_by: [asc: p.name, asc: e.name]
+      )
+      |> Repo.all()
+
+    users =
+      from(up in UserProject,
+        join: u in User,
+        on: u.id == up.user_id,
+        join: p in Project,
+        on: p.id == up.project_id,
+        left_join: e in Environment,
+        on: e.id == up.environment_id,
+        where: up.role_id == ^role_id,
+        select: %{
+          user: u,
+          project: p,
+          env: e,
+          expires_at: up.expires_at
+        },
+        order_by: [asc: p.name, asc: e.name]
+      )
+      |> Repo.all()
+
+    oidc_rules =
+      from(o in OIDCAccessRule,
+        join: prov in OIDCProvider,
+        on: prov.id == o.provider_id,
+        join: e in Environment,
+        on: e.id == o.environment_id,
+        join: p in Project,
+        on: p.id == e.project_id,
+        where: o.role_id == ^role_id,
+        select: %{
+          rule: o,
+          provider: prov,
+          env: e,
+          project: p
+        },
+        order_by: [asc: p.name, asc: e.name]
+      )
+      |> Repo.all()
+      |> Enum.map(fn row ->
+        Map.put(row, :claim_rules, decode_claim_rules(row.rule.claim_rules))
+      end)
+
+    %{teams: teams, users: users, oidc_rules: oidc_rules}
+  end
+
+  defp decode_claim_rules(nil), do: %{}
+  defp decode_claim_rules(""), do: %{}
+
+  defp decode_claim_rules(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, map} when is_map(map) -> map
+      _ -> %{}
+    end
+  end
+
   defp format_changeset_error(%Ecto.Changeset{errors: errors}) do
     errors
     |> Enum.map(fn {field, {message, _}} -> "#{field}: #{message}" end)
