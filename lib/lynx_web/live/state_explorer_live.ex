@@ -149,19 +149,23 @@ defmodule LynxWeb.StateExplorerLive do
         <%= if @compare_version && @compare_version != @selected_version do %>
           <% diff = compute_diff(@versions, @selected_version, @compare_version) %>
 
+          <p class="text-xs text-muted mb-2">
+            Changes if you replaced <strong>v{@selected_version}</strong> with <strong>v{@compare_version}</strong>:
+          </p>
+
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3 text-sm">
               <span :if={diff.added != []} class="inline-flex items-center gap-1">
                 <span class="inline-block w-2 h-2 rounded-full bg-flash-success-bg"></span>
-                <span class="font-semibold">{length(diff.added)}</span> added
+                <span class="font-semibold">{length(diff.added)}</span> would be added
               </span>
               <span :if={diff.changed != []} class="inline-flex items-center gap-1">
                 <span class="inline-block w-2 h-2 rounded-full bg-accent"></span>
-                <span class="font-semibold">{length(diff.changed)}</span> changed
+                <span class="font-semibold">{length(diff.changed)}</span> would change
               </span>
               <span :if={diff.removed != []} class="inline-flex items-center gap-1">
                 <span class="inline-block w-2 h-2 rounded-full bg-flash-error-bg"></span>
-                <span class="font-semibold">{length(diff.removed)}</span> removed
+                <span class="font-semibold">{length(diff.removed)}</span> would be removed
               </span>
               <% bytes_match = bytes_match?(@versions, @selected_version, @compare_version) %>
               <span :if={diff.added == [] and diff.changed == [] and diff.removed == [] and bytes_match} class="text-muted">
@@ -379,15 +383,24 @@ defmodule LynxWeb.StateExplorerLive do
     end
   end
 
-  # `before` is the older version (lower number); `after_v` is the newer one.
-  # Order arguments so `added` reads as "appeared in the newer version" even
-  # when the user picked compare-with as the OLDER state.
+  # Direction matters: the diff is "what changes if I move from `selected`
+  # to `compare`". So `selected` is `before` and `compare` is `after`.
+  # Reading the labels:
+  #
+  #   * "added"   — in `compare`, not in `selected` → restoring `compare`
+  #                 *adds* this resource
+  #   * "removed" — in `selected`, not in `compare` → restoring `compare`
+  #                 *removes* this resource
+  #   * "changed" — in both, attributes differ
+  #
+  # Concretely: `selected = v24 (current)`, `compare = v21 (target)` →
+  # "5 removed" means "restoring v21 would delete 5 resources from
+  # current state". Flip the dropdowns and the same delta reads as
+  # "5 added" — what restoring v24 from v21 would do.
   defp compute_diff(versions, selected, compare) do
-    [before_v, after_v] = Enum.sort([selected, compare])
-
     StateContext.diff(
-      raw_state(versions, before_v),
-      raw_state(versions, after_v)
+      raw_state(versions, selected),
+      raw_state(versions, compare)
     )
   end
 
@@ -437,9 +450,12 @@ defmodule LynxWeb.StateExplorerLive do
     """
   end
 
-  defp status_label(:added), do: "added"
-  defp status_label(:changed), do: "changed"
-  defp status_label(:removed), do: "removed"
+  # Action-tense — the diff is "what would happen if you replaced selected
+  # with compare", so badges read as the operator's action: "would add" =
+  # "this resource appears in compare, restoring it would create it".
+  defp status_label(:added), do: "would add"
+  defp status_label(:changed), do: "would change"
+  defp status_label(:removed), do: "would remove"
 
   defp status_color(:added), do: "green"
   defp status_color(:changed), do: "blue"

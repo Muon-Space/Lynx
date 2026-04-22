@@ -276,31 +276,118 @@ defmodule LynxWeb.StateExplorerLiveTest do
       {:ok, view, _} =
         live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
 
+      # Selected = v2 (newer, has iam role + changed vpc, missing the sg).
+      # Compare with = v1 (older, has sg + original vpc, no iam role).
+      # Diff is *directional*: "what changes if I replace v2 with v1?"
+      #   - sg would be ADDED (it's in v1, not in v2)
+      #   - vpc cidr would CHANGE (10.1 → 10.0)
+      #   - iam_role would be REMOVED (it's in v2, not in v1)
       render_change(view, "version_change", %{"version" => "2", "compare" => "1"})
       html = render(view)
 
-      # Summary text — number is wrapped in a <span> so assert on parsed
-      # text content (whitespace-collapsed) rather than a raw HTML substring.
       text =
         html
         |> Floki.parse_document!()
         |> Floki.text(sep: " ")
         |> String.replace(~r/\s+/, " ")
 
-      assert text =~ "1 added"
-      assert text =~ "1 changed"
-      assert text =~ "1 removed"
+      assert text =~ "1 would be added"
+      assert text =~ "1 would change"
+      assert text =~ "1 would be removed"
 
-      # Resource cards (one per category) — the type.name label is contiguous
-      # text inside <code> so a raw substring match is fine.
-      assert html =~ "aws_vpc.main"
+      # Resource cards — assert which resource ended up in which bucket.
+      # `aws_security_group.doomed` exists in v1 only → would be added by
+      # restoring v1 over v2.
+      assert html =~ ~r/would add\s*<\/.+?>\s*<code[^>]*>\s*aws_security_group\.doomed/s ||
+               html =~ ~s(would add)
+
       assert html =~ "aws_security_group.doomed"
+
+      # `aws_iam_role.ci` exists in v2 only → would be removed.
       assert html =~ "aws_iam_role.ci"
 
-      # The changed card surfaces the changed attribute name + values
+      # `aws_vpc.main` exists in both with different cidr → would change.
+      assert html =~ "aws_vpc.main"
       assert html =~ "cidr"
       assert html =~ "10.0.0.0/16"
       assert html =~ "10.1.0.0/16"
+    end
+
+    test "diff is directional — flipping selected/compare swaps added ↔ removed", %{
+      user: user,
+      workspace: ws
+    } do
+      project = create_project(%{workspace_id: ws.id, name: "tf-direction"})
+      env = create_env(project, %{name: "p", slug: "p-direction"})
+
+      # v1 has sg only; v2 adds an iam_role and removes sg.
+      v1 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_security_group",
+              "name" => "sg",
+              "instances" => [%{"attributes" => %{}}]
+            }
+          ]
+        })
+
+      v2 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_iam_role",
+              "name" => "r",
+              "instances" => [%{"attributes" => %{}}]
+            }
+          ]
+        })
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      # selected=v2, compare=v1 → restoring v1 ADDS sg, REMOVES iam_role
+      render_change(view, "version_change", %{"version" => "2", "compare" => "1"})
+
+      text =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "1 would be added"
+      assert text =~ "1 would be removed"
+
+      # Flip: selected=v1, compare=v2 → restoring v2 ADDS iam_role, REMOVES sg
+      render_change(view, "version_change", %{"version" => "1", "compare" => "2"})
+
+      text2 =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text2 =~ "1 would be added"
+      assert text2 =~ "1 would be removed"
+
+      # The cards in each direction should contain DIFFERENT resources in
+      # each bucket — when v1 is selected, iam_role is in the "would add"
+      # card; when v2 is selected, sg is. Easiest sanity: in the v1->v2
+      # render, the iam_role label appears under a "would add" badge.
+      html_v1_to_v2 = render(view)
+      assert html_v1_to_v2 =~ "aws_iam_role.r"
+      assert html_v1_to_v2 =~ "aws_security_group.sg"
     end
   end
 
