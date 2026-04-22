@@ -127,12 +127,18 @@ Lynx ships three system roles, made up of atomic permissions:
 |---|---|
 | **Planner** | `state:read`, `state:lock`, `state:unlock` — enough to run `terraform plan` |
 | **Applier** | Planner's set + `state:write`, `snapshot:create` — enough to run `terraform apply` |
-| **Admin** | Applier's set + `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
+| **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
 
 > [!IMPORTANT]
-> `terraform plan` always acquires a state lock by default (`-lock=false` is opt-in), so Planner needs `state:lock`/`state:unlock` to be functional. Applier is what differentiates "can mutate state" from "read-only."
+> `terraform plan` always acquires a state lock by default (`-lock=false` is opt-in), so Planner needs `state:lock`/`state:unlock` to be functional. Applier is what differentiates "can mutate state" from "read-only." `state:force_unlock` is the destructive admin-button variant — clears another user's lock — and lives on Admin only.
+
+**Custom roles** can be created at `/admin/roles` (super only). System roles are protected and can't be edited or deleted.
 
 Roles are **assigned per project** for teams and individual users, and **per environment** for OIDC rules. A user's effective permission set on a project is the union of every grant they have (team grants + direct grants).
+
+**Time-bounded grants**: any team or user grant can carry an `expires_at` timestamp ("give Bob applier on prod for the next 4 hours"). A periodic sweeper deletes expired rows and emits an audit event; lookup-time filtering means perms drop the moment the grant expires.
+
+**Per-environment overrides**: by default a grant applies to every env in the project. The Project Access card has per-env tabs — assign a grant on a specific tab and it applies only to that env, overriding the project-wide grant for that env (e.g. team A is applier in dev, planner in prod).
 
 Manage role assignments from the **Project Access** card on each project page (`/admin/projects/<uuid>`). Manage OIDC rule roles from the **OIDC** button on each environment row.
 

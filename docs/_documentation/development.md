@@ -78,12 +78,19 @@ Naming convention for collisions inside a Context:
 `Lynx.Context.RoleContext` is the gatekeeper for every per-project authorization decision.
 
 ```elixir
-RoleContext.permissions/0                       # canonical list of permission strings
-RoleContext.default_roles/0                     # ["planner", "applier", "admin"]
-RoleContext.effective_permissions(user, proj)   # MapSet — union of every grant
-RoleContext.can?(user, project, "state:write")  # boolean shortcut
-RoleContext.has?(perm_set, "state:write")       # boolean check on a precomputed MapSet
-RoleContext.list_user_project_access(user)      # for the Users page Projects column
+RoleContext.permissions/0                            # canonical list of permission strings
+RoleContext.default_roles/0                          # ["planner", "applier", "admin"]
+RoleContext.effective_permissions(user, proj)        # MapSet — project-wide grants only
+RoleContext.effective_permissions(user, proj, env)   # env-aware: env overrides win, fall back to project-wide
+RoleContext.can?(user, project, "state:write")       # boolean shortcut
+RoleContext.has?(perm_set, "state:write")            # boolean check on a precomputed MapSet
+RoleContext.list_user_project_access(user)           # for the Users page Projects column
+
+# Custom role CRUD (see `/admin/roles`)
+RoleContext.create_role(%{name: ..., description: ..., permissions: [...]})
+RoleContext.update_role(role, attrs)                 # refuses on system roles
+RoleContext.delete_role(role)                        # refuses if in use or system
+RoleContext.count_role_usage(role_id)                # for "in use" badge
 ```
 
 Effective permissions union grants from teams (every team the user belongs to that's attached to the project) and any direct `user_projects` row. Super users always get every permission.
