@@ -33,12 +33,15 @@ If your local PostgreSQL uses different credentials, override via env vars: `DB_
 make deps        # fetch dependencies
 make migrate     # create + migrate the database (mix ecto.setup)
 make run         # start the dev server on port 4000
-make test        # run the test suite (mix test --trace)
-make ci          # run mix coveralls (enforces the 70% coverage gate)
-make build       # compile with --warnings-as-errors
-make fmt         # format code
-make fmt_check   # check formatting without modifying
-make i           # interactive iex -S mix phx.server
+make test               # run the test suite (mix test --trace)
+make ci                 # run mix coveralls (enforces the 70% coverage gate)
+make build              # compile with --warnings-as-errors
+make fmt                # format code
+make fmt_check          # check formatting without modifying
+make i                  # interactive iex -S mix phx.server
+make playwright_install # one-shot: install chromium for feature tests
+make feature_test       # run the browser-driven feature tests (PhoenixTest.Playwright)
+make assets_deploy      # build JS + CSS bundles into priv/static/assets
 ```
 
 ## Architecture
@@ -126,11 +129,12 @@ All colors are CSS variables in `assets/css/app.css`:
 
 ## Testing
 
-The suite uses three case modules:
+The suite uses four case modules:
 
 * **`Lynx.DataCase`** — Repo + DB sandbox. For pure context tests.
 * **`LynxWeb.ConnCase`** — Phoenix.ConnTest setup. For controller tests.
 * **`LynxWeb.LiveCase`** — adds Phoenix.LiveViewTest. Provides factories (`create_user/1`, `create_super/1`, `create_workspace/1`, `create_project/1`, `create_env/2`, `create_state/2`, `create_lock/2`) and the `log_in_user/2` helper that writes the session keys `LiveAuth` reads.
+* **`LynxWeb.FeatureCase`** — wraps `PhoenixTest.Playwright.Case` for **browser-driven** tests. Reach for it ONLY when a bug requires a real browser (colocated JS hooks, `navigator.clipboard` activation timing, focus/blur, third-party JS libs). Default is still `LiveCase` — feature tests are slower (~1-2s each). Imports the same factories as `LiveCase`. Adds `add_lynx_session/2` (writes the cookie `LiveAuth` reads via the same `AuthService.authenticate/1` path as `log_in_user/2`) and clipboard helpers (`assert_clipboard/2`, `refute_clipboard/2`, `assert_clipboard_matches/2`).
 
 Common test helpers:
 
@@ -153,6 +157,38 @@ Common test helpers:
 `make ci` runs `mix coveralls` with a **70% minimum** (set in `coveralls.json`). The HTML report is at `cover/excoveralls.html` after `make coverage_html`.
 
 The gate is intentionally set just below the current coverage so it can only go up. When coverage rises, bump the floor in `coveralls.json` to lock in the gain.
+
+### Feature tests (PhoenixTest.Playwright)
+
+Browser-driven tests under `test/feature/` use `LynxWeb.FeatureCase` and run a real chromium via [`PhoenixTest.Playwright`](https://hexdocs.pm/phoenix_test_playwright). They live behind the `:feature` ExUnit tag so `mix test` and `make ci` skip them — opt in with `make feature_test` (or `mix test --only feature`).
+
+**Local setup (one-shot):**
+
+```bash
+make playwright_install   # npm + chromium binary
+make feature_test         # builds assets, then runs the feature suite
+```
+
+**Authoring rules learned the hard way:**
+
+* **`assert_has` filters by `visible=true`** under the hood. Wrappers with zero dimensions (e.g. `#confirm-dialog` is `position: relative` with all visible content in `position: fixed` children) won't match. Assert on a rendered child element (`assert_has("h3", text: "Are you sure?")`) instead of the wrapper id. Symptom: `Could not find element "#whatever" []` when a screenshot clearly shows it.
+* **Multiple identical button labels** — `click_button("Add")` raises if more than one matches (e.g. team form + user form on the Project Access card). Use `within(form_selector, &click_button(&1, "Add"))` to scope.
+* **Drive third-party JS libs through their bound instances** — Flatpickr stores `._flatpickr` on the input element; `input._flatpickr.setDate(date, true)` fires the same `onChange` path a real calendar click would. Synthesizing native `input` events on the underlying `<input>` bypasses Flatpickr's state.
+* **Icon-only buttons** — `click_button(text)` matches on accessible name; emoji-only buttons (e.g. `.dark_mode_toggle`) don't have one. Click via stable id (`PhoenixTest.Playwright.click("#dark-mode-toggle")`).
+* **Row-level `phx-click={JS.navigate(...)}`** — list pages with whole-row navigation can swallow button clicks under propagation in headless. If a destructive action lives on both a list and a detail page, prefer driving the test through the detail page.
+* **`assets.deploy` requires `compile` first** — Phoenix LV writes `_build/<env>/phoenix-colocated/<app>/` during compile; esbuild's `import "phoenix-colocated/lynx"` resolves through `NODE_PATH=_build/<env>`. The `assets.deploy` alias already prepends `compile`; don't strip it.
+
+**Debugging:**
+
+```bash
+PW_TRACE=true make feature_test
+# Trace files written to tmp/playwright/*.zip
+npx --prefix assets playwright show-trace tmp/playwright/<file>.zip
+```
+
+CI uploads the traces as artifacts on failure. Screenshots written via `PhoenixTest.Playwright.screenshot/3` land in `screenshots/` (gitignored) — useful for one-off visual debugging.
+
+CI runs feature tests in a separate `feature` job (parallel to the unit `test` job) so the chromium install + asset build don't slow the unit suite. The job caches `~/.cache/ms-playwright` keyed on the playwright JS version pinned in `assets/package-lock.json`.
 
 ## Contributing
 

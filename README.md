@@ -216,11 +216,13 @@ make run        # start the dev server on port 4000
 Other Makefile targets:
 
 ```bash
-make test        # run the test suite (mix test --trace)
-make ci          # run mix coveralls (enforces 70% coverage gate)
-make build       # compile with --warnings-as-errors
-make fmt         # format code
-make fmt_check   # check formatting without modifying
+make test               # run the test suite (mix test --trace)
+make ci                 # run mix coveralls (enforces 70% coverage gate)
+make build              # compile with --warnings-as-errors
+make fmt                # format code
+make fmt_check          # check formatting without modifying
+make playwright_install # one-shot: install chromium for feature tests
+make feature_test       # run browser-driven feature tests (PhoenixTest.Playwright)
 ```
 
 The dev server supports live reloading — changes to LiveView modules, components, and HEEx templates are reflected in the browser automatically.
@@ -228,7 +230,7 @@ The dev server supports live reloading — changes to LiveView modules, componen
 > [!TIP]
 > If your local PostgreSQL uses different credentials, override via environment variables: `DB_USERNAME`, `DB_PASSWORD`, `DB_HOSTNAME`, `DB_DATABASE`, `DB_PORT`. Defaults are in `config/dev.exs`.
 
-See [docs/development](docs/_documentation/development.md) for the architecture overview, contributing notes, and the test infrastructure (LiveCase, ConnCase, factories, coverage gate).
+See [docs/development](docs/_documentation/development.md) for the architecture overview, contributing notes, and the test infrastructure (LiveCase, ConnCase, FeatureCase, factories, coverage gate).
 
 ## License
 
