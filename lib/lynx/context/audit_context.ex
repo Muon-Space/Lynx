@@ -180,14 +180,93 @@ defmodule Lynx.Context.AuditContext do
     # broader `:actor` filter below.
     actor_term = opts[:actor] || opts[:actor_email]
 
-    from(e in AuditEvent)
-    |> maybe_filter(:action, opts[:action])
-    |> maybe_filter(:resource_type, opts[:resource_type])
-    |> maybe_filter(:resource_id, opts[:resource_id])
-    |> maybe_filter(:actor_id, opts[:actor_id])
-    |> maybe_filter(:date_from, opts[:date_from])
-    |> maybe_filter(:date_to, opts[:date_to])
-    |> maybe_filter_actor(actor_term)
+    base =
+      from(e in AuditEvent)
+      |> maybe_filter(:action, opts[:action])
+      |> maybe_filter(:actor_id, opts[:actor_id])
+      |> maybe_filter(:date_from, opts[:date_from])
+      |> maybe_filter(:date_to, opts[:date_to])
+      |> maybe_filter_actor(actor_term)
+
+    # Resource scope: when `:include_children` is set on an env or project
+    # filter, expand to also match descendant resources (units under an env;
+    # envs + units + snapshots under a project). Without it, exact match.
+    scope_resource(base, opts)
+  end
+
+  # -- Resource scope --
+
+  defp scope_resource(query, opts) do
+    case {opts[:resource_type], opts[:resource_id], opts[:include_children]} do
+      {"environment", env_uuid, true} when is_binary(env_uuid) and env_uuid != "" ->
+        # Units use the env_uuid as their resource_id (see EnvironmentLive's
+        # `lock_unit` / `unlock_unit` handlers), so a single OR catches both.
+        where(
+          query,
+          [e],
+          e.resource_id == ^env_uuid and e.resource_type in ["environment", "unit"]
+        )
+
+      {"project", proj_uuid, true} when is_binary(proj_uuid) and proj_uuid != "" ->
+        scope_project_subtree(query, proj_uuid)
+
+      {type, id, _} ->
+        query
+        |> maybe_filter(:resource_type, type)
+        |> maybe_filter(:resource_id, id)
+    end
+  end
+
+  defp scope_project_subtree(query, project_uuid) do
+    case Lynx.Context.ProjectContext.get_project_by_uuid(project_uuid) do
+      nil ->
+        # Project doesn't exist — degrade to exact-match on the project row.
+        where(query, [e], e.resource_type == "project" and e.resource_id == ^project_uuid)
+
+      project ->
+        env_uuids = env_uuids_for_project(project.id)
+        snapshot_uuids = snapshot_uuids_for_project(project.id)
+
+        # Match anything tagged to the project, its envs/units, its grants
+        # (project_team / user_project rows reference the project in their
+        # metadata via the `project_uuid` key, but resource_id is the
+        # team/user uuid — so they don't match here; granular grant audit
+        # already shows up under the team/user audit views).
+        where(
+          query,
+          [e],
+          (e.resource_type == "project" and e.resource_id == ^project_uuid) or
+            (e.resource_type in ["environment", "unit"] and e.resource_id in ^env_uuids) or
+            (e.resource_type == "snapshot" and e.resource_id in ^snapshot_uuids)
+        )
+    end
+  end
+
+  defp env_uuids_for_project(project_id) do
+    alias Lynx.Model.Environment
+
+    from(env in Environment, where: env.project_id == ^project_id, select: env.uuid)
+    |> Repo.all()
+  end
+
+  defp snapshot_uuids_for_project(project_id) do
+    alias Lynx.Model.Snapshot
+
+    project_uuid =
+      Lynx.Context.ProjectContext.get_project_by_id(project_id) |> Map.get(:uuid)
+
+    env_uuids = env_uuids_for_project(project_id)
+
+    # Snapshots can be `project`-scoped (record_uuid = project_uuid) or
+    # `environment`/`unit`-scoped (record_uuid = env_uuid). Either way, the
+    # snapshot's own UUID is what shows up in audit events.
+    from(s in Snapshot,
+      where:
+        (s.record_type == "project" and s.record_uuid == ^project_uuid) or
+          (s.record_type in ["environment", "unit"] and s.record_uuid in ^env_uuids),
+      select: s.uuid
+    )
+    |> Repo.all()
   end
 
   defp to_string_or_nil(nil), do: nil

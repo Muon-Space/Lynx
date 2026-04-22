@@ -48,8 +48,43 @@ defmodule Lynx.Context.RoleContext do
 
   @default_roles ~w(planner applier admin)
 
+  # Human-readable explanations rendered next to each permission in the
+  # /admin/roles checkbox grid + as tooltips elsewhere. Keep these tight —
+  # full prose belongs in the docs.
+  @descriptions %{
+    "state:read" =>
+      "Read state via `GET /tf/.../state` — required for `terraform plan` and `terraform show`.",
+    "state:write" =>
+      "Write state via `POST /tf/.../state` — required for `terraform apply` and `terraform import`.",
+    "state:lock" =>
+      "Acquire a state lock — both for routine `plan`/`apply` cycles and for the admin force-lock button.",
+    "state:unlock" =>
+      "Release a state lock the caller themselves holds — what Terraform calls automatically at the end of plan/apply.",
+    "state:force_unlock" =>
+      "Clear ANY active lock, including one another user holds. Destructive — strands their in-flight apply. Admin-only.",
+    "snapshot:create" =>
+      "Take a point-in-time snapshot of state. Read-only at the source, writes to the snapshots table.",
+    "snapshot:restore" =>
+      "Re-apply a snapshot — overwrites current state, recreates missing envs. Destructive. Admin-only.",
+    "env:manage" =>
+      "Create / edit / delete environments under this project, including rotating their static credentials.",
+    "project:manage" =>
+      "Edit project metadata (name, description, slug) and delete the project itself.",
+    "access:manage" =>
+      "Add / remove team and user grants on this project, change their roles, set/clear expiry, manage per-env overrides.",
+    "oidc_rule:manage" =>
+      "Add / edit / delete OIDC access rules on this project's environments. Lets CI tokens authenticate."
+  }
+
   @doc "All known permission strings, in canonical order."
   def permissions, do: @permissions
+
+  @doc """
+  Human-readable description of a permission. Returns `""` for unknown
+  permissions so callers don't have to special-case lookup failures.
+  """
+  def permission_description(permission) when is_binary(permission),
+    do: Map.get(@descriptions, permission, "")
 
   @doc "Names of the system-seeded default roles."
   def default_roles, do: @default_roles

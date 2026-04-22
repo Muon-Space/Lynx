@@ -104,7 +104,7 @@ defmodule LynxWeb.ProjectLive do
           <span class="text-foreground font-medium">{@project.name}</span>
         </nav>
         <div class="flex items-center gap-2">
-          <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=project&resource_id=#{@project.uuid}"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
+          <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=project&resource_id=#{@project.uuid}&include_children=1"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
             Audit history
           </a>
           <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
@@ -654,7 +654,8 @@ defmodule LynxWeb.ProjectLive do
         "granted",
         "project_team",
         team.uuid,
-        team.name
+        team.name,
+        grant_metadata(socket, role_id, env_id, expires_at)
       )
 
       {:noreply,
@@ -673,11 +674,28 @@ defmodule LynxWeb.ProjectLive do
   def handle_event("change_team_role", %{"team_id" => team_id, "role_id" => role_id}, socket) do
     case ensure_can_manage_access(socket) do
       :ok ->
+        team_id_int = String.to_integer(team_id)
+        role_id_int = String.to_integer(role_id)
+        env_id = socket.assigns[:active_env_tab]
+
         ProjectContext.set_project_team_role(
           socket.assigns.project.id,
-          String.to_integer(team_id),
-          String.to_integer(role_id),
-          socket.assigns[:active_env_tab]
+          team_id_int,
+          role_id_int,
+          env_id
+        )
+
+        # Resolve names for the audit row so a reader doesn't need to join
+        # back to teams + roles in another query.
+        team = Enum.find(socket.assigns.team_assignments, &(&1.team.id == team_id_int))
+
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "role_changed",
+          "project_team",
+          team && team.team.uuid,
+          team && team.team.name,
+          grant_metadata(socket, role_id_int, env_id, nil)
         )
 
         {:noreply, socket |> put_flash(:info, "Team role updated") |> reload_access()}
@@ -703,7 +721,8 @@ defmodule LynxWeb.ProjectLive do
         "revoked",
         "project_team",
         team.uuid,
-        team.name
+        team.name,
+        grant_metadata(socket, nil, socket.assigns[:active_env_tab], nil)
       )
 
       {:noreply, socket |> put_flash(:info, "Team removed") |> reload_access()}
@@ -733,7 +752,8 @@ defmodule LynxWeb.ProjectLive do
         "granted",
         "user_project",
         user.uuid,
-        user.email
+        user.email,
+        grant_metadata(socket, role_id, env_id, expires_at)
       )
 
       {:noreply,
@@ -764,7 +784,8 @@ defmodule LynxWeb.ProjectLive do
         "extended",
         "project_team",
         team.uuid,
-        team.name
+        team.name,
+        grant_metadata(socket, nil, socket.assigns[:active_env_tab], nil)
       )
 
       {:noreply, socket |> put_flash(:info, "Team grant is now permanent") |> reload_access()}
@@ -789,7 +810,8 @@ defmodule LynxWeb.ProjectLive do
         "extended",
         "user_project",
         user.uuid,
-        user.email
+        user.email,
+        grant_metadata(socket, nil, socket.assigns[:active_env_tab], nil)
       )
 
       {:noreply, socket |> put_flash(:info, "User grant is now permanent") |> reload_access()}
@@ -802,11 +824,26 @@ defmodule LynxWeb.ProjectLive do
   def handle_event("change_user_role", %{"user_id" => user_id, "role_id" => role_id}, socket) do
     case ensure_can_manage_access(socket) do
       :ok ->
+        user_id_int = String.to_integer(user_id)
+        role_id_int = String.to_integer(role_id)
+        env_id = socket.assigns[:active_env_tab]
+
         UserProjectContext.set_role(
-          String.to_integer(user_id),
+          user_id_int,
           socket.assigns.project.id,
-          String.to_integer(role_id),
-          socket.assigns[:active_env_tab]
+          role_id_int,
+          env_id
+        )
+
+        user = Enum.find(socket.assigns.user_assignments, &(&1.user.id == user_id_int))
+
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "role_changed",
+          "user_project",
+          user && user.user.uuid,
+          user && user.user.email,
+          grant_metadata(socket, role_id_int, env_id, nil)
         )
 
         {:noreply, socket |> put_flash(:info, "User role updated") |> reload_access()}
@@ -922,6 +959,39 @@ defmodule LynxWeb.ProjectLive do
   # Convert a YYYY-MM-DD date input value into an end-of-day UTC DateTime
   # so "expires Apr 25" means end of Apr 25 (not 00:00:00 of that day).
   # Returns nil for blank input — meaning "permanent grant".
+  # Build the metadata map attached to grant audit events. Captures the
+  # project + env scope + role + expiry, so a reader can answer "what
+  # exactly was granted/revoked/changed" from the audit log without
+  # joining back to the role / env tables. Drops nil keys.
+  defp grant_metadata(socket, role_id, env_id, expires_at) do
+    %{
+      project_uuid: socket.assigns.project.uuid,
+      project_name: socket.assigns.project.name,
+      env_uuid: env_uuid_for_id(socket, env_id),
+      env_name: env_name_for_id(socket, env_id),
+      role_id: role_id,
+      role_name:
+        if(role_id, do: role_name_for(socket.assigns.roles, role_id) |> String.downcase()),
+      expires_at: expires_at && DateTime.to_iso8601(expires_at)
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Enum.into(%{})
+  end
+
+  defp env_uuid_for_id(_socket, nil), do: nil
+
+  defp env_uuid_for_id(socket, env_id) do
+    env = Enum.find(socket.assigns.environments || [], &(&1.id == env_id))
+    env && env.uuid
+  end
+
+  defp env_name_for_id(_socket, nil), do: nil
+
+  defp env_name_for_id(socket, env_id) do
+    env = Enum.find(socket.assigns.environments || [], &(&1.id == env_id))
+    env && env.name
+  end
+
   defp parse_end_of_day(nil), do: nil
   defp parse_end_of_day(""), do: nil
 
