@@ -106,7 +106,12 @@ defmodule Lynx.MixProject do
       # Build the JS + CSS bundles into `priv/static/assets` (one-shot; no
       # watch mode). Used by `make feature_test` so the endpoint serves the
       # colocated hooks the browser tests rely on.
-      "assets.deploy": ["tailwind lynx --minify", "esbuild lynx --minify"]
+      #
+      # `compile` MUST run first — `Phoenix.LiveView.ColocatedHook` writes
+      # `_build/<env>/phoenix-colocated/lynx/` during compilation, and
+      # `app.js`'s `import "phoenix-colocated/lynx"` resolves through that
+      # path via `NODE_PATH=_build/<env>` (set in config/config.exs).
+      "assets.deploy": ["compile", "tailwind lynx --minify", "esbuild lynx --minify"]
     ]
   end
 end
