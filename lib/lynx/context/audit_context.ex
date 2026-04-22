@@ -116,7 +116,12 @@ defmodule Lynx.Context.AuditContext do
 
     events =
       base_query
-      |> order_by([e], desc: e.inserted_at)
+      # `id` tiebreaker keeps pagination deterministic when many events
+      # share the same `inserted_at` second (audit_events use the default
+      # second-precision timestamp; bursty actors like an OIDC pipeline
+      # firing repeated state pushes can collide). Without it, ORDER BY
+      # ties have undefined order and rows may skip/repeat across pages.
+      |> order_by([e], desc: e.inserted_at, desc: e.id)
       |> limit(^limit)
       |> offset(^offset)
       |> Repo.all()
@@ -145,7 +150,9 @@ defmodule Lynx.Context.AuditContext do
 
     rows =
       filtered_query(opts)
-      |> order_by([e], desc: e.inserted_at)
+      # Same tiebreaker as `list_events/1` — second-precision timestamps tie
+      # often enough that an export's row order would otherwise vary.
+      |> order_by([e], desc: e.inserted_at, desc: e.id)
       |> Repo.stream()
       |> Stream.map(&event_to_csv_row/1)
       |> Stream.map(fn row -> NimbleCSV.RFC4180.dump_to_iodata([row]) end)
