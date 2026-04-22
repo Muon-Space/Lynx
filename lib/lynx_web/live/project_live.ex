@@ -74,9 +74,13 @@ defmodule LynxWeb.ProjectLive do
           |> assign(:add_team_selected, nil)
           |> assign(:add_team_options, [])
           |> assign(:add_team_role_id, default_role_id(roles, "applier"))
+          |> assign(:add_team_expires_at, "")
           |> assign(:add_user_selected, nil)
           |> assign(:add_user_options, [])
           |> assign(:add_user_role_id, default_role_id(roles, "planner"))
+          |> assign(:add_user_expires_at, "")
+          # nil = "All envs" tab (project-wide grants); env_id = override tab
+          |> assign(:active_env_tab, nil)
           |> assign(:confirm, nil)
           |> reload_access()
 
@@ -212,7 +216,32 @@ defmodule LynxWeb.ProjectLive do
       <div :if={can_manage_access?(@viewer_perms, @current_user)} class="mt-6">
         <.card>
           <h3 class="text-base font-semibold mb-1">Project Access</h3>
-          <p class="text-sm text-muted mb-4">Roles cascade to every environment in this project. OIDC rules carry their own role per-environment.</p>
+          <p class="text-sm text-muted mb-4">
+            Project-wide grants apply to every environment. Per-env tabs let
+            you override that for a specific env (e.g. team A is applier in
+            dev, planner in prod).
+          </p>
+
+          <%!-- Per-env tabs --%>
+          <div class="flex gap-1 border-b border-border mb-6 overflow-x-auto">
+            <button
+              type="button"
+              phx-click="select_env_tab"
+              phx-value-env=""
+              class={tab_class(is_nil(@active_env_tab))}
+            >
+              All envs
+            </button>
+            <button
+              :for={env <- @environments}
+              type="button"
+              phx-click="select_env_tab"
+              phx-value-env={env.id}
+              class={tab_class(@active_env_tab == env.id)}
+            >
+              {env.name}
+            </button>
+          </div>
 
           <div class="mb-6">
             <h4 class="text-sm font-medium mb-2">Teams</h4>
@@ -229,6 +258,9 @@ defmodule LynxWeb.ProjectLive do
                     value={to_string(a.role_id)}
                   />
                 </form>
+              </:col>
+              <:col :let={a} label="Expires">
+                <.expiry_cell expires_at={a.expires_at} clear_event="clear_team_expiry" subject_uuid={a.team.uuid} />
               </:col>
               <:action :let={a}>
                 <.button phx-click="confirm_action" phx-value-event="remove_team_access" phx-value-message={"Remove team " <> a.team.name <> " from this project?"} phx-value-uuid={a.team.uuid} variant="ghost" size="sm">Remove</.button>
@@ -248,6 +280,9 @@ defmodule LynxWeb.ProjectLive do
                   options={role_options(@roles)}
                   value={to_string(@add_team_role_id)}
                 />
+              </div>
+              <div class="w-44">
+                <.date_input id="add-team-expires" name="expires_at" label="Expires (optional)" value={@add_team_expires_at} />
               </div>
               <.button type="submit" variant="primary" size="sm" disabled={is_nil(@add_team_selected)} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>
@@ -269,6 +304,9 @@ defmodule LynxWeb.ProjectLive do
                   />
                 </form>
               </:col>
+              <:col :let={a} label="Expires">
+                <.expiry_cell expires_at={a.expires_at} clear_event="clear_user_expiry" subject_uuid={a.user.uuid} />
+              </:col>
               <:action :let={a}>
                 <.button phx-click="confirm_action" phx-value-event="remove_user_access" phx-value-message={"Remove " <> a.user.email <> " from this project?"} phx-value-uuid={a.user.uuid} variant="ghost" size="sm">Remove</.button>
               </:action>
@@ -287,6 +325,9 @@ defmodule LynxWeb.ProjectLive do
                   options={role_options(@roles)}
                   value={to_string(@add_user_role_id)}
                 />
+              </div>
+              <div class="w-44">
+                <.date_input id="add-user-expires" name="expires_at" label="Expires (optional)" value={@add_user_expires_at} />
               </div>
               <.button type="submit" variant="primary" size="sm" disabled={is_nil(@add_user_selected)} class="disabled:opacity-50 disabled:cursor-not-allowed">Add</.button>
             </form>
@@ -531,6 +572,22 @@ defmodule LynxWeb.ProjectLive do
   end
 
   # -- Project Access (teams + users) --
+  def handle_event("select_env_tab", %{"env" => env_id_str}, socket) do
+    env_id =
+      case env_id_str do
+        "" ->
+          nil
+
+        str ->
+          case Integer.parse(str) do
+            {n, _} -> n
+            _ -> nil
+          end
+      end
+
+    {:noreply, socket |> assign(:active_env_tab, env_id) |> reload_access()}
+  end
+
   def handle_event("add_team_form_change", params, socket) do
     selected =
       case params["team_id"] do
@@ -547,6 +604,7 @@ defmodule LynxWeb.ProjectLive do
      socket
      |> assign(:add_team_selected, selected)
      |> assign(:add_team_options, options)
+     |> assign(:add_team_expires_at, params["expires_at"] || "")
      |> assign(
        :add_team_role_id,
        parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
@@ -569,6 +627,7 @@ defmodule LynxWeb.ProjectLive do
      socket
      |> assign(:add_user_selected, selected)
      |> assign(:add_user_options, options)
+     |> assign(:add_user_expires_at, params["expires_at"] || "")
      |> assign(
        :add_user_role_id,
        parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
@@ -579,7 +638,16 @@ defmodule LynxWeb.ProjectLive do
     with :ok <- ensure_can_manage_access(socket),
          %{} = team <- TeamContext.get_team_by_uuid(params["team_id"] || "") do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_team_role_id)
-      ProjectContext.add_project_to_team(socket.assigns.project.id, team.id, role_id)
+      expires_at = parse_end_of_day(params["expires_at"])
+      env_id = socket.assigns[:active_env_tab]
+
+      ProjectContext.add_project_to_team(
+        socket.assigns.project.id,
+        team.id,
+        role_id,
+        expires_at,
+        env_id
+      )
 
       AuditContext.log_user(
         socket.assigns.current_user,
@@ -594,6 +662,7 @@ defmodule LynxWeb.ProjectLive do
        |> put_flash(:info, "Team access granted")
        |> assign(:add_team_selected, nil)
        |> assign(:add_team_options, [])
+       |> assign(:add_team_expires_at, "")
        |> reload_access()}
     else
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
@@ -607,7 +676,8 @@ defmodule LynxWeb.ProjectLive do
         ProjectContext.set_project_team_role(
           socket.assigns.project.id,
           String.to_integer(team_id),
-          String.to_integer(role_id)
+          String.to_integer(role_id),
+          socket.assigns[:active_env_tab]
         )
 
         {:noreply, socket |> put_flash(:info, "Team role updated") |> reload_access()}
@@ -622,7 +692,11 @@ defmodule LynxWeb.ProjectLive do
 
     with :ok <- ensure_can_manage_access(socket),
          %{} = team <- TeamContext.get_team_by_uuid(team_uuid) do
-      ProjectContext.remove_project_from_team(socket.assigns.project.id, team.id)
+      ProjectContext.remove_project_from_team(
+        socket.assigns.project.id,
+        team.id,
+        socket.assigns[:active_env_tab]
+      )
 
       AuditContext.log_user(
         socket.assigns.current_user,
@@ -643,7 +717,16 @@ defmodule LynxWeb.ProjectLive do
     with :ok <- ensure_can_manage_access(socket),
          %{} = user <- UserContext.get_user_by_uuid(params["user_id"] || "") do
       role_id = parse_role_id(params["role_id"], socket.assigns.add_user_role_id)
-      UserProjectContext.assign_role(user.id, socket.assigns.project.id, role_id)
+      expires_at = parse_end_of_day(params["expires_at"])
+      env_id = socket.assigns[:active_env_tab]
+
+      UserProjectContext.assign_role(
+        user.id,
+        socket.assigns.project.id,
+        role_id,
+        expires_at,
+        env_id
+      )
 
       AuditContext.log_user(
         socket.assigns.current_user,
@@ -658,7 +741,58 @@ defmodule LynxWeb.ProjectLive do
        |> put_flash(:info, "User access granted")
        |> assign(:add_user_selected, nil)
        |> assign(:add_user_options, [])
+       |> assign(:add_user_expires_at, "")
        |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "User not found")}
+    end
+  end
+
+  def handle_event("clear_team_expiry", %{"uuid" => team_uuid}, socket) do
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = team <- TeamContext.get_team_by_uuid(team_uuid) do
+      ProjectContext.set_project_team_expires_at(
+        socket.assigns.project.id,
+        team.id,
+        nil,
+        socket.assigns[:active_env_tab]
+      )
+
+      AuditContext.log_user(
+        socket.assigns.current_user,
+        "extended",
+        "project_team",
+        team.uuid,
+        team.name
+      )
+
+      {:noreply, socket |> put_flash(:info, "Team grant is now permanent") |> reload_access()}
+    else
+      {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
+      _ -> {:noreply, put_flash(socket, :error, "Team not found")}
+    end
+  end
+
+  def handle_event("clear_user_expiry", %{"uuid" => user_uuid}, socket) do
+    with :ok <- ensure_can_manage_access(socket),
+         %{} = user <- UserContext.get_user_by_uuid(user_uuid) do
+      UserProjectContext.set_expires_at(
+        user.id,
+        socket.assigns.project.id,
+        nil,
+        socket.assigns[:active_env_tab]
+      )
+
+      AuditContext.log_user(
+        socket.assigns.current_user,
+        "extended",
+        "user_project",
+        user.uuid,
+        user.email
+      )
+
+      {:noreply, socket |> put_flash(:info, "User grant is now permanent") |> reload_access()}
     else
       {:error, msg} -> {:noreply, put_flash(socket, :error, msg)}
       _ -> {:noreply, put_flash(socket, :error, "User not found")}
@@ -668,10 +802,11 @@ defmodule LynxWeb.ProjectLive do
   def handle_event("change_user_role", %{"user_id" => user_id, "role_id" => role_id}, socket) do
     case ensure_can_manage_access(socket) do
       :ok ->
-        UserProjectContext.assign_role(
+        UserProjectContext.set_role(
           String.to_integer(user_id),
           socket.assigns.project.id,
-          String.to_integer(role_id)
+          String.to_integer(role_id),
+          socket.assigns[:active_env_tab]
         )
 
         {:noreply, socket |> put_flash(:info, "User role updated") |> reload_access()}
@@ -776,6 +911,60 @@ defmodule LynxWeb.ProjectLive do
 
   defp parse_role_id(_, fallback), do: fallback
 
+  defp tab_class(true),
+    do:
+      "px-3 py-2 text-sm font-medium text-foreground border-b-2 border-accent -mb-px cursor-pointer"
+
+  defp tab_class(false),
+    do:
+      "px-3 py-2 text-sm text-secondary hover:text-foreground border-b-2 border-transparent -mb-px cursor-pointer"
+
+  # Convert a YYYY-MM-DD date input value into an end-of-day UTC DateTime
+  # so "expires Apr 25" means end of Apr 25 (not 00:00:00 of that day).
+  # Returns nil for blank input — meaning "permanent grant".
+  defp parse_end_of_day(nil), do: nil
+  defp parse_end_of_day(""), do: nil
+
+  defp parse_end_of_day(value) when is_binary(value) do
+    case Date.from_iso8601(value) do
+      {:ok, date} -> DateTime.new!(date, ~T[23:59:59])
+      _ -> nil
+    end
+  end
+
+  attr :expires_at, :any, required: true
+  attr :clear_event, :string, required: true
+  attr :subject_uuid, :string, required: true
+
+  defp expiry_cell(assigns) do
+    ~H"""
+    <div :if={is_nil(@expires_at)} class="text-xs text-muted">permanent</div>
+    <div :if={@expires_at} class="flex items-center gap-2">
+      <span class="text-xs">{format_expiry(@expires_at)}</span>
+      <button
+        type="button"
+        phx-click={@clear_event}
+        phx-value-uuid={@subject_uuid}
+        class="text-xs text-muted hover:text-foreground"
+        title="Make permanent"
+      >
+        clear
+      </button>
+    </div>
+    """
+  end
+
+  defp format_expiry(%DateTime{} = dt) do
+    delta = DateTime.diff(dt, DateTime.utc_now(), :second)
+
+    cond do
+      delta <= 0 -> "expired"
+      delta < 3600 -> "in #{div(delta, 60)}m"
+      delta < 86_400 -> "in #{div(delta, 3600)}h"
+      true -> "in #{div(delta, 86_400)}d"
+    end
+  end
+
   defp can_manage_access?(_viewer_perms, %{role: "super"}), do: true
 
   defp can_manage_access?(viewer_perms, _user) do
@@ -856,16 +1045,21 @@ defmodule LynxWeb.ProjectLive do
 
   defp reload_access(socket) do
     project_id = socket.assigns.project.id
+    env_id = socket.assigns[:active_env_tab]
 
     team_assignments =
       project_id
-      |> ProjectContext.list_project_team_assignments()
-      |> Enum.map(fn {team, pt} -> %{team: team, role_id: pt.role_id} end)
+      |> ProjectContext.list_project_team_assignments(env_id)
+      |> Enum.map(fn {team, pt} ->
+        %{team: team, role_id: pt.role_id, expires_at: pt.expires_at}
+      end)
 
     user_assignments =
       project_id
-      |> UserProjectContext.list_user_assignments_for_project()
-      |> Enum.map(fn {user, up} -> %{user: user, role_id: up.role_id} end)
+      |> UserProjectContext.list_user_assignments_for_project(env_id)
+      |> Enum.map(fn {user, up} ->
+        %{user: user, role_id: up.role_id, expires_at: up.expires_at}
+      end)
 
     # Pre-populate the combobox option lists so opening the dropdown shows the
     # top results immediately — without this the user sees "No matches" until

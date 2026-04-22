@@ -11,26 +11,29 @@ defmodule Lynx.Application do
 
   @impl true
   def start(_type, _args) do
-    children =
-      [
-        # Start the Ecto repository
-        Lynx.Repo,
-        # Start the Telemetry supervisor
-        LynxWeb.Telemetry,
-        # Start the PubSub system
-        {Phoenix.PubSub, name: Lynx.PubSub},
-        # HTTP client for OIDC discovery/token exchange
-        {Finch, name: Lynx.Finch},
-        # Single-slot named lock used by LockModule to serialize lock
-        # acquisition across concurrent TF requests. Owned by the supervisor
-        # so it's created once at boot rather than re-initialized per call.
-        %{
-          id: :lynx_lock,
-          start: {:sleeplocks, :start_link, [1, [name: :lynx_lock]]}
-        },
-        # Start the Endpoint (http/https)
-        LynxWeb.Endpoint
-      ]
+    base = [
+      # Start the Ecto repository
+      Lynx.Repo,
+      # Start the Telemetry supervisor
+      LynxWeb.Telemetry,
+      # Start the PubSub system
+      {Phoenix.PubSub, name: Lynx.PubSub},
+      # HTTP client for OIDC discovery/token exchange
+      {Finch, name: Lynx.Finch},
+      # Single-slot named lock used by LockModule to serialize lock
+      # acquisition across concurrent TF requests. Owned by the supervisor
+      # so it's created once at boot rather than re-initialized per call.
+      %{
+        id: :lynx_lock,
+        start: {:sleeplocks, :start_link, [1, [name: :lynx_lock]]}
+      },
+      # Periodic sweeper for expired role grants (`expires_at`) — keeps
+      # `project_teams` + `user_projects` clean and emits audit events.
+      # Disabled in test (tests start it explicitly when they need it).
+      sweeper_child()
+    ]
+
+    children = Enum.reject(base, &is_nil/1) ++ [LynxWeb.Endpoint]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
@@ -44,5 +47,14 @@ defmodule Lynx.Application do
   def config_change(changed, _new, removed) do
     LynxWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # In :test the sweeper is started by tests that need it (so its periodic
+  # work doesn't interleave with sandboxed checkouts). Everywhere else it
+  # runs at boot.
+  defp sweeper_child do
+    if Application.get_env(:lynx, :start_grant_sweeper, true) do
+      Lynx.Worker.GrantExpirySweeper
+    end
   end
 end

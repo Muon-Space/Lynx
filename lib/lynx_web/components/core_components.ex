@@ -984,6 +984,7 @@ defmodule LynxWeb.CoreComponents do
             <.nav_link href="/admin/snapshots" active={@active == "snapshots"}>Snapshots</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/teams" active={@active == "teams"}>Teams</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/users" active={@active == "users"}>Users</.nav_link>
+            <.nav_link :if={@current_user.role == "super"} href="/admin/roles" active={@active == "roles"}>Roles</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/settings" active={@active == "settings"}>Settings</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/audit" active={@active == "audit"}>Audit Log</.nav_link>
           </div>

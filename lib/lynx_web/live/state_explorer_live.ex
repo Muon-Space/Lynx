@@ -41,7 +41,9 @@ defmodule LynxWeb.StateExplorerLive do
               Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) !=
                 nil
 
-            viewer_perms = RoleContext.effective_permissions(socket.assigns.current_user, project)
+            # Env-aware: per-env overrides apply for state lock/unlock buttons.
+            viewer_perms =
+              RoleContext.effective_permissions(socket.assigns.current_user, project, env)
 
             socket =
               socket

@@ -27,6 +27,11 @@ config :lynx, LynxWeb.Endpoint,
 # In test we don't send emails.
 config :lynx, Lynx.Mailer, adapter: Swoosh.Adapters.Test
 
+# The grant-expiry sweeper runs on a 1-min timer in real envs; in tests it
+# would interleave with sandboxed connections. Tests that exercise the
+# sweeper start it explicitly via `start_supervised/2`.
+config :lynx, :start_grant_sweeper, false
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

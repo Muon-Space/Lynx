@@ -66,7 +66,14 @@ defmodule LynxWeb.Plug.RequirePerm do
   def call(conn, %{permission: permission, from: from}) do
     with {:ok, user} <- fetch_user(conn),
          {:ok, project} <- fetch_project(conn, from) do
-      if RoleContext.can?(user, project, permission) do
+      env = fetch_env(conn, from)
+
+      perms =
+        if env,
+          do: RoleContext.effective_permissions(user, project, env),
+          else: RoleContext.effective_permissions(user, project)
+
+      if RoleContext.has?(perms, permission) do
         conn
       else
         forbidden(conn, "Insufficient role for #{permission}")
@@ -75,6 +82,17 @@ defmodule LynxWeb.Plug.RequirePerm do
       {:error, status, msg} -> error_response(conn, status, msg)
     end
   end
+
+  # -- Env resolution (for env-scoped strategies, so per-env grants apply) --
+
+  defp fetch_env(conn, :env_uuid), do: env_by_uuid(conn.params["e_uuid"])
+  defp fetch_env(conn, :env_p_uuid), do: env_by_uuid(conn.params["p_uuid"])
+  defp fetch_env(conn, :oidc_rule_env), do: env_by_uuid(conn.params["environment_id"])
+  defp fetch_env(_conn, _), do: nil
+
+  defp env_by_uuid(nil), do: nil
+  defp env_by_uuid(""), do: nil
+  defp env_by_uuid(uuid), do: EnvironmentContext.get_env_by_uuid(uuid)
 
   # -- User --
 

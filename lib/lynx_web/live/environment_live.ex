@@ -30,7 +30,10 @@ defmodule LynxWeb.EnvironmentLive do
               Settings.get_config("app_url", "http://localhost:4000")
               |> String.trim_trailing("/")
 
-            viewer_perms = RoleContext.effective_permissions(socket.assigns.current_user, project)
+            # Env-aware: per-env grant overrides apply when computing perms
+            # for buttons specific to this env (lock/unlock/etc).
+            viewer_perms =
+              RoleContext.effective_permissions(socket.assigns.current_user, project, env)
 
             socket =
               socket

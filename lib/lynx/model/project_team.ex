@@ -15,6 +15,9 @@ defmodule Lynx.Model.ProjectTeam do
     field :project_id, :id
     field :team_id, :id
     field :role_id, :id
+    field :expires_at, :utc_datetime
+    # Nullable: NULL = project-wide grant; non-null = env-specific override.
+    field :environment_id, :id
 
     timestamps()
   end
@@ -22,8 +25,13 @@ defmodule Lynx.Model.ProjectTeam do
   @doc false
   def changeset(project_team, attrs) do
     project_team
-    |> cast(attrs, [:uuid, :project_id, :team_id, :role_id])
+    |> cast(attrs, [:uuid, :project_id, :team_id, :role_id, :expires_at, :environment_id])
     |> validate_required([:uuid, :project_id, :team_id, :role_id])
-    |> unique_constraint([:project_id, :team_id])
+    |> unique_constraint([:project_id, :team_id, :environment_id],
+      name: :project_teams_team_project_env_unique
+    )
+    |> unique_constraint([:project_id, :team_id],
+      name: :project_teams_team_project_no_env_unique
+    )
   end
 end
