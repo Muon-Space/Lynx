@@ -267,7 +267,7 @@ defmodule Lynx.Context.RoleContext do
       %{
         teams:      [%{team:    %Team{},    project: %Project{}, env: %Environment{} | nil, expires_at: dt | nil}],
         users:      [%{user:    %User{},    project: %Project{}, env: %Environment{} | nil, expires_at: dt | nil}],
-        oidc_rules: [%{rule:    %OIDCAccessRule{}, provider: %OIDCProvider{}, env: %Environment{}, project: %Project{}, claim_rules: map}]
+        oidc_rules: [%{rule:    %OIDCAccessRule{}, provider: %OIDCProvider{}, env: %Environment{}, project: %Project{}, claim_rules: list | map}]
       }
 
   Each list is ordered by project name + then env name (nil-env, i.e.
@@ -341,13 +341,18 @@ defmodule Lynx.Context.RoleContext do
     %{teams: teams, users: users, oidc_rules: oidc_rules}
   end
 
-  defp decode_claim_rules(nil), do: %{}
-  defp decode_claim_rules(""), do: %{}
+  # Production rules (created via project_live / environment_live OIDC modal) store
+  # claim_rules as a JSON-encoded **list** of `%{"claim","operator","value"}`
+  # objects. Some seed/test paths still emit a flat `%{"claim" => "value"}` map —
+  # accept both shapes; renderers in role_live handle the union.
+  defp decode_claim_rules(nil), do: []
+  defp decode_claim_rules(""), do: []
 
   defp decode_claim_rules(json) when is_binary(json) do
     case Jason.decode(json) do
+      {:ok, list} when is_list(list) -> list
       {:ok, map} when is_map(map) -> map
-      _ -> %{}
+      _ -> []
     end
   end
 

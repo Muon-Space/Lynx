@@ -196,9 +196,20 @@ defmodule LynxWeb.RoleLive do
     end
   end
 
-  defp format_claims(claims) when map_size(claims) == 0, do: "(none)"
+  # Production rules store claim_rules as a list of `%{"claim","operator","value"}`
+  # objects (see project_live/environment_live `create_rule`). Map shape is the
+  # legacy/seed form: `%{"key" => "value"}`. Render both.
+  defp format_claims([]), do: "(none)"
 
-  defp format_claims(claims) do
+  defp format_claims(claims) when is_list(claims) do
+    claims
+    |> Enum.map(fn c -> "#{c["claim"]} #{c["operator"]} #{c["value"]}" end)
+    |> Enum.join(", ")
+  end
+
+  defp format_claims(claims) when is_map(claims) and map_size(claims) == 0, do: "(none)"
+
+  defp format_claims(claims) when is_map(claims) do
     claims
     |> Enum.map(fn {k, v} -> "#{k}=#{v}" end)
     |> Enum.join(", ")

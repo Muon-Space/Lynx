@@ -62,26 +62,33 @@ defmodule LynxWeb.ProfileLiveTest do
       refute html =~ user.api_key
     end
 
-    test "copy_api_key click pushes the real key over the LV socket", %{
+    test "copy_api_key event returns the real key as a correlated reply", %{
       conn: conn,
       user: user
     } do
+      # Drives the same path the JS hook uses: pushEvent("copy_api_key", {}, replyFn).
+      # The LV replies with `{:reply, %{value: api_key}, socket}`. The hook then
+      # writes that value to the clipboard. We can't drive the click via
+      # `render_click` because the button no longer has phx-click — the hook
+      # owns the click and converts it to a `pushEvent` so the response is
+      # correlated and not a broadcast.
       {:ok, view, _} = live(conn, "/admin/profile")
 
-      view |> element("button#copy-api-key") |> render_click()
-
-      assert_push_event(view, "copy_api_key", %{value: pushed_key})
-      assert pushed_key == user.api_key
+      api_key = user.api_key
+      render_hook(view, "copy_api_key", %{})
+      assert_reply(view, %{value: ^api_key})
     end
 
-    test "copy button is wired to the CopyApiKey hook (not data-target)", %{conn: conn} do
+    test "copy button is wired to the CopyApiKey hook with no phx-click", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/admin/profile")
       assert html =~ ~s(id="copy-api-key")
       # Colocated hooks render the dot-prefixed name resolved to the fully
       # qualified `<Module>.<HookName>` form — that's the contract LV uses
       # to look the hook up in the colocated manifest.
       assert html =~ ~s(phx-hook="LynxWeb.ProfileLive.CopyApiKey")
-      assert html =~ ~s(phx-click="copy_api_key")
+      # The hook owns the click + pushEvent (with reply); no phx-click on the
+      # button. This avoids the broadcast-vs-correlated handleEvent fragility.
+      refute html =~ ~s(phx-click="copy_api_key")
       # The old vulnerable target attribute should be gone
       refute html =~ "data-target=\"#api-key-real\""
     end

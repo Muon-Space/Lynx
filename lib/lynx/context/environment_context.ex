@@ -94,6 +94,19 @@ defmodule Lynx.Context.EnvironmentContext do
   end
 
   @doc """
+  Resolve `[env_uuid]` → `%{env_uuid => project_id}` in a single query. Used by
+  `AuditLive` to deep-link `environment` and `unit` events to their owning
+  project's env page without N round-trips.
+  """
+  def get_project_ids_by_env_uuids([]), do: %{}
+
+  def get_project_ids_by_env_uuids(env_uuids) when is_list(env_uuids) do
+    from(e in Environment, where: e.uuid in ^env_uuids, select: {e.uuid, e.project_id})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Get environment by uuid and project id
   """
   def get_env_by_uuid_project(project_id, env_uuid) do
@@ -348,7 +361,7 @@ defmodule Lynx.Context.EnvironmentContext do
               # OIDC provider auth
               OIDCBackend.is_oidc_provider?(data[:username]) ->
                 case OIDCBackend.validate_access(data[:username], data[:secret], env.id) do
-                  {:ok, permissions} -> {:ok, project, env, permissions}
+                  {:ok, permissions} -> {:ok, project, env, permissions, "oidc"}
                   {:error, _reason} -> {:error, "Invalid environment credentials"}
                 end
 
@@ -372,7 +385,7 @@ defmodule Lynx.Context.EnvironmentContext do
                         if MapSet.size(permissions) == 0 do
                           {:error, "User does not have access to this environment"}
                         else
-                          {:ok, project, env, permissions}
+                          {:ok, project, env, permissions, "user"}
                         end
                     end
                 end
@@ -380,7 +393,7 @@ defmodule Lynx.Context.EnvironmentContext do
               # Environment username/secret auth (legacy full-access path)
               true ->
                 if env.username == data[:username] and env.secret == data[:secret] do
-                  {:ok, project, env, RoleContext.permissions_for_env_credentials()}
+                  {:ok, project, env, RoleContext.permissions_for_env_credentials(), "env_secret"}
                 else
                   {:error, "Invalid environment credentials"}
                 end

@@ -80,7 +80,8 @@ defmodule LynxWeb.RoleLiveTest do
       {:ok, _} =
         OIDCBackend.create_rule(%{
           name: "deploy",
-          claim_rules: Jason.encode!(%{"repo" => "muon/infra"}),
+          claim_rules:
+            Jason.encode!([%{"claim" => "repo", "operator" => "eq", "value" => "muon/infra"}]),
           provider_id: provider.id,
           environment_id: env.id,
           role_id: role.id
@@ -98,6 +99,11 @@ defmodule LynxWeb.RoleLiveTest do
       assert html =~ "alice@example.com"
       assert html =~ "deploy"
       assert html =~ "github"
+
+      # Claims render — regression for the bug where production list-shape
+      # rules silently rendered "(none)" because decode_claim_rules/1 only
+      # handled maps.
+      assert html =~ "repo eq muon/infra"
 
       # Deep links
       assert html =~ "/admin/projects/#{project.uuid}"

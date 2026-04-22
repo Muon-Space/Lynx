@@ -1,13 +1,13 @@
 defmodule LynxWeb.AuditLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Context.AuditContext
+  alias Lynx.Context.{AuditContext, EnvironmentContext, ProjectContext}
 
   @per_page 50
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :filters, default_filters())}
+    {:ok, socket |> assign(:filters, default_filters()) |> assign(:link_index, %{})}
   end
 
   @impl true
@@ -141,7 +141,14 @@ defmodule LynxWeb.AuditLive do
                   <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
                 </td>
                 <td class="px-4 py-3">
-                  {event.resource_name || event.resource_id || "-"}
+                  <%= case Map.get(@link_index, event.uuid) do %>
+                    <% nil -> %>
+                      {event.resource_name || event.resource_id || "-"}
+                    <% path -> %>
+                      <.link navigate={path} class="text-clickable hover:text-clickable-hover">
+                        {event.resource_name || event.resource_id || "-"}
+                      </.link>
+                  <% end %>
                 </td>
               </tr>
             </tbody>
@@ -182,7 +189,8 @@ defmodule LynxWeb.AuditLive do
      socket
      |> stream(:events, events)
      |> assign(:next_offset, new_offset)
-     |> assign(:has_more?, new_offset < total)}
+     |> assign(:has_more?, new_offset < total)
+     |> assign(:link_index, Map.merge(socket.assigns.link_index, build_link_index(events)))}
   end
 
   defp reset_stream(socket) do
@@ -193,6 +201,7 @@ defmodule LynxWeb.AuditLive do
     |> assign(:next_offset, length(events))
     |> assign(:has_more?, length(events) < total)
     |> assign(:empty?, events == [])
+    |> assign(:link_index, build_link_index(events))
   end
 
   defp fetch_events(socket, offset) do
@@ -251,4 +260,77 @@ defmodule LynxWeb.AuditLive do
   defp format_datetime(dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S")
   end
+
+  # Build `%{event_uuid => path | nil}` for the page so the Name cell can
+  # render as a deep link. Two batched lookups cover env/unit (env_uuid →
+  # project.uuid via env.project_id); grant rows already carry project_uuid
+  # in `metadata` (no DB hit). Resources without a detail page (team, user,
+  # oidc_rule) get nil and render as plain text.
+  defp build_link_index(events) do
+    env_uuids =
+      events
+      |> Enum.filter(&(&1.resource_type in ["environment", "unit"] and is_binary(&1.resource_id)))
+      |> Enum.map(& &1.resource_id)
+      |> Enum.uniq()
+
+    env_to_project_id = EnvironmentContext.get_project_ids_by_env_uuids(env_uuids)
+    project_uuids = ProjectContext.get_uuids_by_ids(env_to_project_id |> Map.values() |> Enum.uniq())
+
+    Enum.into(events, %{}, fn ev ->
+      {ev.uuid, resource_link(ev, env_to_project_id, project_uuids)}
+    end)
+  end
+
+  defp resource_link(%{resource_type: "project", resource_id: id}, _, _) when is_binary(id),
+    do: "/admin/projects/#{id}"
+
+  defp resource_link(%{resource_type: "snapshot", resource_id: id}, _, _) when is_binary(id),
+    do: "/admin/snapshots/#{id}"
+
+  defp resource_link(%{resource_type: "role", resource_id: id}, _, _) when is_binary(id),
+    do: "/admin/roles/#{id}"
+
+  defp resource_link(%{resource_type: type, resource_id: env_uuid}, env_to_pid, pid_to_uuid)
+       when type in ["environment", "unit"] and is_binary(env_uuid) do
+    with project_id when not is_nil(project_id) <- Map.get(env_to_pid, env_uuid),
+         project_uuid when not is_nil(project_uuid) <- Map.get(pid_to_uuid, project_id) do
+      "/admin/projects/#{project_uuid}/environments/#{env_uuid}"
+    else
+      _ -> nil
+    end
+  end
+
+  defp resource_link(%{resource_type: type} = ev, _, _) when type in ["project_team", "user_project"] do
+    case metadata_get(ev, "project_uuid") do
+      nil -> nil
+      project_uuid -> "/admin/projects/#{project_uuid}"
+    end
+  end
+
+  defp resource_link(%{resource_type: type}, _, _)
+       when type in [
+              "settings",
+              "scim_token",
+              "scim",
+              "sso_scim",
+              "saml_certificate",
+              "email",
+              "general",
+              "oidc_provider"
+            ],
+       do: "/admin/settings"
+
+  defp resource_link(_, _, _), do: nil
+
+  defp metadata_get(%{metadata: nil}, _), do: nil
+  defp metadata_get(%{metadata: ""}, _), do: nil
+
+  defp metadata_get(%{metadata: json}, key) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, map} when is_map(map) -> Map.get(map, key)
+      _ -> nil
+    end
+  end
+
+  defp metadata_get(_, _), do: nil
 end

@@ -89,10 +89,17 @@ defmodule Lynx.Context.RoleContextGrantsTest do
           audience: "lynx"
         })
 
+      # Production list shape (matches what project_live / environment_live
+      # `create_rule` emits): a JSON-encoded list of claim/operator/value
+      # objects. Regression guard for a bug where decode_claim_rules/1 only
+      # accepted maps and silently rendered "(none)" for every real rule.
+      claim_rules =
+        Jason.encode!([%{"claim" => "repository", "operator" => "eq", "value" => "muon/infra"}])
+
       {:ok, _} =
         OIDCBackend.create_rule(%{
           name: "deploy",
-          claim_rules: Jason.encode!(%{"repository" => "muon/infra"}),
+          claim_rules: claim_rules,
           provider_id: provider.id,
           environment_id: env.id,
           role_id: role.id
@@ -102,7 +109,10 @@ defmodule Lynx.Context.RoleContextGrantsTest do
       assert grant.provider.name == "github-actions"
       assert grant.env.name == "prod"
       assert grant.project.name == "Infra"
-      assert grant.claim_rules == %{"repository" => "muon/infra"}
+
+      assert grant.claim_rules == [
+               %{"claim" => "repository", "operator" => "eq", "value" => "muon/infra"}
+             ]
     end
 
     test "all three lists populate when the role is granted across all three" do
@@ -133,7 +143,7 @@ defmodule Lynx.Context.RoleContextGrantsTest do
       {:ok, _} =
         OIDCBackend.create_rule(%{
           name: "r",
-          claim_rules: Jason.encode!(%{}),
+          claim_rules: Jason.encode!([]),
           provider_id: provider.id,
           environment_id: env.id,
           role_id: role.id
