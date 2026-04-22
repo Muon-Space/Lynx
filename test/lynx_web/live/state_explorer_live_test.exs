@@ -122,7 +122,7 @@ defmodule LynxWeb.StateExplorerLiveTest do
       assert viewer_state(view, 1) == %{"v" => 1}
     end
 
-    test "compare with shows two panes and diff container id", %{
+    test "compare with shows the semantic-diff toolbar (default view)", %{
       conn: conn,
       project: project,
       env: env
@@ -130,6 +130,28 @@ defmodule LynxWeb.StateExplorerLiveTest do
       {:ok, view, _} = live(conn, explorer_path(project, env))
 
       render_change(view, "version_change", %{"version" => "3", "compare" => "1"})
+
+      html = render(view)
+      # Default diff view is :semantic — Resources/Raw toggle is visible.
+      assert html =~ "Resources"
+      assert html =~ "Raw JSON"
+      # The seed states are `{"v": N}` (no `resources` array) so the diff is
+      # empty — the LV renders the "no resource-level changes" message.
+      assert html =~ "No resource-level changes"
+    end
+
+    test "switching to Raw view exposes the line-diff container", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      render_change(view, "version_change", %{"version" => "3", "compare" => "1"})
+
+      # Semantic by default → no #diff-N-N container
+      refute has_element?(view, "#diff-3-1")
+
+      render_click(view, "set_diff_view", %{"view" => "raw"})
 
       assert has_element?(view, "#diff-3-1")
       assert viewer_state(view, 3) == %{"v" => 3}
@@ -147,6 +169,90 @@ defmodule LynxWeb.StateExplorerLiveTest do
 
       refute has_element?(view, "[id^=\"diff-\"]")
       assert viewer_state(view, 2) == %{"v" => 2}
+    end
+
+    test "semantic diff renders summary counts + per-resource cards for real TF state", %{
+      user: user,
+      workspace: ws
+    } do
+      # Use a fresh project + env so we can seed real Terraform-shaped state
+      # without colliding with the setup's `{"v":N}` placeholders.
+      project = create_project(%{workspace_id: ws.id, name: "tf-semantic"})
+      env = create_env(project, %{name: "p", slug: "p"})
+
+      v1 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_vpc",
+              "name" => "main",
+              "instances" => [%{"attributes" => %{"cidr" => "10.0.0.0/16"}}]
+            },
+            %{
+              "mode" => "managed",
+              "type" => "aws_security_group",
+              "name" => "doomed",
+              "instances" => [%{"attributes" => %{"name" => "sg-old"}}]
+            }
+          ]
+        })
+
+      v2 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              # changed
+              "mode" => "managed",
+              "type" => "aws_vpc",
+              "name" => "main",
+              "instances" => [%{"attributes" => %{"cidr" => "10.1.0.0/16"}}]
+            },
+            %{
+              # added
+              "mode" => "managed",
+              "type" => "aws_iam_role",
+              "name" => "ci",
+              "instances" => [%{"attributes" => %{"name" => "ci"}}]
+            }
+          ]
+        })
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      render_change(view, "version_change", %{"version" => "2", "compare" => "1"})
+      html = render(view)
+
+      # Summary text — number is wrapped in a <span> so assert on parsed
+      # text content (whitespace-collapsed) rather than a raw HTML substring.
+      text =
+        html
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "1 added"
+      assert text =~ "1 changed"
+      assert text =~ "1 removed"
+
+      # Resource cards (one per category) — the type.name label is contiguous
+      # text inside <code> so a raw substring match is fine.
+      assert html =~ "aws_vpc.main"
+      assert html =~ "aws_security_group.doomed"
+      assert html =~ "aws_iam_role.ci"
+
+      # The changed card surfaces the changed attribute name + values
+      assert html =~ "cidr"
+      assert html =~ "10.0.0.0/16"
+      assert html =~ "10.1.0.0/16"
     end
   end
 

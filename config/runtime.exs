@@ -24,6 +24,33 @@ if System.get_env("PHX_SERVER") do
   config :lynx, LynxWeb.Endpoint, server: true
 end
 
+# OpenTelemetry: opt-in via env vars. When `OTEL_EXPORTER_OTLP_ENDPOINT` is
+# set we configure the OTLP exporter; otherwise the SDK is disabled and there
+# is zero added latency. Setting `OTEL_SDK_DISABLED=true` also forces no-op.
+#
+# Standard OTel env vars (parsed by `:opentelemetry_exporter` directly):
+#   - OTEL_EXPORTER_OTLP_ENDPOINT      (e.g. https://collector:4318)
+#   - OTEL_EXPORTER_OTLP_HEADERS       (e.g. authorization=Bearer ...)
+#   - OTEL_EXPORTER_OTLP_PROTOCOL      (http_protobuf | grpc; default http_protobuf)
+#   - OTEL_SERVICE_NAME                (defaults to "lynx" below)
+#   - OTEL_RESOURCE_ATTRIBUTES         (k=v,k=v)
+#
+# Documented in `docs/_documentation/Installation.md`.
+if System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT") &&
+     (System.get_env("OTEL_SDK_DISABLED") || "false") != "true" do
+  config :opentelemetry,
+    span_processor: :batch,
+    traces_exporter: :otlp
+
+  config :opentelemetry, :resource,
+    service: %{name: System.get_env("OTEL_SERVICE_NAME") || "lynx"}
+else
+  # Hard-disable so no spans are sampled / exported. `noop` keeps the API
+  # callable (Tracer.with_span etc) but the work degenerates to plain function
+  # calls — no measurable overhead vs not having OTel wired at all.
+  config :opentelemetry, traces_exporter: :none
+end
+
 # Auth configuration
 config :lynx,
   auth_password_enabled: (System.get_env("AUTH_PASSWORD_ENABLED") || "true") == "true",

@@ -9,6 +9,8 @@ defmodule LynxWeb.TfController do
   alias Lynx.Context.EnvironmentContext
   alias Lynx.Context.RoleContext
 
+  require OpenTelemetry.Tracer, as: Tracer
+
   plug :auth
 
   defp auth(conn, _opts) do
@@ -55,9 +57,11 @@ defmodule LynxWeb.TfController do
 
     case action do
       "state" ->
-        require_permission(conn, "state:read", fn conn ->
-          get_state(conn, w_slug, p_slug, e_slug, sub_path)
-        end)
+        Tracer.with_span "tf.state.get", attributes: tf_attrs(w_slug, p_slug, e_slug, sub_path) do
+          require_permission(conn, "state:read", fn conn ->
+            get_state(conn, w_slug, p_slug, e_slug, sub_path)
+          end)
+        end
 
       _ ->
         conn |> send_resp(404, "Not found")
@@ -70,21 +74,29 @@ defmodule LynxWeb.TfController do
       ) do
     {sub_path, action} = parse_rest(rest)
 
+    attrs = tf_attrs(w_slug, p_slug, e_slug, sub_path)
+
     case action do
       "state" ->
-        require_permission(conn, "state:write", fn conn ->
-          push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
-        end)
+        Tracer.with_span "tf.state.push", attributes: attrs do
+          require_permission(conn, "state:write", fn conn ->
+            push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+          end)
+        end
 
       "lock" ->
-        require_permission(conn, "state:lock", fn conn ->
-          lock(conn, w_slug, p_slug, e_slug, sub_path, params)
-        end)
+        Tracer.with_span "tf.state.lock", attributes: attrs do
+          require_permission(conn, "state:lock", fn conn ->
+            lock(conn, w_slug, p_slug, e_slug, sub_path, params)
+          end)
+        end
 
       "unlock" ->
-        require_permission(conn, "state:unlock", fn conn ->
-          unlock(conn, w_slug, p_slug, e_slug, sub_path)
-        end)
+        Tracer.with_span "tf.state.unlock", attributes: attrs do
+          require_permission(conn, "state:unlock", fn conn ->
+            unlock(conn, w_slug, p_slug, e_slug, sub_path)
+          end)
+        end
 
       _ ->
         conn |> send_resp(404, "Not found")
@@ -302,6 +314,17 @@ defmodule LynxWeb.TfController do
       {action, []} -> {"", action}
       {action, path_parts} -> {Enum.join(path_parts, "/"), action}
     end
+  end
+
+  # Common OTel span attributes for `/tf/` actions. The path tuple is the
+  # natural correlation key for an end-to-end trace of a Terraform run.
+  defp tf_attrs(w_slug, p_slug, e_slug, sub_path) do
+    %{
+      "lynx.workspace.slug" => w_slug,
+      "lynx.project.slug" => p_slug,
+      "lynx.env.slug" => e_slug,
+      "lynx.unit.sub_path" => sub_path
+    }
   end
 
   # Single audit-emit path for /tf endpoint actions (state push, lock, unlock).

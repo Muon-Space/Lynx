@@ -6,6 +6,7 @@ defmodule Lynx.Worker.SnapshotWorker do
   use GenServer
 
   require Logger
+  require OpenTelemetry.Tracer, as: Tracer
 
   def start_link(state) do
     GenServer.start_link(__MODULE__, state, name: __MODULE__)
@@ -35,12 +36,18 @@ defmodule Lynx.Worker.SnapshotWorker do
     {:noreply, state}
   end
 
+  # Spans wrap the entry points even though the bodies are stubs today —
+  # when the real long-running work lands the trace is already in place.
   defp create_snapshots do
-    Logger.info("Create any Outstanding Snapshot")
+    Tracer.with_span "lynx.snapshot_worker.create_snapshots" do
+      Logger.info("Create any Outstanding Snapshot")
+    end
   end
 
   defp restore_snapshots do
-    Logger.info("Restore any Outstanding Snapshot")
+    Tracer.with_span "lynx.snapshot_worker.restore_snapshots" do
+      Logger.info("Restore any Outstanding Snapshot")
+    end
   end
 
   defp schedule_work do

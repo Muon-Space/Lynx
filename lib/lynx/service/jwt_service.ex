@@ -9,6 +9,7 @@ defmodule Lynx.Service.JWTService do
   """
 
   require Logger
+  require OpenTelemetry.Tracer, as: Tracer
 
   @cache_table :lynx_jwks_cache
   @cache_ttl_seconds 3600
@@ -24,30 +25,41 @@ defmodule Lynx.Service.JWTService do
   Returns {:ok, claims} or {:error, reason}.
   """
   def validate_token(discovery_url, jwt, expected_audience \\ nil) do
-    init_cache()
+    Tracer.with_span "lynx.jwt.validate_token" do
+      init_cache()
 
-    with {:ok, jwks} <- get_jwks(discovery_url),
-         {:ok, claims} <- verify_and_decode(jwt, jwks),
-         :ok <- check_expiry(claims),
-         :ok <- check_audience(claims, expected_audience) do
-      {:ok, claims}
+      with {:ok, jwks} <- get_jwks(discovery_url),
+           {:ok, claims} <- verify_and_decode(jwt, jwks),
+           :ok <- check_expiry(claims),
+           :ok <- check_audience(claims, expected_audience) do
+        {:ok, claims}
+      else
+        {:error, reason} = err ->
+          Tracer.set_status(:error, to_string(reason))
+          err
+      end
     end
   end
 
   defp get_jwks(discovery_url) do
     case get_cached("jwks:#{discovery_url}") do
       {:ok, jwks} ->
+        Tracer.set_attribute("lynx.jwks.cache", "hit")
         {:ok, jwks}
 
       :miss ->
-        with {:ok, doc} <- fetch_discovery(discovery_url),
-             jwks_uri when is_binary(jwks_uri) <- doc["jwks_uri"],
-             {:ok, jwks} <- fetch_jwks(jwks_uri) do
-          put_cached("jwks:#{discovery_url}", jwks)
-          {:ok, jwks}
-        else
-          nil -> {:error, "No jwks_uri in discovery document"}
-          {:error, reason} -> {:error, reason}
+        Tracer.set_attribute("lynx.jwks.cache", "miss")
+
+        Tracer.with_span "lynx.jwks.fetch" do
+          with {:ok, doc} <- fetch_discovery(discovery_url),
+               jwks_uri when is_binary(jwks_uri) <- doc["jwks_uri"],
+               {:ok, jwks} <- fetch_jwks(jwks_uri) do
+            put_cached("jwks:#{discovery_url}", jwks)
+            {:ok, jwks}
+          else
+            nil -> {:error, "No jwks_uri in discovery document"}
+            {:error, reason} -> {:error, reason}
+          end
         end
     end
   end

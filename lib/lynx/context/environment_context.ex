@@ -14,6 +14,8 @@ defmodule Lynx.Context.EnvironmentContext do
   alias Lynx.Context.{LockContext, ProjectContext, RoleContext, UserContext, WorkspaceContext}
   alias Lynx.Service.OIDCBackend
 
+  require OpenTelemetry.Tracer, as: Tracer
+
   @doc """
   Get a new environment
   """
@@ -338,6 +340,32 @@ defmodule Lynx.Context.EnvironmentContext do
   the project, or the static env credentials' implicit full access).
   """
   def is_access_allowed(data \\ %{}) do
+    Tracer.with_span "lynx.is_access_allowed",
+      attributes: %{
+        "lynx.workspace.slug" => data[:workspace_slug],
+        "lynx.project.slug" => data[:project_slug],
+        "lynx.env.slug" => data[:env_slug]
+      } do
+      result = do_is_access_allowed(data)
+
+      case result do
+        {:ok, project, env, _perms, auth_mode} ->
+          Tracer.set_attributes(%{
+            "lynx.auth.mode" => auth_mode,
+            "lynx.project.uuid" => project.uuid,
+            "lynx.env.uuid" => env.uuid
+          })
+
+        {:error, reason} ->
+          Tracer.set_attributes(%{"lynx.auth.error" => reason})
+          Tracer.set_status(:error, reason)
+      end
+
+      result
+    end
+  end
+
+  defp do_is_access_allowed(data) do
     workspace = WorkspaceContext.get_workspace_by_slug(data[:workspace_slug])
 
     project =

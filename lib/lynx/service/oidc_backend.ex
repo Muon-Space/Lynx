@@ -19,6 +19,8 @@ defmodule Lynx.Service.OIDCBackend do
   alias Lynx.Context.RoleContext
   alias Lynx.Service.JWTService
 
+  require OpenTelemetry.Tracer, as: Tracer
+
   @doc """
   Check if a username matches an active OIDC provider.
   """
@@ -32,19 +34,27 @@ defmodule Lynx.Service.OIDCBackend do
   `{:error, reason}`. The permission set comes from the matched rule's role.
   """
   def validate_access(provider_name, jwt, environment_id) do
-    case OIDCProviderContext.get_provider_by_name(provider_name) do
-      nil ->
-        {:error, "Unknown OIDC provider: #{provider_name}"}
+    Tracer.with_span "lynx.oidc.validate_access",
+      attributes: %{
+        "lynx.oidc.provider_name" => provider_name
+      } do
+      case OIDCProviderContext.get_provider_by_name(provider_name) do
+        nil ->
+          Tracer.set_status(:error, "unknown_provider")
+          {:error, "Unknown OIDC provider: #{provider_name}"}
 
-      provider ->
-        case JWTService.validate_token(provider.discovery_url, jwt, provider.audience) do
-          {:ok, claims} ->
-            evaluate_access(provider.id, environment_id, claims)
+        provider ->
+          case JWTService.validate_token(provider.discovery_url, jwt, provider.audience) do
+            {:ok, claims} ->
+              Tracer.set_attribute("lynx.oidc.claim_count", map_size(claims))
+              evaluate_access(provider.id, environment_id, claims)
 
-          {:error, reason} ->
-            Logger.info("OIDC token validation failed for provider #{provider_name}: #{reason}")
-            {:error, "Token validation failed: #{reason}"}
-        end
+            {:error, reason} ->
+              Logger.info("OIDC token validation failed for provider #{provider_name}: #{reason}")
+              Tracer.set_status(:error, reason)
+              {:error, "Token validation failed: #{reason}"}
+          end
+      end
     end
   end
 

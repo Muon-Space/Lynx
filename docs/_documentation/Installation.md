@@ -87,6 +87,33 @@ When deploying via Helm or any production Docker setup, the app reads these env 
 | `SSO_PROTOCOL` | required if SSO on | `oidc` or `saml`. |
 | `SSO_*` | required per protocol | Issuer/client/cert config. See `config/runtime.exs` for the full list. |
 | `SCIM_ENABLED` | optional | `true`/`false`. Default `false`. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | OpenTelemetry OTLP endpoint (e.g. `https://collector.example.com:4318`). When **unset**, the OTel SDK is disabled — zero added latency. When set, traces export to the configured collector. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | optional | Comma-separated headers for OTLP, e.g. `authorization=Bearer abc123`. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | optional | `http_protobuf` (default) or `grpc`. |
+| `OTEL_SERVICE_NAME` | optional | Service name in trace data. Defaults to `lynx`. |
+| `OTEL_RESOURCE_ATTRIBUTES` | optional | Additional resource attrs, e.g. `deployment.environment=prod`. |
+| `OTEL_SDK_DISABLED` | optional | Set to `true` to force the SDK off even if `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+
+### OpenTelemetry traces
+
+When `OTEL_EXPORTER_OTLP_ENDPOINT` is set, Lynx exports distributed traces. Phoenix HTTP requests and Ecto DB queries are auto-instrumented; explicit spans cover the operationally-interesting paths:
+
+- Per-`/tf/` action: `tf.state.get`, `tf.state.push`, `tf.state.lock`, `tf.state.unlock` (workspace / project / env / sub_path attrs).
+- `lynx.is_access_allowed`: which auth path matched (`oidc` / `user` / `env_secret`), project + env UUIDs, or the failure reason.
+- `lynx.oidc.validate_access` + `lynx.jwt.validate_token` + `lynx.jwks.fetch`: provider name, claim count, JWKS cache hit/miss, validation failures.
+- `lynx.snapshot_worker.{create,restore}_snapshots`: per worker tick.
+
+Quick local verification with a Jaeger all-in-one container:
+
+```bash
+docker run -d --name jaeger -p 16686:16686 -p 4318:4318 \
+  -e COLLECTOR_OTLP_ENABLED=true jaegertracing/all-in-one:latest
+
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+OTEL_EXPORTER_OTLP_PROTOCOL=http_protobuf \
+  make run
+# Drive some /tf traffic, then open http://localhost:16686 → Service "lynx".
+```
 
 
 ## Manual (Ubuntu)
