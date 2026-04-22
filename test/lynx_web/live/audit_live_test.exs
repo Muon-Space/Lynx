@@ -252,25 +252,41 @@ defmodule LynxWeb.AuditLiveTest do
       assert html =~ ~s(href="/admin/projects/proj-via-metadata")
     end
 
-    test "settings-family resources link to /admin/settings", %{conn: conn, user: user} do
+    test "settings-family resources land on the right tab", %{conn: conn, user: user} do
+      # Cards live on different tabs in /admin/settings; the audit row should
+      # take the user straight to the relevant card, not just the page.
       AuditContext.log_user(user, "updated", "settings", nil, "general")
+      AuditContext.log_user(user, "generated", "scim_token", "tok-uuid", "ci-token")
+      AuditContext.log_user(user, "generated", "saml_certificate", nil, "saml-cert")
+      AuditContext.log_user(user, "created", "oidc_provider", "prov-uuid", "github-actions")
 
       {:ok, _view, html} = live(conn, "/admin/audit")
-      assert html =~ ~s(href="/admin/settings")
+      assert html =~ ~s(href="/admin/settings?tab=general")
+      assert html =~ ~s(href="/admin/settings?tab=scim")
+      assert html =~ ~s(href="/admin/settings?tab=sso")
+      assert html =~ ~s(href="/admin/settings?tab=oidc")
     end
 
-    test "team / user / oidc_rule have no detail page → no link", %{conn: conn, user: user} do
+    test "team and user rows deep-link to the edit modal via ?edit=UUID", %{
+      conn: conn,
+      user: user
+    } do
       AuditContext.log_user(user, "created", "team", "t-uuid", "Platform")
-      AuditContext.log_user(user, "created", "user", "u-uuid", "Alice")
+      AuditContext.log_user(user, "updated", "user", "u-uuid", "Alice")
+
+      {:ok, _view, html} = live(conn, "/admin/audit")
+      # The audit row jumps straight to the edit modal of the affected
+      # resource (teams_live + users_live each handle ?edit=UUID).
+      assert html =~ ~s(href="/admin/teams?edit=t-uuid")
+      assert html =~ ~s(href="/admin/users?edit=u-uuid")
+    end
+
+    test "oidc_rule has no detail page → no link", %{conn: conn, user: user} do
       AuditContext.log_user(user, "created", "oidc_rule", "r-uuid", "deploy")
 
       {:ok, _view, html} = live(conn, "/admin/audit")
-      refute html =~ ~s(href="/admin/teams/t-uuid")
-      refute html =~ ~s(href="/admin/users/u-uuid")
       refute html =~ ~s(href="/admin/projects/r-uuid")
-      # The plain text still renders
-      assert html =~ "Platform"
-      assert html =~ "Alice"
+      # The plain text still renders.
       assert html =~ "deploy"
     end
 

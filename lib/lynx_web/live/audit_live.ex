@@ -310,20 +310,30 @@ defmodule LynxWeb.AuditLive do
     end
   end
 
-  defp resource_link(%{resource_type: type}, _, _)
-       when type in [
-              "settings",
-              "scim_token",
-              "scim",
-              "sso_scim",
-              "saml_certificate",
-              "email",
-              "general",
-              "oidc_provider"
-            ],
-       do: "/admin/settings"
+  defp resource_link(%{resource_type: "team", resource_id: id}, _, _) when is_binary(id),
+    do: "/admin/teams?edit=#{id}"
 
-  defp resource_link(_, _, _), do: nil
+  defp resource_link(%{resource_type: "user", resource_id: id}, _, _) when is_binary(id),
+    do: "/admin/users?edit=#{id}"
+
+  # Settings page exposes its sections via `?tab=`. Land on the right one
+  # so the audit row jumps the user straight to the relevant card.
+  defp resource_link(%{resource_type: type}, _, _) do
+    case settings_tab_for(type) do
+      nil -> nil
+      tab -> "/admin/settings?tab=#{tab}"
+    end
+  end
+
+  defp settings_tab_for("scim_token"), do: "scim"
+  defp settings_tab_for("scim"), do: "scim"
+  defp settings_tab_for("sso_scim"), do: "scim"
+  defp settings_tab_for("saml_certificate"), do: "sso"
+  defp settings_tab_for("oidc_provider"), do: "oidc"
+  defp settings_tab_for("settings"), do: "general"
+  defp settings_tab_for("email"), do: "general"
+  defp settings_tab_for("general"), do: "general"
+  defp settings_tab_for(_), do: nil
 
   defp metadata_get(%{metadata: nil}, _), do: nil
   defp metadata_get(%{metadata: ""}, _), do: nil

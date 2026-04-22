@@ -46,24 +46,59 @@ defmodule LynxWeb.ProfileLive do
         </div>
       </.card>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyApiKey">
-        // Click → pushEvent with reply: server returns the cleartext key in a
-        // correlated response (no broadcast, no DOM embed). The earlier
-        // phx-click + handleEvent broadcast pattern was unreliable for a
-        // single-shot value response.
+        // Browsers gate `navigator.clipboard.writeText` on a recent user
+        // activation (the click event). After an async LV roundtrip the
+        // activation has expired, so a fetch-then-copy chain silently fails
+        // in Safari/Firefox. Solution: prefetch the key on mount and on
+        // hover/focus into a hook-local variable, then the click handler
+        // writes synchronously while the activation is still live. The key
+        // sits in the hook closure (not the DOM); it crosses the wire on
+        // page entry, but the user is already viewing their own profile.
         export default {
           mounted() {
+            this.apiKey = null
+            this.fetching = false
+
+            const prefetch = () => {
+              if (this.apiKey || this.fetching) return
+              this.fetching = true
+              this.pushEvent("copy_api_key", {}, (reply) => {
+                this.apiKey = reply && reply.value
+                this.fetching = false
+              })
+            }
+
+            // Eager prefetch + warm again on hover in case it ever races.
+            prefetch()
+            this.el.addEventListener("mouseenter", prefetch)
+            this.el.addEventListener("focus", prefetch)
+
             this.el.addEventListener("click", (e) => {
               e.preventDefault()
-              this.pushEvent("copy_api_key", {}, (reply) => {
-                let value = reply && reply.value
-                if (!value) return
-                navigator.clipboard.writeText(value).then(() => {
-                  let orig = this.el.textContent
-                  this.el.textContent = "Copied!"
-                  setTimeout(() => { this.el.textContent = orig }, 1500)
-                })
+              const value = this.apiKey
+              if (!value) {
+                // Click landed before prefetch. Trigger one and ask the user
+                // to retry — silent failure was the original bug.
+                prefetch()
+                const orig = this.el.textContent
+                this.el.textContent = "Loading…"
+                setTimeout(() => { this.el.textContent = orig }, 800)
+                return
+              }
+              navigator.clipboard.writeText(value).then(() => {
+                const orig = this.el.textContent
+                this.el.textContent = "Copied!"
+                setTimeout(() => { this.el.textContent = orig }, 1500)
+              }, () => {
+                const orig = this.el.textContent
+                this.el.textContent = "Copy failed"
+                setTimeout(() => { this.el.textContent = orig }, 1500)
               })
             })
+          },
+          // Force re-prefetch after `rotate_api_key` returns a new key.
+          updated() {
+            this.apiKey = null
           }
         }
       </script>

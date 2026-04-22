@@ -27,6 +27,27 @@ defmodule LynxWeb.TeamsLive do
     {:ok, socket}
   end
 
+  # `?edit=UUID` deep-links from the audit log open the edit modal directly,
+  # so an admin can jump from an audit row to the affected team's editor.
+  # Mirrors the existing `edit_team` event handler shape.
+  @impl true
+  def handle_params(%{"edit" => uuid}, _uri, socket) when is_binary(uuid) do
+    case TeamContext.fetch_team_by_uuid(uuid) do
+      {:ok, team} ->
+        {:noreply,
+         assign(socket,
+           editing_team: team,
+           editing_members: TeamContext.get_team_member_options(team.id),
+           editing_member_options: user_options("")
+         )}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
   @impl true
   def render(assigns) do
     ~H"""
