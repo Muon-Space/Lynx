@@ -84,8 +84,10 @@ Then `terraform init && terraform plan && terraform apply`.
 
 Open the project and scroll to the **Project Access** card.
 
-* **Teams** — pick an existing team and assign a role (planner / applier / admin). Everyone in the team gets that role on this project.
+* **Teams** — pick an existing team and assign a role (planner / applier / admin, or any custom role you've defined at `/admin/roles`). Everyone in the team gets that role on this project.
 * **Individual users** — pick a user and assign a role directly. Their effective permissions are the union of their direct grant and any team grants.
+* **Optional expiry** — set "Expires" on a grant for time-bounded access ("Bob is applier on prod for the next 4 hours"). A sweeper revokes expired grants automatically.
+* **Per-env overrides** — the per-env tabs let you scope a grant to a single environment instead of the whole project. Useful for "team A is applier in dev, planner in prod."
 
 The role badge shows in the column. Roles are described under [Role-based access control](#role-based-access-control) below.
 

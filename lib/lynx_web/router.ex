@@ -66,6 +66,7 @@ defmodule LynxWeb.Router do
       live "/admin/audit", AuditLive
       live "/admin/users", UsersLive
       live "/admin/teams", TeamsLive
+      live "/admin/roles", RolesLive
       live "/admin/settings", SettingsLive
     end
 

@@ -68,9 +68,9 @@ Three roles ship by default:
 |---|---|
 | **Planner** | `state:read`, `state:lock`, `state:unlock` |
 | **Applier** | Planner's set + `state:write`, `snapshot:create` |
-| **Admin** | Applier's set + `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
+| **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
 
-The data model supports custom roles (a UI for them is on the roadmap).
+Custom roles can be created at `/admin/roles` (super only). System roles carry `is_system: true` and can't be edited or deleted.
 
 ### Effective permissions
 
@@ -84,6 +84,20 @@ Code: `Lynx.Context.RoleContext.effective_permissions(user, project)` returns a 
 For OIDC tokens, the same union semantic applies across **every matching access rule** — so a token that matches both a permissive `planner` rule and a more specific `applier` rule gets applier's set. (Without union semantics, the auth result would depend on rule ordering.)
 
 `super` users bypass per-project RBAC entirely.
+
+### Per-environment overrides
+
+Both `project_teams` and `user_projects` carry an optional `environment_id` column. `NULL` means "project-wide grant" — applies to every env. A non-null `environment_id` is an **env-specific override** that wins over project-wide grants when computing perms for that env.
+
+`Lynx.Context.RoleContext.effective_permissions/3` (`(user, project, env)`) is the env-aware variant: if env-specific grants exist for the env, they're used in isolation; otherwise it falls back to project-wide. The 2-arg `effective_permissions/2` only considers project-wide grants — used by callers that don't have env context.
+
+The Project Access UI surfaces this with per-env tabs in the Access card. The "All envs" tab shows project-wide grants; each env tab shows that env's overrides.
+
+### Time-bounded grants
+
+Both grant tables also carry an optional `expires_at` column. `NULL` = permanent (the default). Set `expires_at` and the grant is honored only until that timestamp; `effective_permissions` filters expired rows out at lookup time, and `Lynx.Worker.GrantExpirySweeper` deletes them once a minute (also emitting an `expired` audit event).
+
+The Project Access card lets admins set an expiry when granting and clear it ("Make permanent") on existing grants.
 
 ## Lock semantics
 
@@ -121,6 +135,7 @@ Lynx.Application
 ├── Phoenix.PubSub           # cluster-wide PubSub
 ├── Finch                    # HTTP client (OIDC discovery, JWKS)
 ├── :sleeplocks              # named single-slot lock used by LockContext
+├── Lynx.Worker.GrantExpirySweeper   # sweeps expired role grants once/min
 └── LynxWeb.Endpoint         # Phoenix HTTP endpoint
 ```
 
@@ -155,9 +170,9 @@ The `Lynx.Module.*` namespace was retired in PR #22. Resource-scoped code lives 
 |---|---|
 | `users`, `users_session`, `users_meta` | User accounts; session stores `token` for cookie-auth. |
 | `teams`, `users_teams`, `teams_meta` | Teams + membership. |
-| `workspaces`, `projects`, `projects_meta`, `project_teams` | The hierarchy. `project_teams.role_id` controls team RBAC. |
-| `user_projects` | Direct (non-team) role grants. Composes via union with team grants. |
-| `roles`, `role_permissions` | The RBAC layer. Three default roles seeded; supports custom roles. |
+| `workspaces`, `projects`, `projects_meta`, `project_teams` | The hierarchy. `project_teams.role_id` controls team RBAC; `expires_at` makes it time-bounded; `environment_id` (nullable) is the per-env override. |
+| `user_projects` | Direct (non-team) role grants. Same `expires_at` + `environment_id` columns. Composes via union with team grants. |
+| `roles`, `role_permissions` | The RBAC layer. Three system roles (`is_system: true`) plus any custom roles created at `/admin/roles`. |
 | `environments`, `environments_meta` | Per-project deploy targets. Owns username/secret. |
 | `states`, `states_meta`, `locks`, `locks_meta` | Terraform state versions and locks (sub-path-aware). |
 | `snapshots`, `snapshots_meta`, `tasks`, `tasks_meta` | Snapshots + their async tasks. |

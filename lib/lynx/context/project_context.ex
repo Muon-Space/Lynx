@@ -280,29 +280,66 @@ defmodule Lynx.Context.ProjectContext do
   @doc """
   Add a project to a team. If `role_id` is omitted, the seeded "applier" role
   is used so existing call sites preserve their full-access behavior.
+
+  `expires_at` (optional, `DateTime` or nil) makes the grant time-bounded —
+  the periodic `Lynx.Worker.GrantExpirySweeper` deletes expired rows and
+  `RoleContext.effective_permissions/2` ignores them at lookup time.
   """
-  def add_project_to_team(project_id, team_id, role_id \\ nil) do
+  def add_project_to_team(
+        project_id,
+        team_id,
+        role_id \\ nil,
+        expires_at \\ nil,
+        environment_id \\ nil
+      ) do
     role_id = role_id || default_applier_role_id()
 
-    %ProjectTeam{}
-    |> ProjectTeam.changeset(%{
+    attrs = %{
       project_id: project_id,
       team_id: team_id,
       role_id: role_id,
-      uuid: Ecto.UUID.generate()
-    })
+      uuid: Ecto.UUID.generate(),
+      environment_id: environment_id
+    }
+
+    attrs = if expires_at, do: Map.put(attrs, :expires_at, expires_at), else: attrs
+
+    %ProjectTeam{}
+    |> ProjectTeam.changeset(attrs)
     |> Repo.insert(on_conflict: :nothing)
   end
 
   @doc """
-  Update the role for a (project, team) membership.
+  Set or clear the expiry on an existing project-team grant. `environment_id`
+  selects which scope's grant to update: `nil` for the project-wide row,
+  an integer for an env-specific override row.
   """
-  def set_project_team_role(project_id, team_id, role_id) do
+  def set_project_team_expires_at(project_id, team_id, expires_at, environment_id \\ nil) do
+    project_team_query(project_id, team_id, environment_id)
+    |> Repo.update_all(set: [expires_at: expires_at, updated_at: DateTime.utc_now()])
+  end
+
+  @doc """
+  Update the role for a (project, team) membership. `environment_id`
+  scopes to the project-wide row (nil) or an env-specific row (integer).
+  """
+  def set_project_team_role(project_id, team_id, role_id, environment_id \\ nil) do
+    project_team_query(project_id, team_id, environment_id)
+    |> Repo.update_all(set: [role_id: role_id, updated_at: DateTime.utc_now()])
+  end
+
+  defp project_team_query(project_id, team_id, nil) do
     from(pt in ProjectTeam,
       where: pt.project_id == ^project_id and pt.team_id == ^team_id,
-      update: [set: [role_id: ^role_id, updated_at: ^DateTime.utc_now()]]
+      where: is_nil(pt.environment_id)
     )
-    |> Repo.update_all([])
+  end
+
+  defp project_team_query(project_id, team_id, env_id) when is_integer(env_id) do
+    from(pt in ProjectTeam,
+      where: pt.project_id == ^project_id and pt.team_id == ^team_id,
+      where: pt.environment_id == ^env_id
+    )
   end
 
   @doc """
@@ -326,13 +363,11 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
-  Remove a project from a team
+  Remove a project from a team. If `environment_id` is given, removes only
+  the env-specific override row; if nil, removes the project-wide row.
   """
-  def remove_project_from_team(project_id, team_id) do
-    from(pt in ProjectTeam,
-      where: pt.project_id == ^project_id,
-      where: pt.team_id == ^team_id
-    )
+  def remove_project_from_team(project_id, team_id, environment_id \\ nil) do
+    project_team_query(project_id, team_id, environment_id)
     |> Repo.delete_all()
   end
 
@@ -365,7 +400,7 @@ defmodule Lynx.Context.ProjectContext do
   List `{team, project_team_row}` pairs for a project — used to render the
   Access card with each team's current role.
   """
-  def list_project_team_assignments(project_id) do
+  def list_project_team_assignments(project_id, environment_id \\ nil) do
     alias Lynx.Model.Team
 
     from(pt in ProjectTeam,
@@ -375,8 +410,14 @@ defmodule Lynx.Context.ProjectContext do
       order_by: [asc: t.name],
       select: {t, pt}
     )
+    |> filter_by_env(environment_id)
     |> Repo.all()
   end
+
+  defp filter_by_env(query, nil), do: from([pt, _t] in query, where: is_nil(pt.environment_id))
+
+  defp filter_by_env(query, env_id) when is_integer(env_id),
+    do: from([pt, _t] in query, where: pt.environment_id == ^env_id)
 
   @doc """
   List `{project, project_team_row}` pairs for a team — powers the Teams page

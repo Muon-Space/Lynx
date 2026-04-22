@@ -31,7 +31,6 @@ defmodule Lynx.Context.RoleContext do
 
   alias Lynx.Repo
   alias Lynx.Model.{Project, ProjectTeam, Role, RolePermission, User, UserTeam}
-  alias Lynx.Context.UserProjectContext
 
   @permissions ~w(
     state:read
@@ -80,6 +79,155 @@ defmodule Lynx.Context.RoleContext do
   @doc "Look up a role by primary key."
   def get_role_by_id(id), do: Repo.get(Role, id)
 
+  # -- Custom role CRUD --
+
+  @doc """
+  Create a custom role with the given permission set.
+
+  Returns `{:ok, role}` on success, `{:error, msg}` if the name is taken or
+  the permission list contains unknown permissions. New roles always have
+  `is_system: false` — system roles can only be created via migrations.
+  """
+  def create_role(attrs \\ %{}) do
+    name = attrs[:name] || attrs["name"]
+    description = attrs[:description] || attrs["description"] || ""
+    permissions = attrs[:permissions] || attrs["permissions"] || []
+
+    with :ok <- validate_permissions(permissions),
+         {:ok, role} <-
+           %Role{}
+           |> Role.changeset(%{
+             uuid: Ecto.UUID.generate(),
+             name: name,
+             description: description,
+             is_system: false
+           })
+           |> Repo.insert() do
+      :ok = replace_role_permissions(role.id, permissions)
+      {:ok, role}
+    else
+      :unknown_permission -> {:error, "Unknown permission(s) in selection"}
+      {:error, %Ecto.Changeset{} = cs} -> {:error, format_changeset_error(cs)}
+    end
+  end
+
+  @doc """
+  Update a custom role's name, description, and permission set.
+
+  System roles are protected — `{:error, :system_role}` is returned for them.
+  Permission changes are an atomic replace (delete + insert) inside a
+  transaction.
+  """
+  def update_role(%Role{is_system: true}, _attrs), do: {:error, :system_role}
+
+  def update_role(%Role{} = role, attrs) do
+    permissions = attrs[:permissions] || attrs["permissions"]
+    name = attrs[:name] || attrs["name"] || role.name
+    description = attrs[:description] || attrs["description"] || role.description
+
+    with :ok <- validate_permissions(permissions || []) do
+      Repo.transaction(fn ->
+        case role
+             |> Role.changeset(%{name: name, description: description})
+             |> Repo.update() do
+          {:ok, updated} ->
+            if permissions, do: :ok = replace_role_permissions(role.id, permissions)
+            updated
+
+          {:error, cs} ->
+            Repo.rollback(format_changeset_error(cs))
+        end
+      end)
+    else
+      :unknown_permission -> {:error, "Unknown permission(s) in selection"}
+    end
+  end
+
+  @doc """
+  Delete a custom role.
+
+  Refuses to delete system roles. The `role_permissions` rows go away via
+  `on_delete: :delete_all`; the `:restrict` foreign keys on `project_teams`,
+  `user_projects`, and `oidc_access_rules` will surface as `{:error, msg}`
+  if the role is still referenced anywhere.
+  """
+  def delete_role(%Role{is_system: true}), do: {:error, :system_role}
+
+  def delete_role(%Role{} = role) do
+    case Repo.delete(role) do
+      {:ok, _} ->
+        :ok
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        # The on_delete: :restrict FKs surface as a constraint error here.
+        {:error, format_changeset_error(cs)}
+    end
+  rescue
+    Ecto.ConstraintError ->
+      {:error, "Role is in use — remove all team / user / OIDC grants first"}
+  end
+
+  @doc """
+  Replace a role's permission set with `new_permissions` (a list of
+  permission strings). Atomic: deletes existing rows, inserts the new set.
+  Caller is responsible for validating the permissions first.
+  """
+  def replace_role_permissions(role_id, new_permissions) when is_list(new_permissions) do
+    Repo.transaction(fn ->
+      from(rp in RolePermission, where: rp.role_id == ^role_id)
+      |> Repo.delete_all()
+
+      rows =
+        new_permissions
+        |> Enum.uniq()
+        |> Enum.map(fn perm ->
+          %{
+            role_id: role_id,
+            permission: perm,
+            inserted_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second),
+            updated_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+          }
+        end)
+
+      if rows != [], do: Repo.insert_all(RolePermission, rows)
+      :ok
+    end)
+    |> case do
+      {:ok, :ok} -> :ok
+      other -> other
+    end
+  end
+
+  defp validate_permissions(permissions) when is_list(permissions) do
+    bad = Enum.reject(permissions, fn p -> p in @permissions end)
+    if bad == [], do: :ok, else: :unknown_permission
+  end
+
+  defp validate_permissions(_), do: :unknown_permission
+
+  @doc """
+  Count active grants of `role_id` across `project_teams`, `user_projects`,
+  and `oidc_access_rules`. Used to flag roles as "in use" in the admin UI
+  so an admin understands why delete is blocked.
+  """
+  def count_role_usage(role_id) when is_integer(role_id) do
+    alias Lynx.Model.{OIDCAccessRule, ProjectTeam, UserProject}
+
+    [
+      from(pt in ProjectTeam, select: count(pt.id), where: pt.role_id == ^role_id),
+      from(up in UserProject, select: count(up.id), where: up.role_id == ^role_id),
+      from(o in OIDCAccessRule, select: count(o.id), where: o.role_id == ^role_id)
+    ]
+    |> Enum.map(&Repo.one/1)
+    |> Enum.sum()
+  end
+
+  defp format_changeset_error(%Ecto.Changeset{errors: errors}) do
+    errors
+    |> Enum.map(fn {field, {message, _}} -> "#{field}: #{message}" end)
+    |> Enum.at(0)
+  end
+
   @doc """
   Return the set of permission strings granted by a role.
   Accepts either a role struct, a role id, or nil.
@@ -106,8 +254,8 @@ defmodule Lynx.Context.RoleContext do
   end
 
   def effective_permissions(%User{id: user_id}, project_id) when is_integer(project_id) do
-    team_role_ids = team_role_ids_for_user(user_id, project_id)
-    individual_role_id = UserProjectContext.get_role_id_for(user_id, project_id)
+    team_role_ids = team_role_ids_for_user(user_id, project_id, nil)
+    individual_role_id = active_user_project_role_id(user_id, project_id, nil)
 
     role_ids =
       [individual_role_id | team_role_ids]
@@ -118,6 +266,58 @@ defmodule Lynx.Context.RoleContext do
   end
 
   def effective_permissions(_, _), do: MapSet.new()
+
+  @doc """
+  Env-aware effective permissions (#32 per-environment overrides).
+
+  Resolution order:
+
+    1. If env-specific grants exist for `(user, project, env)`, union those.
+    2. Otherwise fall back to project-wide grants (env_id IS NULL) — the
+       legacy behavior preserved by the migration.
+
+  This means an env-specific grant overrides project-wide grants **for
+  that env**, never partial-overrides them. So if Team A has an admin
+  project-wide grant and a planner override on prod, Team A is planner on
+  prod (not admin ∪ planner). This matches the issue spec; if we ever
+  want union semantics across both scopes, change `else` → "project
+  perms also" below.
+
+  Super users get all permissions (unchanged).
+  """
+  def effective_permissions(%User{role: "super"}, _project_or_id, _env),
+    do: MapSet.new(@permissions)
+
+  def effective_permissions(%User{} = user, %Project{id: project_id}, env),
+    do: effective_permissions(user, project_id, env)
+
+  def effective_permissions(%User{id: user_id}, project_id, env)
+      when is_integer(project_id) do
+    env_id = resolve_env_id(env)
+
+    if env_id do
+      env_team_ids = team_role_ids_for_user(user_id, project_id, env_id)
+      env_individual_id = active_user_project_role_id(user_id, project_id, env_id)
+      env_role_ids = Enum.reject([env_individual_id | env_team_ids], &is_nil/1)
+
+      if env_role_ids == [] do
+        # No env-specific grants → fall back to project-wide.
+        effective_permissions(%User{id: user_id, role: "regular"}, project_id)
+      else
+        union_permissions(Enum.uniq(env_role_ids))
+      end
+    else
+      # No env in scope → project-wide grants only (legacy 2-arg behavior).
+      effective_permissions(%User{id: user_id, role: "regular"}, project_id)
+    end
+  end
+
+  def effective_permissions(_, _, _), do: MapSet.new()
+
+  defp resolve_env_id(nil), do: nil
+  defp resolve_env_id(%Lynx.Model.Environment{id: id}), do: id
+  defp resolve_env_id(id) when is_integer(id), do: id
+  defp resolve_env_id(_), do: nil
 
   @doc "Permission set granted by an OIDC access rule (resolved through its role)."
   def permissions_for_oidc_rule(%{role_id: role_id}) when not is_nil(role_id),
@@ -239,15 +439,48 @@ defmodule Lynx.Context.RoleContext do
     |> Enum.sort_by(& &1.project.name)
   end
 
-  defp team_role_ids_for_user(user_id, project_id) do
-    from(pt in ProjectTeam,
-      join: ut in UserTeam,
-      on: ut.team_id == pt.team_id,
-      where: pt.project_id == ^project_id and ut.user_id == ^user_id,
-      select: pt.role_id
-    )
+  # `env_id`: nil = project-wide grants only (env_id IS NULL); integer =
+  # env-specific grants (env_id matches). Always filters expired rows.
+  defp team_role_ids_for_user(user_id, project_id, env_id) do
+    now = DateTime.utc_now()
+
+    base =
+      from(pt in ProjectTeam,
+        join: ut in UserTeam,
+        on: ut.team_id == pt.team_id,
+        where: pt.project_id == ^project_id and ut.user_id == ^user_id,
+        where: is_nil(pt.expires_at) or pt.expires_at > ^now,
+        select: pt.role_id
+      )
+
+    base
+    |> scope_to_env(env_id, :pt)
     |> Repo.all()
   end
+
+  # User's direct grant on a project, filtered by expiry + env scope.
+  defp active_user_project_role_id(user_id, project_id, env_id) do
+    alias Lynx.Model.UserProject
+    now = DateTime.utc_now()
+
+    base =
+      from(up in UserProject,
+        where: up.user_id == ^user_id and up.project_id == ^project_id,
+        where: is_nil(up.expires_at) or up.expires_at > ^now,
+        select: up.role_id,
+        limit: 1
+      )
+
+    base
+    |> scope_to_env(env_id, :up)
+    |> Repo.one()
+  end
+
+  defp scope_to_env(query, nil, _),
+    do: from([row] in query, where: is_nil(row.environment_id))
+
+  defp scope_to_env(query, env_id, _) when is_integer(env_id),
+    do: from([row] in query, where: row.environment_id == ^env_id)
 
   # Build a {role_id => permission_count} map so a single role's "weight" is
   # cached across the dedup loop. Permission count is a stable proxy for role
