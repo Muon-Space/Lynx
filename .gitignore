@@ -49,3 +49,8 @@ example/hello.txt
 
 # Playwright trace artifacts (only written when PW_TRACE=true)
 /tmp/playwright/
+
+# Playwright debugging screenshots (default `screenshot_dir` in
+# `config :phoenix_test`); created on-demand by tests calling
+# `PhoenixTest.Playwright.screenshot/3`.
+/screenshots/
