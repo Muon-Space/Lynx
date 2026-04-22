@@ -46,3 +46,6 @@ lynx_dev*
 example/hello.txt
 
 .vagrant
+
+# Playwright trace artifacts (only written when PW_TRACE=true)
+/tmp/playwright/

@@ -64,9 +64,13 @@ defmodule Lynx.MixProject do
       {:floki, "~> 0.38", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
+      {:phoenix_test_playwright, "~> 0.13", only: :test, runtime: false},
       {:phoenix_live_dashboard, "~> 0.8"},
-      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      # Runtime in test as well so feature tests (PhoenixTest.Playwright) can
+      # build the JS/CSS bundle into `priv/static/assets` before booting the
+      # endpoint — colocated hooks won't load otherwise.
+      {:esbuild, "~> 0.10", runtime: Mix.env() in [:dev, :test]},
+      {:tailwind, "~> 0.3", runtime: Mix.env() in [:dev, :test]},
       {:heroicons, "~> 0.5"},
       {:swoosh, "~> 1.25"},
       {:telemetry_metrics, "~> 1.1"},
@@ -98,8 +102,11 @@ defmodule Lynx.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       coveralls: ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls"],
-      "coveralls.html": ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls.html"]
-      # "assets.deploy": ["esbuild default --minify", "phx.digest"]
+      "coveralls.html": ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls.html"],
+      # Build the JS + CSS bundles into `priv/static/assets` (one-shot; no
+      # watch mode). Used by `make feature_test` so the endpoint serves the
+      # colocated hooks the browser tests rely on.
+      "assets.deploy": ["tailwind lynx --minify", "esbuild lynx --minify"]
     ]
   end
 end

@@ -111,3 +111,30 @@ openapi_check:
 ## ci: Run ci (tests + coverage gate + OpenAPI drift check)
 .PHONY: ci
 ci: coverage openapi_check
+
+
+## playwright_install: Install chromium browser for feature tests (one-shot)
+.PHONY: playwright_install
+playwright_install:
+	@echo ">> ============= Install Playwright chromium ============= <<"
+	@cd assets && npm install
+	@npx --prefix assets playwright install --with-deps chromium
+
+
+## assets_deploy: Build JS + CSS bundles into priv/static/assets
+.PHONY: assets_deploy
+assets_deploy:
+	@echo ">> ============= Build assets ============= <<"
+	@$(mix) assets.deploy
+
+
+## feature_test: Run browser-driven feature tests (PhoenixTest.Playwright)
+.PHONY: feature_test
+feature_test: assets_deploy
+	@echo ">> ============= Feature tests (Playwright) ============= <<"
+	@$(mix) test --only feature
+
+
+## ci_feature: CI entry point for feature tests (install browser, then run)
+.PHONY: ci_feature
+ci_feature: playwright_install feature_test
