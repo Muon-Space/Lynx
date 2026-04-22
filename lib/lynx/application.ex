@@ -11,6 +11,13 @@ defmodule Lynx.Application do
 
   @impl true
   def start(_type, _args) do
+    # Auto-instrumentation for Phoenix + Ecto. Both attach `:telemetry` handlers
+    # that emit OTel spans for HTTP requests + DB queries respectively. Safe
+    # to call unconditionally — when no OTLP endpoint is configured the SDK
+    # is no-op (see `config/runtime.exs`).
+    OpentelemetryPhoenix.setup(adapter: :bandit)
+    OpentelemetryEcto.setup([:lynx, :repo])
+
     base = [
       # Start the Ecto repository
       Lynx.Repo,

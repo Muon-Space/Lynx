@@ -120,6 +120,128 @@ defmodule Lynx.Context.StateContext do
     |> Repo.one()
   end
 
+  @doc """
+  Compute a semantic diff between two Terraform state versions, keyed on
+  resource identity `(mode, type, name, instance.index_key)` so a
+  `count`-expanded resource shows one card per instance rather than one
+  whole-resource churn.
+
+  Accepts either two `%State{}` structs, two raw JSON strings, or a mix.
+
+  Returns:
+
+      %{
+        added:   [%{key: id_tuple, mode: ..., type: ..., name: ..., index_key: ..., attributes: %{...}}],
+        changed: [%{key: ..., mode: ..., type: ..., name: ..., index_key: ..., before: %{...}, after: %{...}, attributes: [{k, before, after}]}],
+        removed: [%{key: ..., mode: ..., type: ..., name: ..., index_key: ..., attributes: %{...}}]
+      }
+
+  Each `changed` entry's `:attributes` list contains only the keys that
+  actually differ — not the full attribute set. Sentinel `:absent` is used
+  when a key exists on one side and not the other.
+
+  Resilient to malformed input: anything that doesn't decode to a JSON
+  object gets treated as an empty state. State files prior to terraform
+  0.12 (no top-level `resources` array) are also treated as empty —
+  Lynx wasn't a backend for them.
+  """
+  @spec diff(any(), any()) :: %{added: list(), changed: list(), removed: list()}
+  def diff(before, after_state) do
+    before_idx = decode_resources(before)
+    after_idx = decode_resources(after_state)
+
+    before_keys = MapSet.new(Map.keys(before_idx))
+    after_keys = MapSet.new(Map.keys(after_idx))
+
+    added =
+      MapSet.difference(after_keys, before_keys)
+      |> Enum.sort()
+      |> Enum.map(fn key -> resource_entry(key, after_idx[key], :added) end)
+
+    removed =
+      MapSet.difference(before_keys, after_keys)
+      |> Enum.sort()
+      |> Enum.map(fn key -> resource_entry(key, before_idx[key], :removed) end)
+
+    changed =
+      MapSet.intersection(before_keys, after_keys)
+      |> Enum.sort()
+      |> Enum.flat_map(fn key ->
+        b = before_idx[key]
+        a = after_idx[key]
+
+        case attribute_diff(b["attributes"], a["attributes"]) do
+          [] -> []
+          attrs -> [resource_entry(key, a, :changed, before: b, after: a, attributes: attrs)]
+        end
+      end)
+
+    %{added: added, changed: changed, removed: removed}
+  end
+
+  # Returns `%{key_tuple => instance_payload}` for every resource instance.
+  defp decode_resources(%State{value: value}), do: decode_resources(value)
+  defp decode_resources(nil), do: %{}
+  defp decode_resources(""), do: %{}
+
+  defp decode_resources(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, %{"resources" => resources}} when is_list(resources) ->
+        for %{"mode" => mode, "type" => type, "name" => name, "instances" => instances} <-
+              resources,
+            instance <- List.wrap(instances),
+            into: %{} do
+          index_key = Map.get(instance, "index_key")
+          payload = Map.put(instance, "_meta", %{mode: mode, type: type, name: name})
+          {{mode, type, name, index_key}, payload}
+        end
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp decode_resources(_), do: %{}
+
+  defp resource_entry(key, payload, status, extras \\ []) do
+    {mode, type, name, index_key} = key
+
+    base = %{
+      key: key,
+      status: status,
+      mode: mode,
+      type: type,
+      name: name,
+      index_key: index_key,
+      attributes: Map.get(payload || %{}, "attributes", %{})
+    }
+
+    Enum.into(extras, base)
+  end
+
+  # Per-attribute diff: returns `[{key, before, after}]` for keys that differ.
+  # `:absent` sentinel marks "key not present on this side". Nested maps are
+  # compared as a whole — Terraform attributes are usually flat enough that
+  # showing the full sub-map on either side is more readable than recursing.
+  defp attribute_diff(nil, nil), do: []
+  defp attribute_diff(nil, after_attrs), do: attribute_diff(%{}, after_attrs)
+  defp attribute_diff(before_attrs, nil), do: attribute_diff(before_attrs, %{})
+
+  defp attribute_diff(before_attrs, after_attrs)
+       when is_map(before_attrs) and is_map(after_attrs) do
+    keys = MapSet.union(MapSet.new(Map.keys(before_attrs)), MapSet.new(Map.keys(after_attrs)))
+
+    keys
+    |> Enum.sort()
+    |> Enum.flat_map(fn k ->
+      b = Map.get(before_attrs, k, :absent)
+      a = Map.get(after_attrs, k, :absent)
+      if b == a, do: [], else: [{k, b, a}]
+    end)
+  end
+
+  defp attribute_diff(_, _), do: []
+
   def count_states_by_path(environment_id, sub_path) do
     from(s in State,
       select: count(s.id),

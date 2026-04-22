@@ -54,11 +54,18 @@ defmodule LynxWeb.StateExplorerLive do
               |> assign(:versions, versions)
               |> assign(:max_version, max_version)
               |> assign(:selected_version, selected)
-              |> assign(:compare_version, nil)
+              # Default both sides to the latest so the user can flip either
+              # dropdown to start a diff without first needing to pick a
+              # value here. Equal selected/compare suppresses the diff
+              # render (single-pane view), same as the previous nil default.
+              |> assign(:compare_version, selected)
               |> assign(:is_locked, is_locked)
               |> assign(:confirm, nil)
               |> assign(:snapshot_version, nil)
               |> assign(:viewer_perms, viewer_perms)
+              # Diff UI: semantic (resource cards) is default; user can flip
+              # to the raw line-diff via the toggle.
+              |> assign(:diff_view, :semantic)
 
             {:ok, socket}
         end
@@ -75,7 +82,15 @@ defmodule LynxWeb.StateExplorerLive do
         sv = find_version_by_uuid(socket.assigns.versions, snapshot_uuid)
 
         if sv do
-          {:noreply, socket |> assign(:selected_version, sv) |> assign(:snapshot_version, sv)}
+          # Snapshot deep links land the user on a specific version — show
+          # that version directly (single pane) instead of opening a diff
+          # against the latest. They can pick a different `compare with`
+          # if they want a diff afterwards.
+          {:noreply,
+           socket
+           |> assign(:selected_version, sv)
+           |> assign(:compare_version, sv)
+           |> assign(:snapshot_version, sv)}
         else
           {:noreply, socket}
         end
@@ -143,27 +158,85 @@ defmodule LynxWeb.StateExplorerLive do
           </div>
         </form>
 
-        <div :if={@compare_version && @compare_version != @selected_version} id={"diff-#{@selected_version}-#{@compare_version}"} phx-hook=".DiffHighlight" class="grid grid-cols-2 gap-4">
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs text-muted font-medium">v{@selected_version}{if @selected_version == @max_version, do: " (Current)", else: ""}</span>
-              <.copy_button id={"copy-left-#{@selected_version}"} target={"#state-left-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
+        <%= if @compare_version && @compare_version != @selected_version do %>
+          <% diff = compute_diff(@versions, @selected_version, @compare_version) %>
+
+          <p class="text-xs text-muted mb-2">
+            Changes if you replaced <strong>v{@selected_version}</strong> with <strong>v{@compare_version}</strong>:
+          </p>
+
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-3 text-sm">
+              <span :if={diff.added != []} class="inline-flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full bg-flash-success-bg"></span>
+                <span class="font-semibold">{length(diff.added)}</span> would be added
+              </span>
+              <span :if={diff.changed != []} class="inline-flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full bg-accent"></span>
+                <span class="font-semibold">{length(diff.changed)}</span> would change
+              </span>
+              <span :if={diff.removed != []} class="inline-flex items-center gap-1">
+                <span class="inline-block w-2 h-2 rounded-full bg-flash-error-bg"></span>
+                <span class="font-semibold">{length(diff.removed)}</span> would be removed
+              </span>
+              <% bytes_match = bytes_match?(@versions, @selected_version, @compare_version) %>
+              <span :if={diff.added == [] and diff.changed == [] and diff.removed == [] and bytes_match} class="text-muted">
+                v{@selected_version} and v{@compare_version} are identical.
+              </span>
+              <span :if={diff.added == [] and diff.changed == [] and diff.removed == [] and not bytes_match} class="text-muted">
+                No resource-level changes between v{@selected_version} and v{@compare_version} — the states differ in non-resource fields (serial, lineage, outputs). Switch to <strong>Raw JSON</strong> to see them.
+              </span>
             </div>
-            <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
-              <pre id={"state-left-#{@selected_version}"} data-diff="left" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @selected_version)}</pre>
+            <div class="flex gap-2">
+              <button
+                type="button"
+                phx-click="set_diff_view"
+                phx-value-view="semantic"
+                class={["text-xs px-3 py-1.5 rounded-lg border", @diff_view == :semantic && "bg-accent text-on-primary border-accent" || "border-border-input text-secondary hover:bg-surface-secondary cursor-pointer"]}
+              >
+                Resources
+              </button>
+              <button
+                type="button"
+                phx-click="set_diff_view"
+                phx-value-view="raw"
+                class={["text-xs px-3 py-1.5 rounded-lg border", @diff_view == :raw && "bg-accent text-on-primary border-accent" || "border-border-input text-secondary hover:bg-surface-secondary cursor-pointer"]}
+              >
+                Raw JSON
+              </button>
             </div>
           </div>
-          <div>
-            <div class="flex items-center justify-between mb-1">
-              <span class="text-xs text-muted font-medium">v{@compare_version}{if @compare_version == @max_version, do: " (Current)", else: ""}</span>
-              <.copy_button id={"copy-right-#{@compare_version}"} target={"#state-right-raw-#{@compare_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
+
+          <%= if @diff_view == :semantic do %>
+            <div :if={diff.added != [] or diff.changed != [] or diff.removed != []} class="space-y-2">
+              <.resource_diff_card :for={r <- diff.removed} entry={r} />
+              <.resource_diff_card :for={r <- diff.changed} entry={r} />
+              <.resource_diff_card :for={r <- diff.added} entry={r} />
             </div>
-            <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
-              <pre id={"state-right-#{@compare_version}"} data-diff="right" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @compare_version)}</pre>
-              <pre id={"state-right-raw-#{@compare_version}"} class="hidden">{get_version_state(@versions, @compare_version)}</pre>
+          <% else %>
+            <div id={"diff-#{@selected_version}-#{@compare_version}"} phx-hook=".DiffHighlight" class="grid grid-cols-2 gap-4">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs text-muted font-medium">v{@selected_version}{if @selected_version == @max_version, do: " (Current)", else: ""}</span>
+                  <.copy_button id={"copy-left-#{@selected_version}"} target={"#state-left-#{@selected_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
+                </div>
+                <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
+                  <pre id={"state-left-#{@selected_version}"} data-diff="left" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @selected_version)}</pre>
+                </div>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-xs text-muted font-medium">v{@compare_version}{if @compare_version == @max_version, do: " (Current)", else: ""}</span>
+                  <.copy_button id={"copy-right-#{@compare_version}"} target={"#state-right-raw-#{@compare_version}"} class="text-xs text-clickable hover:text-clickable-hover cursor-pointer">Copy</.copy_button>
+                </div>
+                <div class="bg-state-viewer rounded-lg p-4 max-h-[600px] overflow-auto border border-border">
+                  <pre id={"state-right-#{@compare_version}"} data-diff="right" class="text-xs font-mono whitespace-pre-wrap text-state-viewer-text">{get_version_state(@versions, @compare_version)}</pre>
+                  <pre id={"state-right-raw-#{@compare_version}"} class="hidden">{get_version_state(@versions, @compare_version)}</pre>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          <% end %>
+        <% end %>
         <script :type={Phoenix.LiveView.ColocatedHook} name=".DiffHighlight">
           import {diffLines} from "diff"
           export default {
@@ -289,6 +362,11 @@ defmodule LynxWeb.StateExplorerLive do
     end)
   end
 
+  def handle_event("set_diff_view", %{"view" => view}, socket) do
+    view_atom = if view == "raw", do: :raw, else: :semantic
+    {:noreply, assign(socket, :diff_view, view_atom)}
+  end
+
   def handle_event("version_change", params, socket) do
     version =
       case params["version"] do
@@ -316,6 +394,96 @@ defmodule LynxWeb.StateExplorerLive do
       {:noreply, put_flash(socket, :error, "You do not have permission for #{perm}")}
     end
   end
+
+  # Direction matters: the diff is "what changes if I move from `selected`
+  # to `compare`". So `selected` is `before` and `compare` is `after`.
+  # Reading the labels:
+  #
+  #   * "added"   — in `compare`, not in `selected` → restoring `compare`
+  #                 *adds* this resource
+  #   * "removed" — in `selected`, not in `compare` → restoring `compare`
+  #                 *removes* this resource
+  #   * "changed" — in both, attributes differ
+  #
+  # Concretely: `selected = v24 (current)`, `compare = v21 (target)` →
+  # "5 removed" means "restoring v21 would delete 5 resources from
+  # current state". Flip the dropdowns and the same delta reads as
+  # "5 added" — what restoring v24 from v21 would do.
+  defp compute_diff(versions, selected, compare) do
+    StateContext.diff(
+      raw_state(versions, selected),
+      raw_state(versions, compare)
+    )
+  end
+
+  defp raw_state(versions, version_num) do
+    case Enum.find(versions, fn {_state, idx} -> idx == version_num end) do
+      {state, _} -> state.value
+      nil -> nil
+    end
+  end
+
+  # `true` only when the two states' raw JSON values are byte-identical.
+  # Used to differentiate "no change at all" from "non-resource fields
+  # changed (serial, lineage, outputs)" — the resource-level diff is empty
+  # for both, but they're meaningfully different cases for the operator.
+  defp bytes_match?(versions, a, b) do
+    raw_state(versions, a) == raw_state(versions, b)
+  end
+
+  attr :entry, :map, required: true
+
+  defp resource_diff_card(assigns) do
+    ~H"""
+    <details class={["rounded-lg border", card_border(@entry.status)]}>
+      <summary class={["cursor-pointer px-4 py-2 flex items-center gap-3 text-sm", card_bg(@entry.status)]}>
+        <.badge color={status_color(@entry.status)}>{status_label(@entry.status)}</.badge>
+        <code class="text-xs font-mono">{@entry.type}.{@entry.name}</code>
+        <span :if={@entry.index_key != nil} class="text-xs text-muted">[{inspect(@entry.index_key)}]</span>
+        <span :if={@entry.status == :changed} class="text-xs text-muted ml-auto">
+          {length(@entry.attributes)} {if length(@entry.attributes) == 1, do: "attribute", else: "attributes"} changed
+        </span>
+      </summary>
+      <div class="p-4 bg-state-viewer text-state-viewer-text text-xs font-mono">
+        <%= case @entry.status do %>
+          <% :changed -> %>
+            <div :for={{key, before_val, after_val} <- @entry.attributes} class="mb-2 last:mb-0">
+              <div class="text-secondary mb-1">{key}</div>
+              <div class="grid grid-cols-2 gap-2">
+                <pre class="bg-inset rounded p-2 whitespace-pre-wrap break-all">{format_value(before_val)}</pre>
+                <pre class="bg-inset rounded p-2 whitespace-pre-wrap break-all">{format_value(after_val)}</pre>
+              </div>
+            </div>
+          <% _ -> %>
+            <pre class="whitespace-pre-wrap break-all">{format_value(@entry.attributes)}</pre>
+        <% end %>
+      </div>
+    </details>
+    """
+  end
+
+  # Action-tense — the diff is "what would happen if you replaced selected
+  # with compare", so badges read as the operator's action: "would add" =
+  # "this resource appears in compare, restoring it would create it".
+  defp status_label(:added), do: "would add"
+  defp status_label(:changed), do: "would change"
+  defp status_label(:removed), do: "would remove"
+
+  defp status_color(:added), do: "green"
+  defp status_color(:changed), do: "blue"
+  defp status_color(:removed), do: "red"
+
+  defp card_border(:added), do: "border-flash-success-border"
+  defp card_border(:changed), do: "border-accent"
+  defp card_border(:removed), do: "border-flash-error-border"
+
+  defp card_bg(:added), do: "bg-flash-success-bg/30"
+  defp card_bg(:changed), do: "bg-surface-secondary"
+  defp card_bg(:removed), do: "bg-flash-error-bg/30"
+
+  defp format_value(:absent), do: "(absent)"
+  defp format_value(value) when is_binary(value), do: value
+  defp format_value(value), do: Jason.encode!(value, pretty: true)
 
   defp get_version_state(versions, version_num) when is_integer(version_num) do
     case Enum.find(versions, fn {_state, idx} -> idx == version_num end) do

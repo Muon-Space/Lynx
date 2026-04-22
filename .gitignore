@@ -36,6 +36,9 @@ lynx_test*
 lynx_dev*
 .vscode
 
+# Claude Code agent state (worktrees, plans, memory)
+/.claude/
+
 .terraform
 .terraform.lock.hcl
 

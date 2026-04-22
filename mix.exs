@@ -65,6 +65,15 @@ defmodule Lynx.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:phoenix_test_playwright, "~> 0.13", only: :test, runtime: false},
+      # OpenTelemetry: traces auto-attached to Phoenix + Ecto via the helper
+      # libs; explicit spans wrap `/tf/` actions, auth resolution, JWT verify,
+      # JWKS fetch, and the snapshot worker. No-op when no OTLP endpoint is
+      # set (zero added latency by default — see config/runtime.exs).
+      {:opentelemetry_api, "~> 1.4"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"},
       {:phoenix_live_dashboard, "~> 0.8"},
       # Runtime in test as well so feature tests (PhoenixTest.Playwright) can
       # build the JS/CSS bundle into `priv/static/assets` before booting the

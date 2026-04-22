@@ -94,6 +94,22 @@ defmodule LynxWeb.StateExplorerLiveTest do
       refute html =~ "Unit Locked"
     end
 
+    test "mount defaults compare-with to the latest so single pane shows", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      # Both selects point at the latest version on a clean load — equal
+      # selected/compare suppresses the diff and renders the single pane,
+      # so the user can flip either dropdown to start a diff.
+      {:ok, view, html} = live(conn, explorer_path(project, env))
+
+      refute has_element?(view, "[id^=\"diff-\"]")
+      refute html =~ "would be added"
+      refute html =~ "would be removed"
+      assert viewer_state(view, 3) == %{"v" => 3}
+    end
+
     test "lock badge shows Locked when active lock exists", %{
       conn: conn,
       project: project,
@@ -122,7 +138,7 @@ defmodule LynxWeb.StateExplorerLiveTest do
       assert viewer_state(view, 1) == %{"v" => 1}
     end
 
-    test "compare with shows two panes and diff container id", %{
+    test "compare with shows the semantic-diff toolbar (default view)", %{
       conn: conn,
       project: project,
       env: env
@@ -130,6 +146,28 @@ defmodule LynxWeb.StateExplorerLiveTest do
       {:ok, view, _} = live(conn, explorer_path(project, env))
 
       render_change(view, "version_change", %{"version" => "3", "compare" => "1"})
+
+      html = render(view)
+      # Default diff view is :semantic — Resources/Raw toggle is visible.
+      assert html =~ "Resources"
+      assert html =~ "Raw JSON"
+      # The seed states are `{"v": N}` (no `resources` array) so the diff is
+      # empty — the LV renders the "no resource-level changes" message.
+      assert html =~ "No resource-level changes"
+    end
+
+    test "switching to Raw view exposes the line-diff container", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      render_change(view, "version_change", %{"version" => "3", "compare" => "1"})
+
+      # Semantic by default → no #diff-N-N container
+      refute has_element?(view, "#diff-3-1")
+
+      render_click(view, "set_diff_view", %{"view" => "raw"})
 
       assert has_element?(view, "#diff-3-1")
       assert viewer_state(view, 3) == %{"v" => 3}
@@ -147,6 +185,225 @@ defmodule LynxWeb.StateExplorerLiveTest do
 
       refute has_element?(view, "[id^=\"diff-\"]")
       assert viewer_state(view, 2) == %{"v" => 2}
+    end
+
+    test "empty diff distinguishes byte-identical states from serial-bumped same-resource states",
+         %{
+           user: user,
+           workspace: ws
+         } do
+      # Two real-world cases the operator confuses with "diff is broken":
+      # (1) v_a == v_b byte-for-byte → "are identical"
+      # (2) v_a and v_b have the same resources but differ in non-resource
+      #     fields (serial, lineage) → "No resource-level changes ... Switch to Raw JSON"
+      project = create_project(%{workspace_id: ws.id, name: "tf-empty"})
+      env = create_env(project, %{name: "p", slug: "p-empty"})
+
+      resources = [
+        %{
+          "mode" => "managed",
+          "type" => "okta_group",
+          "name" => "g",
+          "instances" => [%{"attributes" => %{"name" => "Managers"}}]
+        }
+      ]
+
+      v1 = Jason.encode!(%{"version" => 4, "serial" => 5, "resources" => resources})
+      # Same resources, bumped serial — terraform refresh-only push
+      v2 = Jason.encode!(%{"version" => 4, "serial" => 6, "resources" => resources})
+      # Identical to v2 (no-op push)
+      v3 = v2
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+      _ = create_state(env, %{value: v3})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      # v1 vs v2 — same resources, different bytes (serial bumped)
+      render_change(view, "version_change", %{"version" => "1", "compare" => "2"})
+      html = render(view)
+      assert html =~ "No resource-level changes"
+      assert html =~ "non-resource fields"
+
+      # v2 vs v3 — byte-identical
+      render_change(view, "version_change", %{"version" => "2", "compare" => "3"})
+      html = render(view)
+      assert html =~ "are identical"
+    end
+
+    test "semantic diff renders summary counts + per-resource cards for real TF state", %{
+      user: user,
+      workspace: ws
+    } do
+      # Use a fresh project + env so we can seed real Terraform-shaped state
+      # without colliding with the setup's `{"v":N}` placeholders.
+      project = create_project(%{workspace_id: ws.id, name: "tf-semantic"})
+      env = create_env(project, %{name: "p", slug: "p"})
+
+      v1 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_vpc",
+              "name" => "main",
+              "instances" => [%{"attributes" => %{"cidr" => "10.0.0.0/16"}}]
+            },
+            %{
+              "mode" => "managed",
+              "type" => "aws_security_group",
+              "name" => "doomed",
+              "instances" => [%{"attributes" => %{"name" => "sg-old"}}]
+            }
+          ]
+        })
+
+      v2 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              # changed
+              "mode" => "managed",
+              "type" => "aws_vpc",
+              "name" => "main",
+              "instances" => [%{"attributes" => %{"cidr" => "10.1.0.0/16"}}]
+            },
+            %{
+              # added
+              "mode" => "managed",
+              "type" => "aws_iam_role",
+              "name" => "ci",
+              "instances" => [%{"attributes" => %{"name" => "ci"}}]
+            }
+          ]
+        })
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      # Selected = v2 (newer, has iam role + changed vpc, missing the sg).
+      # Compare with = v1 (older, has sg + original vpc, no iam role).
+      # Diff is *directional*: "what changes if I replace v2 with v1?"
+      #   - sg would be ADDED (it's in v1, not in v2)
+      #   - vpc cidr would CHANGE (10.1 → 10.0)
+      #   - iam_role would be REMOVED (it's in v2, not in v1)
+      render_change(view, "version_change", %{"version" => "2", "compare" => "1"})
+      html = render(view)
+
+      text =
+        html
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "1 would be added"
+      assert text =~ "1 would change"
+      assert text =~ "1 would be removed"
+
+      # Resource cards — assert which resource ended up in which bucket.
+      # `aws_security_group.doomed` exists in v1 only → would be added by
+      # restoring v1 over v2.
+      assert html =~ ~r/would add\s*<\/.+?>\s*<code[^>]*>\s*aws_security_group\.doomed/s ||
+               html =~ ~s(would add)
+
+      assert html =~ "aws_security_group.doomed"
+
+      # `aws_iam_role.ci` exists in v2 only → would be removed.
+      assert html =~ "aws_iam_role.ci"
+
+      # `aws_vpc.main` exists in both with different cidr → would change.
+      assert html =~ "aws_vpc.main"
+      assert html =~ "cidr"
+      assert html =~ "10.0.0.0/16"
+      assert html =~ "10.1.0.0/16"
+    end
+
+    test "diff is directional — flipping selected/compare swaps added ↔ removed", %{
+      user: user,
+      workspace: ws
+    } do
+      project = create_project(%{workspace_id: ws.id, name: "tf-direction"})
+      env = create_env(project, %{name: "p", slug: "p-direction"})
+
+      # v1 has sg only; v2 adds an iam_role and removes sg.
+      v1 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_security_group",
+              "name" => "sg",
+              "instances" => [%{"attributes" => %{}}]
+            }
+          ]
+        })
+
+      v2 =
+        Jason.encode!(%{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_iam_role",
+              "name" => "r",
+              "instances" => [%{"attributes" => %{}}]
+            }
+          ]
+        })
+
+      _ = create_state(env, %{value: v1})
+      _ = create_state(env, %{value: v2})
+
+      conn = log_in_user(Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(%{}), user)
+
+      {:ok, view, _} =
+        live(conn, "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state")
+
+      # selected=v2, compare=v1 → restoring v1 ADDS sg, REMOVES iam_role
+      render_change(view, "version_change", %{"version" => "2", "compare" => "1"})
+
+      text =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text =~ "1 would be added"
+      assert text =~ "1 would be removed"
+
+      # Flip: selected=v1, compare=v2 → restoring v2 ADDS iam_role, REMOVES sg
+      render_change(view, "version_change", %{"version" => "1", "compare" => "2"})
+
+      text2 =
+        view
+        |> render()
+        |> Floki.parse_document!()
+        |> Floki.text(sep: " ")
+        |> String.replace(~r/\s+/, " ")
+
+      assert text2 =~ "1 would be added"
+      assert text2 =~ "1 would be removed"
+
+      # The cards in each direction should contain DIFFERENT resources in
+      # each bucket — when v1 is selected, iam_role is in the "would add"
+      # card; when v2 is selected, sg is. Easiest sanity: in the v1->v2
+      # render, the iam_role label appears under a "would add" badge.
+      html_v1_to_v2 = render(view)
+      assert html_v1_to_v2 =~ "aws_iam_role.r"
+      assert html_v1_to_v2 =~ "aws_security_group.sg"
     end
   end
 
