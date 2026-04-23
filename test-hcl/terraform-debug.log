@@ -1,0 +1,157 @@
+2026-04-23T15:49:35.939+0100 [INFO]  Terraform version: 1.14.5
+2026-04-23T15:49:35.939+0100 [DEBUG] using github.com/hashicorp/go-tfe v1.94.0
+2026-04-23T15:49:35.939+0100 [DEBUG] using github.com/hashicorp/hcl/v2 v2.24.0
+2026-04-23T15:49:35.939+0100 [DEBUG] using github.com/hashicorp/terraform-svchost v0.1.1
+2026-04-23T15:49:35.939+0100 [DEBUG] using github.com/zclconf/go-cty v1.16.3
+2026-04-23T15:49:35.939+0100 [INFO]  Go runtime version: go1.25.6
+2026-04-23T15:49:35.939+0100 [INFO]  CLI args: []string{"terraform", "plan", "-input=false", "-out=tfplan.binary"}
+2026-04-23T15:49:35.939+0100 [DEBUG] Attempting to open CLI config file: /Users/arongates/.terraformrc
+2026-04-23T15:49:35.939+0100 [DEBUG] File doesn't exist, but doesn't need to. Ignoring.
+2026-04-23T15:49:35.939+0100 [INFO]  Loading CLI configuration from /Users/arongates/.terraform.d/credentials.tfrc.json
+2026-04-23T15:49:35.940+0100 [DEBUG] ignoring non-existing provider search directory terraform.d/plugins
+2026-04-23T15:49:35.940+0100 [DEBUG] ignoring non-existing provider search directory /Users/arongates/.terraform.d/plugins
+2026-04-23T15:49:35.940+0100 [DEBUG] ignoring non-existing provider search directory /Users/arongates/Library/Application Support/io.terraform/plugins
+2026-04-23T15:49:35.940+0100 [DEBUG] ignoring non-existing provider search directory /Library/Application Support/io.terraform/plugins
+2026-04-23T15:49:35.941+0100 [INFO]  CLI command args: []string{"plan", "-input=false", "-out=tfplan.binary"}
+2026-04-23T15:49:35.980+0100 [DEBUG] checking for provisioner in "."
+2026-04-23T15:49:35.982+0100 [DEBUG] checking for provisioner in "/opt/homebrew/bin"
+2026-04-23T15:49:35.983+0100 [INFO]  backend/local: starting Plan operation
+2026-04-23T15:49:35.984+0100 [DEBUG] GET http://localhost:4000/tf/dev/infra/production/state
+2026-04-23T15:49:36.041+0100 [DEBUG] POST http://localhost:4000/tf/dev/infra/production/lock
+2026-04-23T15:49:36.094+0100 [DEBUG] GET http://localhost:4000/tf/dev/infra/production/state
+2026-04-23T15:49:36.139+0100 [DEBUG] backend/local: Skipping interactive prompts for variables because input is disabled
+2026-04-23T15:49:36.140+0100 [DEBUG] created provider logger: level=debug
+2026-04-23T15:49:36.140+0100 [INFO]  provider: configuring client automatic mTLS
+2026-04-23T15:49:36.147+0100 [DEBUG] provider: starting plugin: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 args=[".terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5"]
+2026-04-23T15:49:36.149+0100 [DEBUG] provider: plugin started: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 pid=25375
+2026-04-23T15:49:36.149+0100 [DEBUG] provider: waiting for RPC address: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5
+2026-04-23T15:49:36.162+0100 [INFO]  provider.terraform-provider-null_v3.2.4_x5: configuring server automatic mTLS: timestamp="2026-04-23T15:49:36.162+0100"
+2026-04-23T15:49:36.167+0100 [DEBUG] provider: using plugin: version=5
+2026-04-23T15:49:36.167+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: plugin address: address=/var/folders/4z/dv63294161q11h1jls7zw6b40000gn/T/plugin1262126203 network=unix timestamp="2026-04-23T15:49:36.167+0100"
+2026-04-23T15:49:36.174+0100 [DEBUG] No provider meta schema returned
+2026-04-23T15:49:36.176+0100 [DEBUG] provider.stdio: received EOF, stopping recv loop: err="rpc error: code = Unavailable desc = error reading from server: EOF"
+2026-04-23T15:49:36.176+0100 [INFO]  provider: plugin process exited: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 id=25375
+2026-04-23T15:49:36.176+0100 [DEBUG] provider: plugin exited
+2026-04-23T15:49:36.176+0100 [DEBUG] Building and walking validate graph
+2026-04-23T15:49:36.177+0100 [DEBUG] adding implicit provider configuration provider["registry.terraform.io/hashicorp/null"], implied first by null_resource.demo
+2026-04-23T15:49:36.177+0100 [DEBUG] ProviderTransformer: "null_resource.demo" (*terraform.NodeValidatableResource) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.178+0100 [DEBUG] ReferenceTransformer: "null_resource.demo" references: []
+2026-04-23T15:49:36.178+0100 [DEBUG] ReferenceTransformer: "provider[\"registry.terraform.io/hashicorp/null\"]" references: []
+2026-04-23T15:49:36.178+0100 [DEBUG] Starting graph walk: walkValidate
+2026-04-23T15:49:36.179+0100 [DEBUG] created provider logger: level=debug
+2026-04-23T15:49:36.179+0100 [INFO]  provider: configuring client automatic mTLS
+2026-04-23T15:49:36.181+0100 [DEBUG] provider: starting plugin: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 args=[".terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5"]
+2026-04-23T15:49:36.182+0100 [DEBUG] provider: plugin started: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 pid=25376
+2026-04-23T15:49:36.182+0100 [DEBUG] provider: waiting for RPC address: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5
+2026-04-23T15:49:36.191+0100 [INFO]  provider.terraform-provider-null_v3.2.4_x5: configuring server automatic mTLS: timestamp="2026-04-23T15:49:36.191+0100"
+2026-04-23T15:49:36.195+0100 [DEBUG] provider: using plugin: version=5
+2026-04-23T15:49:36.195+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: plugin address: address=/var/folders/4z/dv63294161q11h1jls7zw6b40000gn/T/plugin964098227 network=unix timestamp="2026-04-23T15:49:36.195+0100"
+2026-04-23T15:49:36.201+0100 [DEBUG] provider.stdio: received EOF, stopping recv loop: err="rpc error: code = Unavailable desc = error reading from server: EOF"
+2026-04-23T15:49:36.201+0100 [INFO]  provider: plugin process exited: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 id=25376
+2026-04-23T15:49:36.202+0100 [DEBUG] provider: plugin exited
+2026-04-23T15:49:36.202+0100 [INFO]  backend/local: plan calling Plan
+2026-04-23T15:49:36.202+0100 [DEBUG] Building and walking plan graph for NormalMode
+2026-04-23T15:49:36.202+0100 [DEBUG] adding implicit provider configuration provider["registry.terraform.io/hashicorp/null"], implied first by null_resource.demo (expand)
+2026-04-23T15:49:36.202+0100 [DEBUG] ProviderTransformer: "null_resource.demo (expand)" (*terraform.nodeExpandPlannableResource) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.202+0100 [DEBUG] ReferenceTransformer: "null_resource.demo (expand)" references: []
+2026-04-23T15:49:36.202+0100 [DEBUG] ReferenceTransformer: "provider[\"registry.terraform.io/hashicorp/null\"]" references: []
+2026-04-23T15:49:36.202+0100 [DEBUG] Starting graph walk: walkPlan
+2026-04-23T15:49:36.202+0100 [DEBUG] created provider logger: level=debug
+2026-04-23T15:49:36.203+0100 [INFO]  provider: configuring client automatic mTLS
+2026-04-23T15:49:36.204+0100 [DEBUG] provider: starting plugin: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 args=[".terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5"]
+2026-04-23T15:49:36.205+0100 [DEBUG] provider: plugin started: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 pid=25377
+2026-04-23T15:49:36.205+0100 [DEBUG] provider: waiting for RPC address: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5
+2026-04-23T15:49:36.215+0100 [INFO]  provider.terraform-provider-null_v3.2.4_x5: configuring server automatic mTLS: timestamp="2026-04-23T15:49:36.215+0100"
+2026-04-23T15:49:36.220+0100 [DEBUG] provider: using plugin: version=5
+2026-04-23T15:49:36.220+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: plugin address: address=/var/folders/4z/dv63294161q11h1jls7zw6b40000gn/T/plugin2144002801 network=unix timestamp="2026-04-23T15:49:36.220+0100"
+2026-04-23T15:49:36.224+0100 [DEBUG] ReferenceTransformer: "null_resource.demo" references: []
+2026-04-23T15:49:36.225+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Value switched to prior value due to semantic equality logic: @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwschemadata/value_semantic_equality.go:91 tf_resource_type=null_resource tf_rpc=ReadResource @module=sdk.framework tf_attribute_path=id tf_provider_addr=registry.terraform.io/hashicorp/null tf_req_id=c0040973-f1c3-9ed5-4ac5-c48d2251198d timestamp="2026-04-23T15:49:36.225+0100"
+2026-04-23T15:49:36.226+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Value switched to prior value due to semantic equality logic: @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwschemadata/value_semantic_equality.go:91 @module=sdk.framework tf_attribute_path="triggers[\"now\"]" tf_req_id=c0040973-f1c3-9ed5-4ac5-c48d2251198d tf_resource_type=null_resource tf_provider_addr=registry.terraform.io/hashicorp/null tf_rpc=ReadResource timestamp="2026-04-23T15:49:36.226+0100"
+2026-04-23T15:49:36.226+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Value switched to prior value due to semantic equality logic: tf_req_id=c0040973-f1c3-9ed5-4ac5-c48d2251198d @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwschemadata/value_semantic_equality.go:91 tf_attribute_path=triggers tf_provider_addr=registry.terraform.io/hashicorp/null tf_resource_type=null_resource tf_rpc=ReadResource @module=sdk.framework timestamp="2026-04-23T15:49:36.226+0100"
+2026-04-23T15:49:36.227+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Detected value change between proposed new state and prior state: tf_attribute_path=triggers tf_req_id=93f2a7bc-876c-5f07-4721-f34ed73c29a5 tf_rpc=PlanResourceChange @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:220 tf_provider_addr=registry.terraform.io/hashicorp/null tf_resource_type=null_resource @module=sdk.framework timestamp="2026-04-23T15:49:36.227+0100"
+2026-04-23T15:49:36.227+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Marking Computed attributes with null configuration values as unknown (known after apply) in the plan to prevent potential Terraform errors: @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:229 @module=sdk.framework tf_provider_addr=registry.terraform.io/hashicorp/null tf_resource_type=null_resource tf_rpc=PlanResourceChange tf_req_id=93f2a7bc-876c-5f07-4721-f34ed73c29a5 timestamp="2026-04-23T15:49:36.227+0100"
+2026-04-23T15:49:36.227+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: marking computed attribute that is null in the config as unknown: tf_provider_addr=registry.terraform.io/hashicorp/null tf_attribute_path="AttributeName(\"id\")" tf_req_id=93f2a7bc-876c-5f07-4721-f34ed73c29a5 tf_resource_type=null_resource tf_rpc=PlanResourceChange @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:480 @module=sdk.framework timestamp="2026-04-23T15:49:36.227+0100"
+2026-04-23T15:49:36.228+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Marking Computed attributes with null configuration values as unknown (known after apply) in the plan to prevent potential Terraform errors: @module=sdk.framework tf_resource_type=null_resource tf_rpc=PlanResourceChange @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:229 tf_provider_addr=registry.terraform.io/hashicorp/null tf_req_id=4badb55f-1ca8-5e67-284d-6ff2886bed12 timestamp="2026-04-23T15:49:36.228+0100"
+2026-04-23T15:49:36.228+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: marking computed attribute that is null in the config as unknown: @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:480 @module=sdk.framework tf_attribute_path="AttributeName(\"id\")" tf_provider_addr=registry.terraform.io/hashicorp/null tf_req_id=4badb55f-1ca8-5e67-284d-6ff2886bed12 tf_resource_type=null_resource tf_rpc=PlanResourceChange timestamp="2026-04-23T15:49:36.228+0100"
+2026-04-23T15:49:36.228+0100 [DEBUG] provider.stdio: received EOF, stopping recv loop: err="rpc error: code = Unavailable desc = error reading from server: EOF"
+2026-04-23T15:49:36.229+0100 [INFO]  provider: plugin process exited: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 id=25377
+2026-04-23T15:49:36.229+0100 [DEBUG] provider: plugin exited
+2026-04-23T15:49:36.229+0100 [DEBUG] building apply graph to check for errors
+2026-04-23T15:49:36.229+0100 [DEBUG] adding implicit provider configuration provider["registry.terraform.io/hashicorp/null"], implied first by null_resource.demo (expand)
+2026-04-23T15:49:36.229+0100 [DEBUG] ProviderTransformer: "null_resource.demo (expand)" (*terraform.nodeExpandApplyableResource) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.229+0100 [DEBUG] ProviderTransformer: "null_resource.demo" (*terraform.NodeApplyableResourceInstance) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.229+0100 [DEBUG] ProviderTransformer: "null_resource.demo (destroy)" (*terraform.NodeDestroyResourceInstance) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.229+0100 [DEBUG] ReferenceTransformer: "null_resource.demo (expand)" references: []
+2026-04-23T15:49:36.229+0100 [DEBUG] ReferenceTransformer: "null_resource.demo" references: []
+2026-04-23T15:49:36.229+0100 [DEBUG] ReferenceTransformer: "provider[\"registry.terraform.io/hashicorp/null\"]" references: []
+2026-04-23T15:49:36.229+0100 [INFO]  backend/local: plan operation completed
+2026-04-23T15:49:36.229+0100 [INFO]  backend/local: writing plan output to: tfplan.binary
+2026-04-23T15:49:36.231+0100 [DEBUG] POST http://localhost:4000/tf/dev/infra/production/unlock
+2026-04-23T15:49:36.305+0100 [INFO]  Terraform version: 1.14.5
+2026-04-23T15:49:36.305+0100 [DEBUG] using github.com/hashicorp/go-tfe v1.94.0
+2026-04-23T15:49:36.305+0100 [DEBUG] using github.com/hashicorp/hcl/v2 v2.24.0
+2026-04-23T15:49:36.305+0100 [DEBUG] using github.com/hashicorp/terraform-svchost v0.1.1
+2026-04-23T15:49:36.305+0100 [DEBUG] using github.com/zclconf/go-cty v1.16.3
+2026-04-23T15:49:36.305+0100 [INFO]  Go runtime version: go1.25.6
+2026-04-23T15:49:36.305+0100 [INFO]  CLI args: []string{"terraform", "apply", "-input=false", "-auto-approve", "tfplan.binary"}
+2026-04-23T15:49:36.305+0100 [DEBUG] Attempting to open CLI config file: /Users/arongates/.terraformrc
+2026-04-23T15:49:36.305+0100 [DEBUG] File doesn't exist, but doesn't need to. Ignoring.
+2026-04-23T15:49:36.305+0100 [INFO]  Loading CLI configuration from /Users/arongates/.terraform.d/credentials.tfrc.json
+2026-04-23T15:49:36.305+0100 [DEBUG] ignoring non-existing provider search directory terraform.d/plugins
+2026-04-23T15:49:36.305+0100 [DEBUG] ignoring non-existing provider search directory /Users/arongates/.terraform.d/plugins
+2026-04-23T15:49:36.305+0100 [DEBUG] ignoring non-existing provider search directory /Users/arongates/Library/Application Support/io.terraform/plugins
+2026-04-23T15:49:36.305+0100 [DEBUG] ignoring non-existing provider search directory /Library/Application Support/io.terraform/plugins
+2026-04-23T15:49:36.305+0100 [INFO]  CLI command args: []string{"apply", "-input=false", "-auto-approve", "tfplan.binary"}
+2026-04-23T15:49:36.313+0100 [DEBUG] checking for provisioner in "."
+2026-04-23T15:49:36.314+0100 [DEBUG] checking for provisioner in "/opt/homebrew/bin"
+2026-04-23T15:49:36.315+0100 [INFO]  backend/local: starting Apply operation
+2026-04-23T15:49:36.315+0100 [DEBUG] GET http://localhost:4000/tf/dev/infra/production/state
+2026-04-23T15:49:36.365+0100 [DEBUG] POST http://localhost:4000/tf/dev/infra/production/lock
+2026-04-23T15:49:36.417+0100 [DEBUG] GET http://localhost:4000/tf/dev/infra/production/state
+2026-04-23T15:49:36.468+0100 [DEBUG] created provider logger: level=debug
+2026-04-23T15:49:36.468+0100 [INFO]  provider: configuring client automatic mTLS
+2026-04-23T15:49:36.473+0100 [DEBUG] provider: starting plugin: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 args=[".terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5"]
+2026-04-23T15:49:36.474+0100 [DEBUG] provider: plugin started: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 pid=25384
+2026-04-23T15:49:36.474+0100 [DEBUG] provider: waiting for RPC address: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5
+2026-04-23T15:49:36.483+0100 [INFO]  provider.terraform-provider-null_v3.2.4_x5: configuring server automatic mTLS: timestamp="2026-04-23T15:49:36.483+0100"
+2026-04-23T15:49:36.487+0100 [DEBUG] provider: using plugin: version=5
+2026-04-23T15:49:36.487+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: plugin address: address=/var/folders/4z/dv63294161q11h1jls7zw6b40000gn/T/plugin514538561 network=unix timestamp="2026-04-23T15:49:36.487+0100"
+2026-04-23T15:49:36.492+0100 [DEBUG] No provider meta schema returned
+2026-04-23T15:49:36.492+0100 [DEBUG] provider.stdio: received EOF, stopping recv loop: err="rpc error: code = Unavailable desc = error reading from server: EOF"
+2026-04-23T15:49:36.493+0100 [INFO]  provider: plugin process exited: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 id=25384
+2026-04-23T15:49:36.493+0100 [DEBUG] provider: plugin exited
+2026-04-23T15:49:36.493+0100 [INFO]  backend/local: apply calling Apply
+2026-04-23T15:49:36.493+0100 [DEBUG] Building and walking apply graph for NormalMode plan
+2026-04-23T15:49:36.493+0100 [DEBUG] adding implicit provider configuration provider["registry.terraform.io/hashicorp/null"], implied first by null_resource.demo (expand)
+2026-04-23T15:49:36.493+0100 [DEBUG] ProviderTransformer: "null_resource.demo" (*terraform.NodeApplyableResourceInstance) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.493+0100 [DEBUG] ProviderTransformer: "null_resource.demo (destroy)" (*terraform.NodeDestroyResourceInstance) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.493+0100 [DEBUG] ProviderTransformer: "null_resource.demo (expand)" (*terraform.nodeExpandApplyableResource) needs provider["registry.terraform.io/hashicorp/null"]
+2026-04-23T15:49:36.493+0100 [DEBUG] ReferenceTransformer: "provider[\"registry.terraform.io/hashicorp/null\"]" references: []
+2026-04-23T15:49:36.493+0100 [DEBUG] ReferenceTransformer: "null_resource.demo (expand)" references: []
+2026-04-23T15:49:36.493+0100 [DEBUG] ReferenceTransformer: "null_resource.demo" references: []
+2026-04-23T15:49:36.493+0100 [DEBUG] Starting graph walk: walkApply
+2026-04-23T15:49:36.494+0100 [DEBUG] created provider logger: level=debug
+2026-04-23T15:49:36.494+0100 [INFO]  provider: configuring client automatic mTLS
+2026-04-23T15:49:36.496+0100 [DEBUG] provider: starting plugin: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 args=[".terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5"]
+2026-04-23T15:49:36.497+0100 [DEBUG] provider: plugin started: path=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 pid=25385
+2026-04-23T15:49:36.497+0100 [DEBUG] provider: waiting for RPC address: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5
+2026-04-23T15:49:36.507+0100 [INFO]  provider.terraform-provider-null_v3.2.4_x5: configuring server automatic mTLS: timestamp="2026-04-23T15:49:36.507+0100"
+2026-04-23T15:49:36.512+0100 [DEBUG] provider: using plugin: version=5
+2026-04-23T15:49:36.512+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: plugin address: address=/var/folders/4z/dv63294161q11h1jls7zw6b40000gn/T/plugin615355746 network=unix timestamp="2026-04-23T15:49:36.512+0100"
+2026-04-23T15:49:36.518+0100 [INFO]  Starting apply for null_resource.demo
+2026-04-23T15:49:36.518+0100 [DEBUG] null_resource.demo: applying the planned Delete change
+2026-04-23T15:49:36.518+0100 [DEBUG] State storage *remote.State declined to persist a state snapshot
+2026-04-23T15:49:36.523+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Marking Computed attributes with null configuration values as unknown (known after apply) in the plan to prevent potential Terraform errors: @module=sdk.framework tf_req_id=7cfb864e-6f69-0f6a-3251-5363663db6fc tf_resource_type=null_resource tf_rpc=PlanResourceChange @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:229 tf_provider_addr=registry.terraform.io/hashicorp/null timestamp="2026-04-23T15:49:36.523+0100"
+2026-04-23T15:49:36.523+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: marking computed attribute that is null in the config as unknown: tf_resource_type=null_resource @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwserver/server_planresourcechange.go:480 @module=sdk.framework tf_attribute_path="AttributeName(\"id\")" tf_req_id=7cfb864e-6f69-0f6a-3251-5363663db6fc tf_rpc=PlanResourceChange tf_provider_addr=registry.terraform.io/hashicorp/null timestamp="2026-04-23T15:49:36.523+0100"
+2026-04-23T15:49:36.524+0100 [INFO]  Starting apply for null_resource.demo
+2026-04-23T15:49:36.524+0100 [DEBUG] null_resource.demo: applying the planned Create change
+2026-04-23T15:49:36.525+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Value switched to prior value due to semantic equality logic: @module=sdk.framework tf_req_id=45db1223-afe7-d42a-2378-1f8fe2432b53 tf_resource_type=null_resource @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwschemadata/value_semantic_equality.go:91 tf_attribute_path="triggers[\"now\"]" tf_provider_addr=registry.terraform.io/hashicorp/null tf_rpc=ApplyResourceChange timestamp="2026-04-23T15:49:36.525+0100"
+2026-04-23T15:49:36.525+0100 [DEBUG] provider.terraform-provider-null_v3.2.4_x5: Value switched to prior value due to semantic equality logic: tf_resource_type=null_resource tf_rpc=ApplyResourceChange @caller=github.com/hashicorp/terraform-plugin-framework@v1.14.1/internal/fwschemadata/value_semantic_equality.go:91 @module=sdk.framework tf_attribute_path=triggers tf_provider_addr=registry.terraform.io/hashicorp/null tf_req_id=45db1223-afe7-d42a-2378-1f8fe2432b53 timestamp="2026-04-23T15:49:36.525+0100"
+2026-04-23T15:49:36.525+0100 [DEBUG] State storage *remote.State declined to persist a state snapshot
+2026-04-23T15:49:36.526+0100 [DEBUG] provider.stdio: received EOF, stopping recv loop: err="rpc error: code = Unavailable desc = error reading from server: EOF"
+2026-04-23T15:49:36.527+0100 [INFO]  provider: plugin process exited: plugin=.terraform/providers/registry.terraform.io/hashicorp/null/3.2.4/darwin_arm64/terraform-provider-null_v3.2.4_x5 id=25385
+2026-04-23T15:49:36.527+0100 [DEBUG] provider: plugin exited
+2026-04-23T15:49:36.527+0100 [DEBUG] states/remote: state read serial is: 2; serial is: 2
+2026-04-23T15:49:36.527+0100 [DEBUG] states/remote: state read lineage is: ; lineage is:
+2026-04-23T15:49:36.527+0100 [DEBUG] POST http://localhost:4000/tf/dev/infra/production/state?ID=4d0f538c-68ea-ea62-ea78-8a80fcb91076
+2026-04-23T15:49:36.587+0100 [DEBUG] POST http://localhost:4000/tf/dev/infra/production/unlock

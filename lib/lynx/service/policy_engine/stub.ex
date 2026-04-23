@@ -54,6 +54,19 @@ defmodule Lynx.Service.PolicyEngine.Stub do
     end
   end
 
+  # Tiny rego sanity check for the stub. Real validation happens in OPA;
+  # the stub just rejects obviously empty / malformed input so tests can
+  # exercise both branches without needing OPA on PATH.
+  @impl true
+  def validate(""), do: {:invalid, [%{message: "empty source", row: 1, col: 1}]}
+  def validate(nil), do: {:invalid, [%{message: "nil source", row: nil, col: nil}]}
+
+  def validate(rego) when is_binary(rego) do
+    if String.contains?(rego, "package "),
+      do: :ok,
+      else: {:invalid, [%{message: "missing `package` declaration", row: 1, col: 1}]}
+  end
+
   defp ensure_started do
     case Process.whereis(__MODULE__) do
       nil -> start_link([])

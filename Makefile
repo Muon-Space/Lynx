@@ -73,6 +73,13 @@ migrate:
 	@$(mix) ecto.setup
 
 
+## seed: Re-run priv/repo/seeds.exs against the dev DB (idempotent)
+.PHONY: seed
+seed:
+	@echo ">> ============= Seed database ============= <<"
+	@$(mix) run priv/repo/seeds.exs
+
+
 ## run: Run lynx
 .PHONY: run
 run:

@@ -109,7 +109,7 @@ defmodule LynxWeb.ProjectLive do
             Audit history
           </a>
           <.link
-            :if={RoleContext.has?(@viewer_perms, "project:manage")}
+            :if={RoleContext.has?(@viewer_perms, "policy:manage")}
             navigate={~p"/admin/projects/#{@project.uuid}/policies"}
             class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary"
           >

@@ -18,9 +18,11 @@ defmodule Lynx.Model.Environment do
     field :secret, :string
     field :project_id, :id
 
-    # Apply gate (issue #38) — when true, state-write requires a
-    # passing plan_check from the same actor within plan_max_age_seconds.
-    field :require_passing_plan, :boolean, default: false
+    # Policy enforcement gates (issue #38). Both nullable so they can
+    # inherit a global default from `Settings.PolicyGate`. nil = inherit;
+    # true / false = explicit override.
+    field :require_passing_plan, :boolean
+    field :block_violating_apply, :boolean
     field :plan_max_age_seconds, :integer, default: 1800
 
     timestamps()
@@ -37,6 +39,7 @@ defmodule Lynx.Model.Environment do
       :secret,
       :project_id,
       :require_passing_plan,
+      :block_violating_apply,
       :plan_max_age_seconds
     ])
     |> validate_required([

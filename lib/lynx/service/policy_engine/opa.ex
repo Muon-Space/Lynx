@@ -55,6 +55,48 @@ defmodule Lynx.Service.PolicyEngine.OPA do
     end
   end
 
+  @impl true
+  def validate(rego_source) when is_binary(rego_source) do
+    # OPA's PUT /v1/policies/<id> compiles the module and returns
+    # 200 on success, 400 with `errors[]` on parse/compile failure. We
+    # use a scratch policy id, then DELETE it on success so we don't
+    # leak validation artifacts into OPA's policy store.
+    scratch_id = "lynx_validate_#{System.unique_integer([:positive])}"
+
+    case Req.put(url("/v1/policies/#{scratch_id}"),
+           body: rego_source,
+           headers: [{"content-type", "text/plain"}],
+           receive_timeout: timeout_ms(),
+           retry: false
+         ) do
+      {:ok, %{status: 200}} ->
+        # Best-effort cleanup — don't block validation on the DELETE.
+        Req.delete(url("/v1/policies/#{scratch_id}"),
+          receive_timeout: timeout_ms(),
+          retry: false
+        )
+
+        :ok
+
+      {:ok, %{status: 400, body: %{"errors" => errors}}} when is_list(errors) ->
+        {:invalid, Enum.map(errors, &normalize_error/1)}
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, {:opa_status, status, body}}
+
+      {:error, reason} ->
+        {:error, {:opa_unreachable, reason}}
+    end
+  end
+
+  # OPA error shape: %{"code","message","location" => %{"row","col","file"}}
+  defp normalize_error(%{"message" => msg} = err) do
+    loc = err["location"] || %{}
+    %{message: msg, row: loc["row"], col: loc["col"]}
+  end
+
+  defp normalize_error(err), do: %{message: inspect(err), row: nil, col: nil}
+
   defp url(path) do
     base = Application.get_env(:lynx, :opa_url, "http://localhost:8181")
     base <> path

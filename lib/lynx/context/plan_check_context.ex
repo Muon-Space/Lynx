@@ -42,6 +42,16 @@ defmodule Lynx.Context.PlanCheckContext do
   end
 
   @doc """
+  Same query as `latest_unconsumed_passing/3` but documented as a
+  read-only peek — used by the lock-time pre-check that decides whether
+  to even acquire the lock for an apply. The actual `consume/1` still
+  fires later at state-write time so a failed apply doesn't waste the
+  approval.
+  """
+  def peek_recent_passing(env_id, sub_path, actor_signature),
+    do: latest_unconsumed_passing(env_id, sub_path, actor_signature)
+
+  @doc """
   Most recent unconsumed passing check for `(env, sub_path, actor_signature)`.
   Returns nil if nothing matches.
   """

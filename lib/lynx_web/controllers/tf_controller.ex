@@ -10,7 +10,7 @@ defmodule LynxWeb.TfController do
   alias Lynx.Context.PlanCheckContext
   alias Lynx.Context.PolicyContext
   alias Lynx.Context.RoleContext
-  alias Lynx.Service.PolicyEngine
+  alias Lynx.Service.{PolicyEngine, PolicyGate}
 
   require OpenTelemetry.Tracer, as: Tracer
 
@@ -223,7 +223,7 @@ defmodule LynxWeb.TfController do
         |> render(:error, %{message: "Environment not found"})
 
       env ->
-        if env.require_passing_plan do
+        if PolicyGate.require_passing_plan?(env) do
           case consume_recent_passing(env, sub_path, conn) do
             :ok ->
               then_fn.(conn)
@@ -233,10 +233,12 @@ defmodule LynxWeb.TfController do
                 "tf apply gate denied: env=#{e_slug} sub=#{sub_path} actor=#{conn.assigns[:tf_username]} reason=#{reason}"
               )
 
-              conn
-              |> put_status(:forbidden)
-              |> put_view(LynxWeb.LockJSON)
-              |> render(:error, %{message: "Apply gate: #{reason}"})
+              log_apply_blocked(conn, env, sub_path, "plan_gate", reason, [])
+
+              # 423 + LockJSON body so terraform's lock-error path surfaces
+              # the message instead of the generic "HTTP error: 403".
+              # See `policy_gate_lock_response/3`.
+              policy_gate_lock_response(conn, "apply_gate", "Apply gate: #{reason}")
           end
         else
           then_fn.(conn)
@@ -298,6 +300,110 @@ defmodule LynxWeb.TfController do
   defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
     body = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
 
+    case maybe_block_violating_apply(conn, w_slug, p_slug, e_slug, sub_path, body) do
+      {:blocked, msg, env, policy_names} ->
+        Logger.info(
+          "tf state-write blocked by policy: env=#{e_slug} sub=#{sub_path} actor=#{conn.assigns[:tf_username]}"
+        )
+
+        log_apply_blocked(conn, env, sub_path, "policy_violation", msg, policy_names)
+
+        policy_gate_lock_response(conn, "policy_violation", "Policy violation: #{msg}")
+
+      :ok ->
+        do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, body)
+    end
+  end
+
+  # Terraform's HTTP backend hard-codes the error format for non-2xx
+  # status codes on state writes ("HTTP error: 403") and drops the
+  # response body. The one exception terraform parses is `423 Locked`
+  # with a `LockInfo`-shaped JSON body — it shows the lock's `Info`
+  # field in the error UI. We hijack that path here so policy-violation
+  # and apply-gate denials reach the user via terraform CLI output.
+  #
+  # The synthetic Lock fields are deliberately obvious about being a
+  # gate response (Operation = the gate name, Who = the actor) so an
+  # operator looking at the raw response isn't confused into thinking
+  # it's a real concurrent-lock conflict.
+  defp policy_gate_lock_response(conn, gate, message) do
+    # Empirically verified: terraform's HTTP backend does parse the 423
+    # body server-side but the CLI displays its own LOCAL lock info
+    # rather than the parsed `LockInfo` from our response. So the body
+    # we send is correct + structured for any tool that fetches it
+    # directly (curl, custom CI), but the standard terraform CLI will
+    # NOT surface our message. The Lynx audit log carries the full
+    # reason; that's the source of truth for users hitting this gate.
+    synthetic_lock = %{
+      uuid: Ecto.UUID.generate(),
+      path: "policy_gate",
+      operation: gate,
+      who: conn.assigns[:tf_username] || "unknown",
+      version: "lynx",
+      updated_at: DateTime.utc_now(),
+      info: message
+    }
+
+    conn
+    |> put_status(:locked)
+    |> put_view(LynxWeb.LockJSON)
+    |> render(:lock_data, %{lock: synthetic_lock})
+  end
+
+  # Run effective policies against the state body, gated by the env's
+  # block_violating_apply flag (or the global default if the env inherits).
+  # Returns :ok if not enabled or no violations; {:blocked, msg} otherwise.
+  defp maybe_block_violating_apply(_conn, w_slug, p_slug, e_slug, _sub_path, body) do
+    case resolve_env(w_slug, p_slug, e_slug) do
+      nil ->
+        :ok
+
+      env ->
+        if PolicyGate.block_violating_apply?(env) do
+          input = PolicyGate.state_to_plan_input(body)
+          policies = PolicyContext.list_effective_policies_for_env(env.id)
+
+          violations =
+            Enum.flat_map(policies, fn policy ->
+              case PolicyEngine.eval_deny(policy.uuid, input) do
+                {:ok, []} ->
+                  []
+
+                {:ok, msgs} when is_list(msgs) ->
+                  Enum.map(msgs, &"#{policy.name}: #{&1}")
+
+                {:error, reason} ->
+                  # Fail-closed: if we can't evaluate, treat as a violation
+                  # so a misconfigured / down OPA can't accidentally permit
+                  # forbidden state. Matches the strict-validate semantics
+                  # we ship for policy save.
+                  ["#{policy.name}: engine error (#{inspect(reason)})"]
+              end
+            end)
+
+          case violations do
+            [] ->
+              :ok
+
+            _ ->
+              # Pass both name + uuid pairs so the audit row can render
+              # chips that link to the per-policy detail page (the new
+              # scheme) AND remain readable for older log readers (the
+              # old scheme stored just names).
+              policies_for_audit =
+                policies
+                |> Enum.map(fn p -> %{"name" => p.name, "uuid" => p.uuid} end)
+                |> Enum.uniq()
+
+              {:blocked, Enum.join(violations, "; "), env, policies_for_audit}
+          end
+        else
+          :ok
+        end
+    end
+  end
+
+  defp do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, body) do
     case StateContext.add_state(%{
            w_slug: w_slug,
            p_slug: p_slug,
@@ -515,14 +621,41 @@ defmodule LynxWeb.TfController do
     {outcome, Enum.reverse(violations)}
   end
 
-  # Audit-event sibling of `log_tf_event/6` for the plan-check action,
-  # carrying outcome + policy count as JSON metadata.
-  defp log_plan_check_event(conn, env, sub_path, outcome, policies_evaluated) do
+  # Audit a 403 from either policy gate. `gate` is "plan_gate" or
+  # "policy_violation". `policies` is a list of `%{"name", "uuid"}` maps
+  # for the policies that contributed to the block (empty list for
+  # plan-gate denials — those reject on missing/stale plan_check, not on
+  # a specific policy). Renderers in audit_live use the uuids to deep-
+  # link each chip to the per-policy detail page.
+  defp log_apply_blocked(conn, env, sub_path, gate, reason, policies) do
     actor_name = conn.assigns[:tf_username] || "system"
     actor_type = conn.assigns[:tf_actor_type] || "system"
 
-    path_label =
-      if sub_path == "", do: "env:#{env.id}", else: "env:#{env.id}/#{sub_path}"
+    AuditContext.create_event(%{
+      actor_id: nil,
+      actor_name: actor_name,
+      actor_type: actor_type,
+      action: "apply_blocked",
+      resource_type: "environment",
+      resource_id: env.uuid,
+      resource_name: env.name,
+      metadata:
+        Jason.encode!(%{
+          "gate" => gate,
+          "sub_path" => sub_path,
+          "reason" => reason,
+          "policies" => policies
+        })
+    })
+  end
+
+  # Audit-event sibling of `log_tf_event/6` for the plan-check action,
+  # carrying outcome + policy count as JSON metadata. Uses env.uuid as
+  # the resource_id so the audit page's environment-link handler builds
+  # a working deep link.
+  defp log_plan_check_event(conn, env, sub_path, outcome, policies_evaluated) do
+    actor_name = conn.assigns[:tf_username] || "system"
+    actor_type = conn.assigns[:tf_actor_type] || "system"
 
     AuditContext.create_event(%{
       actor_id: nil,
@@ -530,8 +663,8 @@ defmodule LynxWeb.TfController do
       actor_type: actor_type,
       action: "plan_checked",
       resource_type: "environment",
-      resource_id: path_label,
-      resource_name: nil,
+      resource_id: env.uuid,
+      resource_name: env.name,
       metadata:
         Jason.encode!(%{
           "outcome" => outcome,

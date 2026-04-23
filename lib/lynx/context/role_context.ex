@@ -45,6 +45,8 @@ defmodule Lynx.Context.RoleContext do
     access:manage
     oidc_rule:manage
     plan:check
+    policy:manage
+    policy_gate:manage
   )
 
   @default_roles ~w(planner applier admin)
@@ -76,7 +78,11 @@ defmodule Lynx.Context.RoleContext do
     "oidc_rule:manage" =>
       "Add / edit / delete OIDC access rules on this project's environments. Lets CI tokens authenticate.",
     "plan:check" =>
-      "Upload a Terraform plan to `POST /tf/.../plan` for OPA evaluation. Required for the apply gate."
+      "Upload a Terraform plan to `POST /tf/.../plan` for OPA evaluation. Required for the apply gate.",
+    "policy:manage" =>
+      "Create / edit / delete OPA policies attached to this project's scope or its envs. Project + env scopes only — global / workspace policies remain super-only.",
+    "policy_gate:manage" =>
+      "Toggle the per-env plan-gate and block-on-violation overrides. Lets a compliance role manage enforcement without granting full env:manage."
   }
 
   @doc "All known permission strings, in canonical order."

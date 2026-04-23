@@ -1,7 +1,7 @@
 defmodule LynxWeb.AuditLive do
   use LynxWeb, :live_view
 
-  alias Lynx.Context.{AuditContext, EnvironmentContext, ProjectContext}
+  alias Lynx.Context.{AuditContext, EnvironmentContext, ProjectContext, WorkspaceContext}
 
   @per_page 50
 
@@ -141,14 +141,57 @@ defmodule LynxWeb.AuditLive do
                   <code class="text-xs bg-inset px-1.5 py-0.5 rounded">{event.resource_type}</code>
                 </td>
                 <td class="px-4 py-3">
-                  <%= case Map.get(@link_index, event.uuid) do %>
-                    <% nil -> %>
-                      {event.resource_name || event.resource_id || "-"}
-                    <% path -> %>
-                      <.link navigate={path} class="text-clickable hover:text-clickable-hover">
+                  <div>
+                    <%= case Map.get(@link_index, event.uuid) do %>
+                      <% nil -> %>
                         {event.resource_name || event.resource_id || "-"}
+                      <% path -> %>
+                        <.link navigate={path} class="text-clickable hover:text-clickable-hover">
+                          {event.resource_name || event.resource_id || "-"}
+                        </.link>
+                    <% end %>
+                  </div>
+                  <div :if={path_label = path_label_for(event)} class="text-xs text-muted mt-0.5">
+                    <code class="bg-inset px-1 rounded">{path_label}</code>
+                  </div>
+
+                  <%!-- Apply-blocked rows: surface the policies that fired
+                        + the truncated reason, with a <details> for the
+                        full text. Saves operators a trip to the DB. --%>
+                  <div :if={details = apply_blocked_details(event)} class="mt-1.5 text-xs space-y-1">
+                    <div class="flex flex-wrap items-center gap-1">
+                      <span class="text-muted">gate:</span>
+                      <%!-- Both gate kinds (plan_gate, policy_violation) have
+                            their default toggles on the global Policies page,
+                            so the badge is a deep-link there. --%>
+                      <.link navigate="/admin/policies" title="Manage policy-gate defaults">
+                        <.badge color={if details.gate == "policy_violation", do: "red", else: "yellow"}>
+                          {details.gate}
+                        </.badge>
                       </.link>
-                  <% end %>
+                      <span :if={details.sub_path != ""} class="text-muted">
+                        unit: <code class="bg-inset px-1 rounded">{details.sub_path}</code>
+                      </span>
+                    </div>
+                    <div :if={details.policies != []} class="flex flex-wrap items-center gap-1">
+                      <span class="text-muted">policies:</span>
+                      <%= for p <- details.policies do %>
+                        <%= if p.uuid do %>
+                          <.link navigate={"/admin/policies/#{p.uuid}"}>
+                            <.badge color="purple">{p.name}</.badge>
+                          </.link>
+                        <% else %>
+                          <.badge color="purple">{p.name}</.badge>
+                        <% end %>
+                      <% end %>
+                    </div>
+                    <details :if={details.reason}>
+                      <summary class="text-muted cursor-pointer hover:text-foreground">
+                        reason: {String.slice(details.reason, 0, 120)}{if String.length(details.reason) > 120, do: "…"}
+                      </summary>
+                      <pre class="bg-inset rounded p-2 mt-1 whitespace-pre-wrap break-words text-xs">{details.reason}</pre>
+                    </details>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -262,15 +305,11 @@ defmodule LynxWeb.AuditLive do
   end
 
   # Build `%{event_uuid => path | nil}` for the page so the Name cell can
-  # render as a deep link. Two batched lookups cover env/unit (env_uuid →
-  # project.uuid via env.project_id); grant rows already carry project_uuid
-  # in `metadata` (no DB hit). Resources without a detail page (team, user,
-  # oidc_rule) get nil and render as plain text.
-  #
-  # `resource_id` for `state_pushed` / `locked` / `unlocked` events from
-  # `tf_controller.log_tf_event` is a `ws/proj/env[/unit]` *path*, not a UUID.
-  # Filter to UUID-shaped values before sending to the SQL `WHERE uuid IN`,
-  # otherwise Postgres rejects the cast (22P02) and 400s the LV mount.
+  # render as a deep link. Three batched lookups cover env/unit (UUID-shaped
+  # resource_id), env/unit-by-slug-path (state_pushed / locked / unlocked
+  # events from `tf_controller`), and project — grant rows already carry
+  # project_uuid in `metadata` (no DB hit). Resources without a detail page
+  # (team, user, oidc_rule) get nil and render as plain text.
   defp build_link_index(events) do
     env_uuids =
       events
@@ -283,34 +322,102 @@ defmodule LynxWeb.AuditLive do
     project_uuids =
       ProjectContext.get_uuids_by_ids(env_to_project_id |> Map.values() |> Enum.uniq())
 
+    slug_path_links =
+      events
+      |> Enum.filter(
+        &(&1.resource_type in ["environment", "unit"] and slug_path?(&1.resource_id))
+      )
+      |> Enum.map(& &1.resource_id)
+      |> Enum.uniq()
+      |> Map.new(fn path -> {path, resolve_slug_path_to_url(path)} end)
+
     Enum.into(events, %{}, fn ev ->
-      {ev.uuid, resource_link(ev, env_to_project_id, project_uuids)}
+      {ev.uuid, resource_link(ev, env_to_project_id, project_uuids, slug_path_links)}
     end)
   end
 
   defp uuid?(s) when is_binary(s), do: match?({:ok, _}, Ecto.UUID.cast(s))
   defp uuid?(_), do: false
 
-  defp resource_link(%{resource_type: "project", resource_id: id}, _, _) when is_binary(id),
-    do: "/admin/projects/#{id}"
-
-  defp resource_link(%{resource_type: "snapshot", resource_id: id}, _, _) when is_binary(id),
-    do: "/admin/snapshots/#{id}"
-
-  defp resource_link(%{resource_type: "role", resource_id: id}, _, _) when is_binary(id),
-    do: "/admin/roles/#{id}"
-
-  defp resource_link(%{resource_type: type, resource_id: env_uuid}, env_to_pid, pid_to_uuid)
-       when type in ["environment", "unit"] and is_binary(env_uuid) do
-    with project_id when not is_nil(project_id) <- Map.get(env_to_pid, env_uuid),
-         project_uuid when not is_nil(project_uuid) <- Map.get(pid_to_uuid, project_id) do
-      "/admin/projects/#{project_uuid}/environments/#{env_uuid}"
-    else
-      _ -> nil
+  # Slug-path resource_ids look like `ws/p/e` or `ws/p/e/sub` — three or
+  # more `/`-separated segments, none of which are UUIDs.
+  defp slug_path?(s) when is_binary(s) do
+    case String.split(s, "/") do
+      [_, _, _ | _] -> not uuid?(s)
+      _ -> false
     end
   end
 
-  defp resource_link(%{resource_type: type} = ev, _, _)
+  defp slug_path?(_), do: false
+
+  # Look up the env behind a `ws/p/e[/...]` slug path and build the URL.
+  # Returns nil if any slug doesn't resolve. ~3 DB queries per unique path
+  # — acceptable on the audit page (50-row pages, lots of duplicate paths
+  # in practice).
+  defp resolve_slug_path_to_url(path) do
+    case String.split(path, "/") do
+      [w_slug, p_slug, e_slug | _] ->
+        with %{id: ws_id} <- WorkspaceContext.get_workspace_by_slug(w_slug),
+             %{id: project_id, uuid: project_uuid} <-
+               ProjectContext.get_project_by_slug_and_workspace(p_slug, ws_id),
+             env when not is_nil(env) <-
+               EnvironmentContext.get_env_by_slug_project(project_id, e_slug) do
+          "/admin/projects/#{project_uuid}/environments/#{env.uuid}"
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp resource_link(%{resource_type: "project", resource_id: id}, _, _, _) when is_binary(id),
+    do: "/admin/projects/#{id}"
+
+  defp resource_link(%{resource_type: "snapshot", resource_id: id}, _, _, _) when is_binary(id),
+    do: "/admin/snapshots/#{id}"
+
+  defp resource_link(%{resource_type: "role", resource_id: id}, _, _, _) when is_binary(id),
+    do: "/admin/roles/#{id}"
+
+  # env/unit events come in two resource_id shapes: a UUID (logged from
+  # the LV side, e.g. plan_checked) or a `ws/proj/env[/unit]` slug path
+  # (logged from /tf/* in tf_controller). Resolve both in one clause so
+  # neither falls through.
+  defp resource_link(
+         %{resource_type: type, resource_id: rid},
+         env_to_pid,
+         pid_to_uuid,
+         slug_paths
+       )
+       when type in ["environment", "unit"] and is_binary(rid) do
+    cond do
+      uuid?(rid) ->
+        with project_id when not is_nil(project_id) <- Map.get(env_to_pid, rid),
+             project_uuid when not is_nil(project_uuid) <- Map.get(pid_to_uuid, project_id) do
+          "/admin/projects/#{project_uuid}/environments/#{rid}"
+        else
+          _ -> nil
+        end
+
+      slug_path?(rid) ->
+        Map.get(slug_paths, rid)
+
+      true ->
+        nil
+    end
+  end
+
+  # Policy events: link to the per-policy detail page. Falls back to the
+  # global policies index for events whose policy was deleted (we wouldn't
+  # find anything at /admin/policies/<deleted-uuid>).
+  defp resource_link(%{resource_type: "policy", resource_id: id}, _, _, _) when is_binary(id),
+    do: "/admin/policies/#{id}"
+
+  defp resource_link(%{resource_type: "policy"}, _, _, _), do: "/admin/policies"
+
+  defp resource_link(%{resource_type: type} = ev, _, _, _)
        when type in ["project_team", "user_project"] do
     case metadata_get(ev, "project_uuid") do
       nil -> nil
@@ -318,15 +425,15 @@ defmodule LynxWeb.AuditLive do
     end
   end
 
-  defp resource_link(%{resource_type: "team", resource_id: id}, _, _) when is_binary(id),
+  defp resource_link(%{resource_type: "team", resource_id: id}, _, _, _) when is_binary(id),
     do: "/admin/teams?edit=#{id}"
 
-  defp resource_link(%{resource_type: "user", resource_id: id}, _, _) when is_binary(id),
+  defp resource_link(%{resource_type: "user", resource_id: id}, _, _, _) when is_binary(id),
     do: "/admin/users?edit=#{id}"
 
   # Settings page exposes its sections via `?tab=`. Land on the right one
   # so the audit row jumps the user straight to the relevant card.
-  defp resource_link(%{resource_type: type}, _, _) do
+  defp resource_link(%{resource_type: type}, _, _, _) do
     case settings_tab_for(type) do
       nil -> nil
       tab -> "/admin/settings?tab=#{tab}"
@@ -338,6 +445,7 @@ defmodule LynxWeb.AuditLive do
   defp settings_tab_for("sso_scim"), do: "scim"
   defp settings_tab_for("saml_certificate"), do: "sso"
   defp settings_tab_for("oidc_provider"), do: "oidc"
+  defp settings_tab_for("opa_bundle_token"), do: "opa"
   defp settings_tab_for("settings"), do: "general"
   defp settings_tab_for("email"), do: "general"
   defp settings_tab_for("general"), do: "general"
@@ -354,4 +462,72 @@ defmodule LynxWeb.AuditLive do
   end
 
   defp metadata_get(_, _), do: nil
+
+  # Compact secondary line under the Name cell — gives an audit row the
+  # context needed to scan it without clicking through. Sources, in
+  # priority:
+  #   1. resource_id when it's already a slug path (state_pushed/locked/...)
+  #   2. metadata.sub_path appended to the resource_name (plan_checked)
+  #   3. metadata.scope for policy events (global / workspace / project / env)
+  defp path_label_for(%{resource_type: type, resource_id: rid} = ev)
+       when type in ["environment", "unit"] do
+    cond do
+      slug_path?(rid) ->
+        rid
+
+      sub = metadata_get(ev, "sub_path") ->
+        if sub == "", do: nil, else: "(unit: #{sub})"
+
+      true ->
+        nil
+    end
+  end
+
+  defp path_label_for(%{resource_type: "policy"} = ev) do
+    case metadata_get(ev, "scope") do
+      nil -> nil
+      scope -> "(scope: #{scope})"
+    end
+  end
+
+  defp path_label_for(_), do: nil
+
+  # For `apply_blocked` events, pull the structured metadata our tf_controller
+  # writes (gate / sub_path / reason / policies) so the row template can
+  # render policy chips + an expandable reason. Returns nil for any other
+  # event so the template branch short-circuits.
+  #
+  # `policies` shape evolved across versions:
+  #   * old events: `["name", ...]` (just names, no link possible)
+  #   * new events: `[%{"name", "uuid"}, ...]` (each chip becomes a link
+  #     to the per-policy detail page)
+  # Normalize both into `[%{name, uuid_or_nil}]` so the template doesn't
+  # have to branch.
+  defp apply_blocked_details(%{action: "apply_blocked", metadata: meta}) when is_binary(meta) do
+    case Jason.decode(meta) do
+      {:ok, m} ->
+        %{
+          gate: Map.get(m, "gate", "unknown"),
+          sub_path: Map.get(m, "sub_path", "") || "",
+          reason: Map.get(m, "reason"),
+          policies: normalize_policies(Map.get(m, "policies", []))
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp apply_blocked_details(_), do: nil
+
+  defp normalize_policies(list) when is_list(list) do
+    Enum.map(list, fn
+      %{"name" => name, "uuid" => uuid} -> %{name: name, uuid: uuid}
+      name when is_binary(name) -> %{name: name, uuid: nil}
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_policies(_), do: []
 end

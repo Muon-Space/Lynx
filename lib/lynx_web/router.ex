@@ -70,6 +70,15 @@ defmodule LynxWeb.Router do
 
       live "/admin/projects/:project_uuid/policies", PolicyLive
       live "/admin/projects/:project_uuid/environments/:env_uuid/policies", PolicyLive
+      # Workspace + global policy scopes are super-only; the LV does the
+      # super check itself so the same module serves all four scopes from
+      # the same live_session.
+      live "/admin/workspaces/:workspace_uuid/policies", PolicyLive
+      live "/admin/policies", PolicyLive
+      # Per-policy detail page — read-only view + recent block events
+      # involving this specific policy. Linked from the env page's
+      # plan-check chips and audit-log apply_blocked rows.
+      live "/admin/policies/:uuid", PolicyDetailLive
 
       live "/admin/snapshots", SnapshotsLive
       live "/admin/snapshots/:uuid", SnapshotLive
