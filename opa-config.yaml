@@ -1,0 +1,13 @@
+services:
+  lynx:
+    url: http://app:4000
+    credentials:
+      bearer:
+        token: ${OPA_BUNDLE_TOKEN}
+bundles:
+  lynx:
+    service: lynx
+    resource: /api/v1/opa/bundle.tar.gz
+    polling:
+      min_delay_seconds: 5
+      max_delay_seconds: 10

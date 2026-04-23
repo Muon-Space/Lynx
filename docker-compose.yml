@@ -16,6 +16,8 @@ services:
       DB_PORT: 5432
       DB_SSL: null
       DB_CA_CERTFILE_PATH: null
+      OPA_URL: http://opa:8181
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
       MIX_ENV: prod
     command: sh -c "/app/bin/migrate && /app/bin/server"
     restart: unless-stopped
@@ -27,6 +29,7 @@ services:
       retries: 3
     depends_on:
       - db
+      - opa
 
   db:
     image: postgres:18.3
@@ -37,6 +40,19 @@ services:
     restart: unless-stopped
     volumes:
       - db:/var/lib/postgresql/data
+
+  opa:
+    image: openpolicyagent/opa:latest
+    environment:
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "--config-file=/config/config.yaml"]
+    restart: unless-stopped
+    # Exposed on the host for debugging only; lynx talks to opa over the
+    # compose network at http://opa:8181.
+    ports:
+      - '8181:8181'
+    volumes:
+      - ./opa-config.yaml:/config/config.yaml:ro
 
 volumes:
   db:

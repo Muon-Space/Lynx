@@ -123,6 +123,121 @@ If a lock gets stuck (CI killed mid-apply, network blip during state push), forc
 
 You can also lock an environment preemptively from the same UI to block all Terraform operations during a maintenance window.
 
+## Plan policy gates
+
+Lynx evaluates Terraform plans against [Open Policy Agent](https://www.openpolicyagent.org/) policies before they're applied. Author a policy in **Admin → Policies**, attach it to a project or environment, and CI uploads the plan JSON for evaluation. Optionally, enable the **apply gate** on an environment so a state-write requires a recent passing plan-check from the same actor — single-use.
+
+The plan-check endpoint is:
+
+```
+POST /tf/<workspace>/<project>/<env>/<unit?>/plan
+```
+
+It accepts the JSON output of `terraform show -json <planfile>` as the request body, runs every effective OPA policy attached to the env (env-scoped + project-scoped), and returns:
+
+```json
+{
+  "id": "1f3c4f2e-...-...",
+  "outcome": "passed",
+  "violations": [],
+  "policiesEvaluated": 3
+}
+```
+
+`outcome` is `passed`, `failed`, or `errored`. All three return HTTP 200 — non-2xx is reserved for malformed body, auth failure, or engine failure. Every plan-check is persisted (auditable) regardless of outcome. The endpoint requires the new `plan:check` permission, which is granted to planner / applier / admin by default.
+
+### CI flow
+
+The full CI cycle becomes:
+
+1. `terraform plan -out=tfplan.binary`
+2. `terraform show -json tfplan.binary > plan.json`
+3. `curl -X POST .../plan -d @plan.json` and check `outcome`
+4. If `passed`, run `terraform apply tfplan.binary`
+
+GitHub Actions:
+
+```yaml
+plan-and-apply:
+  runs-on: ubuntu-latest
+  environment: production
+  permissions:
+    id-token: write    # required to mint an OIDC token
+    contents: read
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Authenticate Lynx via OIDC
+      run: |
+        TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                    "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=lynx" | jq -r '.value')
+        echo "::add-mask::$TOKEN"
+        echo "TF_HTTP_USERNAME=github-actions" >> "$GITHUB_ENV"
+        echo "TF_HTTP_PASSWORD=$TOKEN" >> "$GITHUB_ENV"
+        echo "LYNX_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+    - run: terraform init
+    - run: terraform plan -out=tfplan.binary
+    - run: terraform show -json tfplan.binary > plan.json
+
+    - name: Submit plan to Lynx for policy evaluation
+      run: |
+        RESULT=$(curl -sS -X POST \
+          -u "github-actions:$LYNX_TOKEN" \
+          -H "Content-Type: application/json" \
+          --data @plan.json \
+          https://lynx.example.com/tf/acme/web/production/plan)
+
+        echo "$RESULT" | jq .
+        OUTCOME=$(echo "$RESULT" | jq -r .outcome)
+
+        if [ "$OUTCOME" != "passed" ]; then
+          echo "Plan rejected by policy:"
+          echo "$RESULT" | jq -r '.violations[] | "  - \(.policyName): \(.messages | join("; "))"'
+          exit 1
+        fi
+
+    - run: terraform apply -auto-approve tfplan.binary
+```
+
+### Apply gate
+
+Plan-checks are advisory by default — CI is free to apply without uploading the plan. To make policy evaluation **required**, open the environment's **Settings** card and enable:
+
+* **Require passing plan** (`require_passing_plan`) — every state-write must be backed by a passing plan-check.
+* **Plan max age** (`plan_max_age_seconds`, default `1800`) — how recent the plan-check must be.
+
+When the gate is on, a state-write without a fresh, unconsumed, passing plan-check from the **same actor** (matched by `<actor_type>:<username>`) returns:
+
+```
+HTTP/1.1 403 Forbidden
+
+Apply gate: no passing plan-check found for this caller within the last 1800s
+```
+
+A passing plan-check authorizes exactly one apply — single-use semantics. Run a fresh plan-check before each apply.
+
+### Writing policies
+
+Policies are Rego, evaluated against the `terraform show -json` output. A simple "block public S3 buckets" rule:
+
+```rego
+package main
+
+deny[msg] {
+  some i
+  resource := input.resource_changes[i]
+  resource.type == "aws_s3_bucket"
+  resource.change.after.acl == "public-read"
+  msg := sprintf("S3 bucket %s is public", [resource.address])
+}
+```
+
+Each `deny` message becomes a violation entry in the plan-check response. Lynx serves the full policy set to OPA via the Bundle API, so edits in the admin UI propagate to every OPA instance within a few seconds — no redeploy needed.
+
+> [!TIP]
+> Test policies locally with `opa eval -d policy.rego -i plan.json 'data.main.deny'` before attaching them in the UI. The same Rego runs in production.
+
 ## Permission errors you might see
 
 | Status | Body | Meaning |

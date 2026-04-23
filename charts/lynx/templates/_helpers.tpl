@@ -38,4 +38,13 @@
     secretKeyRef:
       name: {{ .Values.database.existingSecret }}
       key: {{ .Values.database.keys.ssl }}
+{{- if .Values.opa.enabled }}
+- name: OPA_URL
+  value: "http://{{ .Release.Name }}-opa:{{ .Values.opa.service.port }}"
+- name: OPA_BUNDLE_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ if .Values.opa.token.existingSecret }}{{ .Values.opa.token.existingSecret }}{{ else }}{{ .Release.Name }}-opa-token{{ end }}
+      key: token
+{{- end }}
 {{- end -}}

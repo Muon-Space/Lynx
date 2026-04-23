@@ -36,6 +36,16 @@ defmodule LynxWeb.Router do
     plug Lynx.Middleware.Logger
   end
 
+  # OPA bundle pulls — bearer token from env var (Helm-managed) or DB
+  # (admin-minted in Settings). Distinct from `:scim` to make grants
+  # impossible to mix up.
+  pipeline :opa_bundle do
+    plug :accepts, ["*/*"]
+    plug :add_server_header
+    plug Lynx.Middleware.Logger
+    plug Lynx.Middleware.OPABundleAuthMiddleware
+  end
+
   scope "/", LynxWeb do
     pipe_through :browser
 
@@ -57,6 +67,9 @@ defmodule LynxWeb.Router do
 
       live "/admin/projects/:project_uuid/environments/:env_uuid/state/:sub_path",
            StateExplorerLive
+
+      live "/admin/projects/:project_uuid/policies", PolicyLive
+      live "/admin/projects/:project_uuid/environments/:env_uuid/policies", PolicyLive
 
       live "/admin/snapshots", SnapshotsLive
       live "/admin/snapshots/:uuid", SnapshotLive
@@ -218,6 +231,14 @@ defmodule LynxWeb.Router do
     get "/openapi.json", OpenAPIController, :spec_json
     get "/openapi.yml", OpenAPIController, :spec_yaml
     get "/openapi.yaml", OpenAPIController, :spec_yaml
+  end
+
+  # OPA bundle endpoint (issue #38). Auth is bearer-token only; no
+  # x-api-key, no session — OPA presents the value from its own config.
+  scope "/api/v1/opa", LynxWeb do
+    pipe_through :opa_bundle
+
+    get "/bundle.tar.gz", OPABundleController, :fetch
   end
 
   scope "/tf", LynxWeb do

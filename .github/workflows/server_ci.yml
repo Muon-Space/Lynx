@@ -115,3 +115,63 @@ jobs:
           name: playwright-traces
           path: tmp/playwright/
           if-no-files-found: ignore
+
+  # OPA integration tests — verify the HTTP wire format between Lynx's
+  # PolicyEngine.OPA module and a real `opa` daemon. Tagged `:opa` in
+  # ExUnit so the unit suite skips them; failures here don't block PRs
+  # whose changes don't touch the OPA path. See `make ci_opa`.
+  opa:
+    runs-on: ubuntu-latest
+    name: OPA integration tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - otp: '28.4.2'
+            elixir: '1.19.5'
+    services:
+      db:
+        image: postgres:latest
+        ports: ['5432:5432']
+        env:
+          POSTGRES_DB: lynx_dev
+          POSTGRES_USER: lynx
+          POSTGRES_PASSWORD: lynx
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      OPA_URL: http://localhost:8181
+    steps:
+      - uses: actions/checkout@v6
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+
+      - name: Install OPA
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x opa
+          sudo mv opa /usr/local/bin/opa
+          opa version
+
+      - name: Start OPA daemon
+        run: |
+          nohup opa run --server --addr=0.0.0.0:8181 > /tmp/opa.log 2>&1 &
+          # Wait for OPA to be ready before tests start.
+          for i in {1..20}; do
+            if curl -sf http://localhost:8181/health > /dev/null; then
+              echo "OPA ready"; exit 0
+            fi
+            sleep 0.5
+          done
+          echo "OPA failed to start"; cat /tmp/opa.log; exit 1
+
+      - name: Get Dependencies
+        run: make deps
+
+      - name: Run OPA integration tests
+        run: make ci_opa
+
+      - name: Dump OPA log on failure
+        if: failure()
+        run: cat /tmp/opa.log || true

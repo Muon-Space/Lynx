@@ -33,6 +33,7 @@ This is a fork of [Clivern/Lynx](https://github.com/Clivern/Lynx) with significa
 - [Role-based access control](#role-based-access-control)
 - [Snapshots](#snapshots)
 - [State search](#state-search)
+- [Plan policy gates](#plan-policy-gates)
 - [Audit log](#audit-log)
 - [SSO and SCIM](#sso-and-scim)
 - [REST API](#rest-api)
@@ -156,6 +157,26 @@ Restoring requires the `snapshot:restore` permission (admin role).
 `/admin/state-search` runs full-text search across the latest version of every state file. Useful when you need to answer "which environments still reference `aws_iam_role.deploy_bot`?" without dropping into psql.
 
 Backed by a Postgres `tsvector` (GIN-indexed, `'simple'` config — exact tokens, no stemming). Results show `workspace › project › env / unit` with the matched fragment highlighted, and respect per-environment `state:read` so a user only ever sees envs they're already authorized on. Super users see every workspace.
+
+## Plan policy gates
+
+Lynx evaluates Terraform plans against [Open Policy Agent](https://www.openpolicyagent.org/) policies before they're applied. Author Rego policies in the admin UI, attach them to a project or environment, and CI pipes the plan JSON through Lynx for evaluation. When `require_passing_plan` is enabled on an environment, every state-write must be backed by a recent passing plan-check from the same actor — single-use, opt-in per env. Lynx queries OPA over HTTP (run as a sidecar or centralized service); OPA polls Lynx's bundle endpoint every few seconds, so policy edits propagate without a redeploy.
+
+```bash
+terraform plan -out=tfplan.binary
+terraform show -json tfplan.binary > plan.json
+
+RESULT=$(curl -sS -X POST \
+  -u "github-actions:$ACTIONS_ID_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data @plan.json \
+  https://lynx.example.com/tf/<workspace>/<project>/<env>/plan)
+
+[ "$(echo "$RESULT" | jq -r .outcome)" = "passed" ] || exit 1
+terraform apply tfplan.binary
+```
+
+See [docs/usage](docs/_documentation/usage.md#plan-policy-gates) for the full CI flow, a sample Rego policy, and how the apply gate behaves on rejection.
 
 ## Audit log
 

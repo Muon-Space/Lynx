@@ -66,3 +66,24 @@ resources: {}
 #  requests:
 #    cpu: 100m
 #    memory: 256Mi
+
+# Plan-policy gates via OPA (issue #38). When opa.enabled, the chart
+# deploys an OPA Deployment + Service that polls Lynx's bundle endpoint.
+# Lynx is wired to talk to it automatically via OPA_URL + OPA_BUNDLE_TOKEN.
+opa:
+  enabled: false
+  image:
+    repository: openpolicyagent/opa
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    port: 8181
+  resources: {}
+  # Token shared between Lynx and OPA. autoGenerate=true makes the chart
+  # generate a random secret on first install and reuse it on upgrades
+  # (idempotent — see opa-secret.yaml lookup logic). Set existingSecret to
+  # use a Secret you manage; the secret must contain key `token`.
+  token:
+    autoGenerate: true
+    existingSecret: ""

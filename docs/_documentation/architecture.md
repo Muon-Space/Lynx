@@ -66,9 +66,11 @@ Three roles ship by default:
 
 | Role | Permissions |
 |---|---|
-| **Planner** | `state:read`, `state:lock`, `state:unlock` |
+| **Planner** | `state:read`, `state:lock`, `state:unlock`, `plan:check` |
 | **Applier** | Planner's set + `state:write`, `snapshot:create` |
 | **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
+
+`plan:check` authorizes uploads to `POST /tf/<workspace>/<project>/<env>/<unit?>/plan` for OPA evaluation. It's seeded into all three default roles so any caller that can plan can also evaluate the plan; revoke it on a custom role to lock policy evaluation down further.
 
 Custom roles can be created at `/admin/roles` (super only). System roles carry `is_system: true` and can't be edited or deleted.
 
@@ -126,6 +128,33 @@ Snapshot scopes:
 
 Restoring requires `snapshot:restore` (admin role).
 
+## Plan policy gates
+
+Policy evaluation is factored behind a `Lynx.PolicyEngine` behaviour. The implementation is selected by application config:
+
+```elixir
+config :lynx, :policy_engine, Lynx.PolicyEngine.OPA   # production
+config :lynx, :policy_engine, Lynx.PolicyEngine.Stub  # tests
+```
+
+The OPA implementation does an HTTP `POST` to `OPA_URL` with the plan JSON; the Stub returns deterministic fixtures so the test suite never reaches a network. Anything that conforms to the behaviour can drop in (Rego via OPA today; a future Cedar or in-process Rego engine could swap without touching callers).
+
+### The bundle pattern
+
+Policies live in Postgres (`policies` table). Lynx serves them at `GET /api/v1/opa/bundle.tar.gz` as a gzipped tarball, with each policy namespaced under `lynx.policy_<uuid>` so multiple policies coexist without symbol collisions. OPA polls this endpoint every 5–10 seconds — the standard [OPA Bundle API](https://www.openpolicyagent.org/docs/latest/management-bundles/). Bearer auth via the `OPA_BUNDLE_TOKEN` env var (Helm-managed) or DB-managed tokens minted from **Settings → OPA**.
+
+This design is autoscaling-safe by construction. Under N Lynx replicas plus M OPA instances:
+
+* Each OPA polls Lynx independently. There's no cross-pod messaging, no leader election, no shared cache to invalidate.
+* OPA's local policy store is just a cache. Lynx's Postgres is canonical — so the worst-case staleness is one polling interval (5–10s).
+* A Lynx replica that wants to evaluate a plan picks any OPA from `OPA_URL` (resolved by Kubernetes `Service` or your load balancer). Whichever OPA answers, the policy set is identical.
+
+Concretely: a policy edit committed against any Lynx replica is visible to every OPA within ~10s without any orchestration.
+
+### Apply gate
+
+Per-environment fields `require_passing_plan` (bool, default false) and `plan_max_age_seconds` (int, default 1800) opt into the gate. When on, the state-write plug looks up the most recent passing `plan_checks` row for the same actor signature (`<actor_type>:<username>`) within the age window; absence returns `403 Apply gate: ...`. A passing plan-check is single-use — once consumed by an apply, it's marked spent.
+
 ## Supervisor tree
 
 ```
@@ -177,6 +206,9 @@ The `Lynx.Module.*` namespace was retired in PR #22. Resource-scoped code lives 
 | `states`, `states_meta`, `locks`, `locks_meta` | Terraform state versions and locks (sub-path-aware). |
 | `snapshots`, `snapshots_meta`, `tasks`, `tasks_meta` | Snapshots + their async tasks. |
 | `oidc_providers`, `oidc_access_rules` | CI auth: providers + per-environment claim rules. |
+| `policies` | Rego policy sources, with `enabled` + project/env attachment. Source of truth served to OPA via the bundle endpoint. |
+| `plan_checks` | Every plan evaluation result (outcome, violations, actor signature, consumed-at). Backs the apply gate and the audit trail. |
+| `opa_bundle_tokens` | DB-managed bearer tokens accepted on `/api/v1/opa/bundle.tar.gz`, minted from **Settings → OPA**. |
 | `scim_tokens` | Bearer tokens for the SCIM 2.0 endpoint. |
 | `audit_events` | Append-only log of meaningful actions. |
 | `configs` | App-wide settings (app_name, app_url, app_key, SSO, SCIM toggles, ...). |

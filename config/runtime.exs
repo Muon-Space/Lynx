@@ -69,6 +69,17 @@ config :lynx,
   sso_saml_sign_requests: (System.get_env("SSO_SAML_SIGN_REQUESTS") || "false") == "true",
   scim_enabled: (System.get_env("SCIM_ENABLED") || "false") == "true"
 
+# Plan-policy gates (issue #38) — OPA sidecar / centralized.
+# OPA_URL points at the OPA REST API; OPA_BUNDLE_TOKEN is the shared
+# secret OPA presents when polling /api/v1/opa/bundle.tar.gz. When the
+# Helm chart auto-generates a token, both pods read it from the same
+# Kubernetes Secret. Manually-managed deployments mint tokens via the
+# Settings UI instead.
+config :lynx,
+  opa_url: System.get_env("OPA_URL") || "http://localhost:8181",
+  opa_timeout_ms: String.to_integer(System.get_env("OPA_TIMEOUT_MS") || "5000"),
+  opa_bundle_token: System.get_env("OPA_BUNDLE_TOKEN")
+
 # OIDC configuration is read from the DB (Settings tab) so it can be changed
 # at runtime without an app restart — see `Lynx.Service.SSOService`.
 

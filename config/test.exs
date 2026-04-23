@@ -53,6 +53,10 @@ config :lynx, Lynx.Mailer, adapter: Swoosh.Adapters.Test
 # sweeper start it explicitly via `start_supervised/2`.
 config :lynx, :start_grant_sweeper, false
 
+# Default the policy engine to the in-memory stub so unit tests don't need
+# OPA on PATH. Integration tests tagged `:opa` swap to the real impl.
+config :lynx, :policy_engine, Lynx.Service.PolicyEngine.Stub
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

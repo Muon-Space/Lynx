@@ -1,0 +1,17 @@
+{{- if .Values.opa.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-opa
+  labels:
+    app: {{ .Chart.Name }}-opa
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.opa.service.port }}
+      targetPort: http
+      name: http
+  selector:
+    app: {{ .Chart.Name }}-opa
+    instance: {{ .Release.Name }}
+{{- end -}}

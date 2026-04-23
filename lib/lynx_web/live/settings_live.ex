@@ -2,7 +2,7 @@ defmodule LynxWeb.SettingsLive do
   use LynxWeb, :live_view
 
   alias Lynx.Service.Settings
-  alias Lynx.Context.SCIMTokenContext
+  alias Lynx.Context.{OPABundleTokenContext, SCIMTokenContext}
   alias Lynx.Service.OIDCBackend
   alias Lynx.Context.AuditContext
 
@@ -52,6 +52,9 @@ defmodule LynxWeb.SettingsLive do
       # OIDC Providers
       |> assign(:oidc_providers, OIDCBackend.list_providers())
       |> assign(:show_add_provider, false)
+      # OPA bundle tokens (issue #38)
+      |> assign(:opa_bundle_tokens, OPABundleTokenContext.list_tokens())
+      |> assign(:new_opa_token, nil)
       # Computed
       |> assign(:oidc_redirect_uri, app_url <> "/auth/sso/callback")
       |> assign(:oidc_signout_uri, app_url <> "/logout")
@@ -66,14 +69,15 @@ defmodule LynxWeb.SettingsLive do
     {:noreply, assign(socket, :tab, normalize_tab(params["tab"]))}
   end
 
-  defp normalize_tab(tab) when tab in ~w(general sso scim oidc), do: tab
+  defp normalize_tab(tab) when tab in ~w(general sso scim oidc opa), do: tab
   defp normalize_tab(_), do: "general"
 
   @tabs [
     {"general", "General"},
     {"sso", "SSO"},
     {"scim", "SCIM"},
-    {"oidc", "OIDC Providers"}
+    {"oidc", "OIDC Providers"},
+    {"opa", "OPA"}
   ]
 
   @impl true
@@ -254,6 +258,45 @@ defmodule LynxWeb.SettingsLive do
           GitHub Actions: <code>https://token.actions.githubusercontent.com</code><br />
           GitLab CI: <code>https://gitlab.com</code>
         </p>
+      </.card>
+
+      <%!-- OPA bundle tokens (issue #38) --%>
+      <.card :if={@tab == "opa"}>
+        <h3 class="text-lg font-semibold mb-2">OPA Bundle Tokens</h3>
+        <p class="text-sm text-muted mb-4">
+          Bearer tokens an external OPA instance presents when polling Lynx's bundle endpoint at
+          <code class="bg-input px-1 rounded">{@app_url}/api/v1/opa/bundle.tar.gz</code>.
+          The Helm chart auto-generates and mounts a token from a Kubernetes Secret —
+          this list is for OPAs you run yourself.
+        </p>
+
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm font-medium">Tokens</span>
+          <form phx-submit="generate_opa_token" class="flex items-end gap-2">
+            <.input name="name" placeholder="e.g. external-opa" value="" required />
+            <.button type="submit" variant="primary" size="sm">Generate Token</.button>
+          </form>
+        </div>
+
+        <div :if={@new_opa_token} class="bg-flash-success-bg border border-flash-success-border rounded-lg p-4 mb-4">
+          <p class="text-sm font-medium text-flash-success-text">New token (copy now, won't be shown again):</p>
+          <code id="opa-token-content" class="text-sm break-all">{@new_opa_token}</code>
+          <div class="mt-2">
+            <.copy_button id="copy-opa-token" target="#opa-token-content">Copy</.copy_button>
+          </div>
+        </div>
+
+        <.table rows={@opa_bundle_tokens} empty_message="No OPA bundle tokens minted yet.">
+          <:col :let={t} label="Name">{t.name}</:col>
+          <:col :let={t} label="Token"><code class="text-xs">{t.token_prefix}</code></:col>
+          <:col :let={t} label="Status">
+            <.badge color={if t.is_active, do: "green", else: "gray"}>{if t.is_active, do: "Active", else: "Revoked"}</.badge>
+          </:col>
+          <:col :let={t} label="Last Used">{if t.last_used_at, do: Calendar.strftime(t.last_used_at, "%Y-%m-%d %H:%M"), else: "Never"}</:col>
+          <:action :let={t}>
+            <.button :if={t.is_active} phx-click="confirm_action" phx-value-event="revoke_opa_token" phx-value-message="Revoke this token? OPA instances using it will fail to poll." phx-value-uuid={t.uuid} variant="ghost" size="sm">Revoke</.button>
+          </:action>
+        </.table>
       </.card>
     </div>
     """
@@ -467,6 +510,39 @@ defmodule LynxWeb.SettingsLive do
     {:noreply,
      socket
      |> assign(:scim_tokens, SCIMTokenContext.list_tokens())
+     |> put_flash(:info, "Token revoked")}
+  end
+
+  # -- OPA Bundle Tokens (issue #38) --
+  def handle_event("generate_opa_token", %{"name" => name}, socket) do
+    case OPABundleTokenContext.generate_token(String.trim(name)) do
+      {:ok, result} ->
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "generated",
+          "opa_bundle_token",
+          result.uuid,
+          result.name
+        )
+
+        {:noreply,
+         socket
+         |> assign(:new_opa_token, result.token)
+         |> assign(:opa_bundle_tokens, OPABundleTokenContext.list_tokens())}
+
+      {:error, msg} ->
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("revoke_opa_token", %{"uuid" => uuid}, socket) do
+    socket = assign(socket, :confirm, nil)
+    OPABundleTokenContext.revoke_token_by_uuid(uuid)
+    AuditContext.log_user(socket.assigns.current_user, "revoked", "opa_bundle_token", uuid)
+
+    {:noreply,
+     socket
+     |> assign(:opa_bundle_tokens, OPABundleTokenContext.list_tokens())
      |> put_flash(:info, "Token revoked")}
   end
 

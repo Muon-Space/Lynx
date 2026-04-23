@@ -1,0 +1,23 @@
+{{- if .Values.opa.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-opa-config
+  labels:
+    app: {{ .Chart.Name }}
+data:
+  config.yaml: |
+    services:
+      lynx:
+        url: http://{{ .Release.Name }}:{{ .Values.service.port | default 4000 }}
+        credentials:
+          bearer:
+            token: ${OPA_BUNDLE_TOKEN}
+    bundles:
+      lynx:
+        service: lynx
+        resource: /api/v1/opa/bundle.tar.gz
+        polling:
+          min_delay_seconds: 5
+          max_delay_seconds: 10
+{{- end -}}

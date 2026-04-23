@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "flatpickr/dist/flatpickr.min.css";
+@import "../../deps/live_monaco_editor/priv/static/live_monaco_editor.min.css";
 
 @source "../../lib/lynx_web/**/*.ex";
 @source "../../lib/lynx_web/**/*.heex";

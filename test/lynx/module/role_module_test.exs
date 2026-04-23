@@ -124,7 +124,11 @@ defmodule Lynx.Context.RoleContextTest do
       ProjectContext.add_project_to_team(project.id, team.id, planner.id)
 
       perms = RoleContext.effective_permissions(user, project)
-      assert MapSet.equal?(perms, MapSet.new(["state:read", "state:lock", "state:unlock"]))
+
+      assert MapSet.equal?(
+               perms,
+               MapSet.new(["state:read", "state:lock", "state:unlock", "plan:check"])
+             )
     end
 
     test "individual user grant unions with team grants (no override semantics)" do
@@ -191,7 +195,7 @@ defmodule Lynx.Context.RoleContextTest do
 
       assert MapSet.equal?(
                RoleContext.permissions_for_oidc_rule(%{role_id: planner.id}),
-               MapSet.new(["state:read", "state:lock", "state:unlock"])
+               MapSet.new(["state:read", "state:lock", "state:unlock", "plan:check"])
              )
     end
 

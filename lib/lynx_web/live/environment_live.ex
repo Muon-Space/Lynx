@@ -6,6 +6,7 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Service.Settings
   alias Lynx.Context.AuditContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.PlanCheckContext
   alias Lynx.Context.StateContext
   alias Lynx.Context.RoleContext
   alias Lynx.Context.LockContext
@@ -72,6 +73,7 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:show_add_rule, false)
               |> assign(:rule_provider_id, "")
               |> assign(:rule_role_id, default_role_id(roles, "applier"))
+              |> assign(:plan_checks, PlanCheckContext.list_for_env(env.id, 10))
               |> load_units()
 
             {:ok, socket}
@@ -102,6 +104,13 @@ defmodule LynxWeb.EnvironmentLive do
             Audit history
           </a>
           <.button :if={can_manage_oidc_rules?(assigns)} phx-click="show_oidc" variant="secondary" size="sm">OIDC</.button>
+          <.link
+            :if={RoleContext.has?(@viewer_perms, "env:manage")}
+            navigate={~p"/admin/projects/#{@project.uuid}/environments/#{@env.uuid}/policies"}
+            class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary"
+          >
+            Policies
+          </.link>
           <% can_act = if @env_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
           <span
             class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
@@ -213,9 +222,69 @@ defmodule LynxWeb.EnvironmentLive do
           </:action>
         </.table>
       </.card>
+
+      <%!-- Plan Policy Gate (issue #38) --%>
+      <.card class="mt-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-secondary">Plan Policy Gate</h3>
+          <.link
+            :if={RoleContext.has?(@viewer_perms, "env:manage")}
+            navigate={~p"/admin/projects/#{@project.uuid}/environments/#{@env.uuid}/policies"}
+            class="text-xs text-clickable hover:text-clickable-hover"
+          >
+            Manage policies →
+          </.link>
+        </div>
+
+        <form
+          :if={RoleContext.has?(@viewer_perms, "env:manage")}
+          phx-submit="save_apply_gate"
+          class="space-y-3 mb-6"
+        >
+          <.input
+            name="require_passing_plan"
+            type="checkbox"
+            label="Require a passing plan-check before apply"
+            checked={@env.require_passing_plan}
+            hint="When on, every state-write must be preceded by a passing POST /tf/.../plan from the same actor."
+          />
+          <.input
+            name="plan_max_age_seconds"
+            type="number"
+            label="Max plan-check age (seconds)"
+            value={@env.plan_max_age_seconds}
+            hint="A passing plan_check older than this is rejected at apply time."
+          />
+          <.button type="submit" variant="primary" size="sm">Save Gate Settings</.button>
+        </form>
+
+        <h4 class="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
+          Recent plan checks
+        </h4>
+        <.table rows={@plan_checks} empty_message="No plan checks recorded yet.">
+          <:col :let={c} label="When">
+            <span class="text-xs text-muted">{Calendar.strftime(c.inserted_at, "%Y-%m-%d %H:%M")}</span>
+          </:col>
+          <:col :let={c} label="Sub-path"><code class="text-xs">{if c.sub_path == "", do: "(root)", else: c.sub_path}</code></:col>
+          <:col :let={c} label="Outcome">
+            <.badge color={plan_check_color(c.outcome)}>{c.outcome}</.badge>
+          </:col>
+          <:col :let={c} label="Actor">
+            <span class="text-xs">{c.actor_name || "—"} <span class="text-muted">({c.actor_type})</span></span>
+          </:col>
+          <:col :let={c} label="Consumed">
+            {if c.consumed_at, do: Calendar.strftime(c.consumed_at, "%Y-%m-%d %H:%M"), else: "—"}
+          </:col>
+        </.table>
+      </.card>
     </div>
     """
   end
+
+  defp plan_check_color("passed"), do: "green"
+  defp plan_check_color("failed"), do: "red"
+  defp plan_check_color("errored"), do: "yellow"
+  defp plan_check_color(_), do: "gray"
 
   @impl true
   def handle_event("confirm_action", params, socket) do
@@ -417,6 +486,48 @@ defmodule LynxWeb.EnvironmentLive do
       {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
     end)
   end
+
+  def handle_event("save_apply_gate", params, socket) do
+    with_perm(socket, "env:manage", fn socket ->
+      attrs = %{
+        require_passing_plan: params["require_passing_plan"] in [true, "true", "on"],
+        plan_max_age_seconds: parse_int(params["plan_max_age_seconds"], 1800)
+      }
+
+      case EnvironmentContext.update_env(socket.assigns.env, attrs) do
+        {:ok, env} ->
+          AuditContext.log_user(
+            socket.assigns.current_user,
+            "updated",
+            "environment",
+            env.uuid,
+            env.name
+          )
+
+          {:noreply,
+           socket
+           |> assign(:env, env)
+           |> put_flash(:info, "Apply gate settings saved.")}
+
+        {:error, changeset} ->
+          msg =
+            changeset.errors
+            |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end)
+            |> Enum.join("; ")
+
+          {:noreply, put_flash(socket, :error, msg)}
+      end
+    end)
+  end
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
+  end
+
+  defp parse_int(_, default), do: default
 
   # Server-side permission re-check for destructive event handlers. UI also
   # disables the buttons when the viewer lacks the perm — this is defense in

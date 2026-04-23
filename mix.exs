@@ -94,7 +94,11 @@ defmodule Lynx.MixProject do
       {:bcrypt_elixir, "~> 3.3"},
       {:sleeplocks, "~> 1.1"},
       {:openid_connect, "~> 1.0"},
-      {:samly, "~> 1.4"}
+      {:samly, "~> 1.4"},
+      {:req, "~> 0.5"},
+      # In-browser Monaco code editor for the Rego policy authoring UI.
+      # Drop-in LV component (`<.code_editor>`); see PolicyContext UI cards.
+      {:live_monaco_editor, "~> 0.2"}
     ]
   end
 

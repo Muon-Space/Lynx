@@ -16,6 +16,8 @@ services:
       DB_PORT: 5432
       DB_SSL: null
       DB_CA_CERTFILE_PATH: null
+      OPA_URL: http://opa:8181
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
       MIX_ENV: prod
     command: sh -c "/app/bin/migrate && /app/bin/server"
     healthcheck:
@@ -25,6 +27,7 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+      - opa
 
   app2:
     image: ghcr.io/muon-space/lynx:latest
@@ -41,6 +44,8 @@ services:
       DB_PORT: 5432
       DB_SSL: null
       DB_CA_CERTFILE_PATH: null
+      OPA_URL: http://opa:8181
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
       MIX_ENV: prod
     command: sh -c "/app/bin/migrate && /app/bin/server"
     healthcheck:
@@ -50,6 +55,7 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+      - opa
 
   app3:
     image: ghcr.io/muon-space/lynx:latest
@@ -66,6 +72,8 @@ services:
       DB_PORT: 5432
       DB_SSL: null
       DB_CA_CERTFILE_PATH: null
+      OPA_URL: http://opa:8181
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
       MIX_ENV: prod
     command: sh -c "/app/bin/migrate && /app/bin/server"
     healthcheck:
@@ -75,6 +83,7 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+      - opa
 
   db:
     image: postgres:18.3
@@ -98,6 +107,23 @@ services:
     volumes:
       - ./nginx-cluster.conf:/etc/nginx/nginx.conf
       - nginx_logs:/var/log/nginx
+
+  opa:
+    image: openpolicyagent/opa:latest
+    environment:
+      OPA_BUNDLE_TOKEN: ${OPA_BUNDLE_TOKEN:?OPA_BUNDLE_TOKEN must be set in .env}
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "--config-file=/config/config.yaml"]
+    restart: unless-stopped
+    # Exposed on the host for debugging only; the lynx replicas talk to opa
+    # over the compose network at http://opa:8181. OPA itself polls bundles
+    # from http://nginx:80 so the load balancer fans the polling out across
+    # app1/app2/app3.
+    ports:
+      - '8181:8181'
+    volumes:
+      - ./opa-config-cluster.yaml:/config/config.yaml:ro
+    depends_on:
+      - nginx
 
 volumes:
   db:

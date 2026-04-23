@@ -1,0 +1,15 @@
+services:
+  lynx:
+    # Point at nginx so OPA's bundle polling load-balances across the
+    # app1/app2/app3 replicas behind it.
+    url: http://nginx:80
+    credentials:
+      bearer:
+        token: ${OPA_BUNDLE_TOKEN}
+bundles:
+  lynx:
+    service: lynx
+    resource: /api/v1/opa/bundle.tar.gz
+    polling:
+      min_delay_seconds: 5
+      max_delay_seconds: 10
