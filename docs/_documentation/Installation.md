@@ -93,6 +93,9 @@ When deploying via Helm or any production Docker setup, the app reads these env 
 | `OTEL_SERVICE_NAME` | optional | Service name in trace data. Defaults to `lynx`. |
 | `OTEL_RESOURCE_ATTRIBUTES` | optional | Additional resource attrs, e.g. `deployment.environment=prod`. |
 | `OTEL_SDK_DISABLED` | optional | Set to `true` to force the SDK off even if `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+| `OPA_URL` | optional | Base URL Lynx uses to query OPA for plan evaluation. Defaults to `http://localhost:8181`. |
+| `OPA_TIMEOUT_MS` | optional | HTTP timeout (in ms) for the OPA evaluation call. Defaults to `5000`. |
+| `OPA_BUNDLE_TOKEN` | optional | Bearer token OPA must present when polling `/api/v1/opa/bundle.tar.gz`. If unset, only DB-managed tokens minted from **Settings → OPA** are accepted. |
 
 ### OpenTelemetry traces
 
@@ -114,6 +117,69 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http_protobuf \
   make run
 # Drive some /tf traffic, then open http://localhost:16686 → Service "lynx".
 ```
+
+
+## OPA (plan policy gates)
+
+Lynx evaluates Terraform plans against [Open Policy Agent](https://www.openpolicyagent.org/) policies before they're applied. OPA runs as a **separate process** (sidecar or centralized service) and pulls policies from Lynx via the OPA Bundle API every 5–10 seconds. This makes the setup autoscaling-safe — N Lynx replicas and M OPA instances all converge by independent polling, with Lynx's Postgres as the source of truth.
+
+### Helm
+
+Set `opa.enabled=true` in your values file:
+
+```yaml
+opa:
+  enabled: true   # deploys an OPA sidecar/Deployment alongside Lynx
+```
+
+The chart auto-generates a `lynx-opa-bundle-token` Secret on first install, mounts it into the Lynx pod as `OPA_BUNDLE_TOKEN`, and configures the OPA pod's `services.lynx.credentials.bearer.token` to the same value. OPA polls Lynx's bundle endpoint (`/api/v1/opa/bundle.tar.gz`) using that bearer token.
+
+### Docker
+
+The `docker-compose.yml` files don't run OPA by default. To enable plan policy gates, add an OPA service to your compose file and set `OPA_BUNDLE_TOKEN` in `.env`:
+
+```yaml
+services:
+  opa:
+    image: openpolicyagent/opa:latest
+    command: ["run", "--server", "--config-file=/config/opa.yaml"]
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa-config.yaml:/config/opa.yaml:ro
+```
+
+`opa-config.yaml` should point OPA at Lynx's bundle endpoint:
+
+```yaml
+services:
+  lynx:
+    url: http://lynx:4000/api/v1/opa
+    credentials:
+      bearer:
+        token: ${OPA_BUNDLE_TOKEN}
+bundles:
+  lynx:
+    service: lynx
+    resource: bundle.tar.gz
+    polling:
+      min_delay_seconds: 5
+      max_delay_seconds: 10
+```
+
+Set `OPA_URL=http://opa:8181` and `OPA_BUNDLE_TOKEN=<random-string>` in the Lynx service's environment.
+
+### Manual install
+
+Download an [OPA release binary](https://github.com/open-policy-agent/opa/releases) and run it as a separate process or systemd unit:
+
+```bash
+opa run --server --config-file /etc/opa/config.yaml
+```
+
+Use the same `config.yaml` shape as the Docker example, pointing at your Lynx host. On Lynx, set `OPA_URL` to the OPA address (default `http://localhost:8181`) and `OPA_BUNDLE_TOKEN` to the bearer token OPA presents when polling. As an alternative to the env-var token, mint per-OPA tokens from **Settings → OPA** in the admin UI and configure each OPA with its own.
+
+See [docs/usage](usage.md#plan-policy-gates) for the CI flow, the apply gate, and a sample Rego policy.
 
 
 ## Manual (Ubuntu)

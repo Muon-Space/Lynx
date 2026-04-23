@@ -73,6 +73,13 @@ migrate:
 	@$(mix) ecto.setup
 
 
+## seed: Re-run priv/repo/seeds.exs against the dev DB (idempotent)
+.PHONY: seed
+seed:
+	@echo ">> ============= Seed database ============= <<"
+	@$(mix) run priv/repo/seeds.exs
+
+
 ## run: Run lynx
 .PHONY: run
 run:
@@ -138,3 +145,15 @@ feature_test: assets_deploy
 ## ci_feature: CI entry point for feature tests (install browser, then run)
 .PHONY: ci_feature
 ci_feature: playwright_install feature_test
+
+
+## opa_test: Run OPA integration tests (requires `opa` daemon on localhost:8181)
+.PHONY: opa_test
+opa_test:
+	@echo ">> ============= OPA integration tests ============= <<"
+	@$(mix) test --only opa
+
+
+## ci_opa: CI entry point for OPA integration tests
+.PHONY: ci_opa
+ci_opa: opa_test

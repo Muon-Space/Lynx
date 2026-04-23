@@ -436,4 +436,28 @@ defmodule Lynx.Context.EnvironmentContext do
       _ -> true
     end
   end
+
+  @doc """
+  List envs that have an explicit (non-NULL) value for either policy
+  gate. Includes joined workspace + project so the global Policies page
+  can render hyperlinks without follow-up lookups.
+  """
+  def list_envs_with_gate_overrides do
+    alias Lynx.Model.{Environment, Project, Workspace}
+
+    from(e in Environment,
+      join: pr in Project,
+      on: pr.id == e.project_id,
+      join: ws in Workspace,
+      on: ws.id == pr.workspace_id,
+      where: not is_nil(e.require_passing_plan) or not is_nil(e.block_violating_apply),
+      select: %{
+        env: e,
+        project: pr,
+        workspace: ws
+      },
+      order_by: [asc: ws.name, asc: pr.name, asc: e.name]
+    )
+    |> Repo.all()
+  end
 end

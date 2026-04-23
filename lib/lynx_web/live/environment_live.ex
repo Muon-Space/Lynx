@@ -6,10 +6,12 @@ defmodule LynxWeb.EnvironmentLive do
   alias Lynx.Service.Settings
   alias Lynx.Context.AuditContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.PlanCheckContext
+  alias Lynx.Context.PolicyContext
   alias Lynx.Context.StateContext
   alias Lynx.Context.RoleContext
   alias Lynx.Context.LockContext
-  alias Lynx.Service.OIDCBackend
+  alias Lynx.Service.{OIDCBackend, PolicyGate}
 
   # `?oidc=1` from the role-detail page's "Manage" link opens the OIDC modal
   # on mount so the admin lands directly on the rules editor for this env.
@@ -55,6 +57,20 @@ defmodule LynxWeb.EnvironmentLive do
 
             roles = RoleContext.list_roles()
 
+            plan_checks = PlanCheckContext.list_for_env(env.id, 10)
+
+            # Map of policy_uuid → /admin/.../policies?edit=<uuid> for the
+            # violation chips. Built once at mount from the union of
+            # policies referenced by recent plan_checks; gracefully omits
+            # policies that have since been deleted.
+            policy_links =
+              plan_checks
+              |> Enum.flat_map(fn c -> parse_violations(c.violations) end)
+              |> Enum.map(& &1["policyId"])
+              |> Enum.reject(&is_nil/1)
+              |> Enum.uniq()
+              |> PolicyContext.get_link_targets_by_uuids()
+
             socket =
               socket
               |> assign(:project, project)
@@ -72,6 +88,13 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:show_add_rule, false)
               |> assign(:rule_provider_id, "")
               |> assign(:rule_role_id, default_role_id(roles, "applier"))
+              |> assign(:plan_checks, plan_checks)
+              |> assign(:policy_links, policy_links)
+              |> assign(:policy_gate, PolicyGate.effective(env))
+              |> assign(
+                :effective_policies_count,
+                length(PolicyContext.list_effective_policies_for_env(env.id))
+              )
               |> load_units()
 
             {:ok, socket}
@@ -102,6 +125,13 @@ defmodule LynxWeb.EnvironmentLive do
             Audit history
           </a>
           <.button :if={can_manage_oidc_rules?(assigns)} phx-click="show_oidc" variant="secondary" size="sm">OIDC</.button>
+          <.link
+            :if={RoleContext.has?(@viewer_perms, "policy:manage")}
+            navigate={~p"/admin/projects/#{@project.uuid}/environments/#{@env.uuid}/policies"}
+            class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary"
+          >
+            Policies
+          </.link>
           <% can_act = if @env_locked, do: RoleContext.has?(@viewer_perms, "state:force_unlock"), else: RoleContext.has?(@viewer_perms, "state:lock") %>
           <span
             class={if can_act, do: "cursor-pointer", else: "cursor-not-allowed opacity-50"}
@@ -213,9 +243,230 @@ defmodule LynxWeb.EnvironmentLive do
           </:action>
         </.table>
       </.card>
+
+      <%!-- Policy Enforcement card (issue #38). Effective state derived
+            via `Lynx.Service.PolicyGate.effective/1`. Tri-state selects
+            for both gates: inherit / always / never. Banner up top makes
+            the current effective state obvious. --%>
+      <.card class="mt-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold text-secondary">Policy Enforcement</h3>
+          <.link
+            :if={RoleContext.has?(@viewer_perms, "policy:manage")}
+            navigate={~p"/admin/projects/#{@project.uuid}/environments/#{@env.uuid}/policies"}
+            class="text-xs text-clickable hover:text-clickable-hover"
+          >
+            Manage policies →
+          </.link>
+        </div>
+
+        <%!-- Status banner: surfaces effective state without making the user
+              read the form. Color cues: red = nothing enforced, green = at
+              least one enforcement on. --%>
+        <% gate = @policy_gate %>
+        <% has_policies = @effective_policies_count > 0 %>
+        <% any_enforce = gate.require_passing_plan.value or gate.block_violating_apply.value %>
+        <div class={[
+          "rounded-lg p-4 mb-4 text-sm",
+          cond do
+            has_policies and not any_enforce -> "bg-flash-error-bg text-flash-error-text border border-flash-error-border"
+            has_policies and any_enforce -> "bg-flash-success-bg text-flash-success-text border border-flash-success-border"
+            true -> "bg-inset text-secondary"
+          end
+        ]}>
+          <p class="font-medium">
+            {@effective_policies_count} {if @effective_policies_count == 1, do: "policy", else: "policies"} effective for this environment.
+          </p>
+          <ul class="mt-1 space-y-0.5">
+            <li>
+              Plan gate: <strong>{if gate.require_passing_plan.value, do: "ON", else: "OFF"}</strong>
+              <span class="text-xs">({source_label(gate.require_passing_plan.source)})</span>
+            </li>
+            <li>
+              Block on policy violation: <strong>{if gate.block_violating_apply.value, do: "ON", else: "OFF"}</strong>
+              <span class="text-xs">({source_label(gate.block_violating_apply.source)})</span>
+            </li>
+          </ul>
+          <p :if={has_policies and not any_enforce} class="mt-2 text-xs">
+            Policies are advisory only — applies will succeed even if a policy fails. Toggle either gate below to enforce.
+          </p>
+
+          <%!-- When enforcement IS on, warn that the terraform CLI shows a
+                generic "HTTP error: 423" because terraform discards
+                response bodies on state-push errors at every log level
+                (DEBUG/TRACE/JSON all confirmed). The full reason lands
+                in the audit log; deep-link to a pre-filtered view. --%>
+          <p :if={has_policies and any_enforce} class="mt-2 text-xs">
+            When a policy blocks an apply, terraform shows a generic <code>HTTP error: 423</code> with no further detail (terraform drops the response body).
+            The full reason — which policy fired and what it said — is recorded in the
+            <.link
+              navigate={~p"/admin/audit?action=apply_blocked&resource_type=environment&resource_id=#{@env.uuid}"}
+              class="underline hover:no-underline"
+            >audit log</.link>.
+          </p>
+        </div>
+
+        <form
+          :if={RoleContext.has?(@viewer_perms, "policy_gate:manage")}
+          phx-submit="save_apply_gate"
+          class="space-y-3 mb-6"
+        >
+          <.input
+            name="require_passing_plan"
+            type="select"
+            label="Require a passing plan-check before apply (advanced — requires CI integration)"
+            value={tri_state_value(@env.require_passing_plan)}
+            options={tri_state_options(:require_passing_plan)}
+            hint="Inherit / override for this env. Terraform doesn't call the plan endpoint automatically — CI must `curl POST /tf/.../plan` before `terraform apply`. Worth turning on only when policies need to see plan-level diff info (create / update / delete actions); otherwise the gate below is enough and works with stock terraform."
+          />
+          <.input
+            name="block_violating_apply"
+            type="select"
+            label="Block apply on policy violation (no plan upload required)"
+            value={tri_state_value(@env.block_violating_apply)}
+            options={tri_state_options(:block_violating_apply)}
+            hint="Inherit / override for this env. Recommended default. Evaluates the new state body against effective policies on every state-write — works with stock terraform / terragrunt, no CI integration needed."
+          />
+          <.input
+            name="plan_max_age_seconds"
+            type="number"
+            label="Max plan-check age (seconds)"
+            value={@env.plan_max_age_seconds}
+            hint="A passing plan_check older than this is rejected at apply time."
+          />
+          <.button type="submit" variant="primary" size="sm">Save Gate Settings</.button>
+        </form>
+
+        <h4 class="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
+          Recent plan checks
+        </h4>
+        <.table rows={@plan_checks} empty_message="No plan checks recorded yet.">
+          <:col :let={c} label="When">
+            <span class="text-xs text-muted">{Calendar.strftime(c.inserted_at, "%Y-%m-%d %H:%M:%S")}</span>
+          </:col>
+          <:col :let={c} label="Sub-path">
+            <code class="text-xs">{if c.sub_path == "", do: "(root)", else: c.sub_path}</code>
+          </:col>
+          <:col :let={c} label="Outcome">
+            <div>
+              <.badge color={plan_check_color(c.outcome)}>{c.outcome}</.badge>
+            </div>
+
+            <%!-- For failed / errored plans: show which policies fired
+                  and an expandable list of their messages, mirroring the
+                  audit-log apply_blocked treatment. --%>
+            <div :if={violations = parse_violations(c.violations); violations != []} class="mt-1.5 text-xs space-y-1">
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="text-muted">policies:</span>
+                <%= for v <- violations do %>
+                  <% link = Map.get(@policy_links, v["policyId"]) %>
+                  <%= if link do %>
+                    <.link navigate={link}>
+                      <.badge color="purple">{v["policyName"]}</.badge>
+                    </.link>
+                  <% else %>
+                    <.badge color="purple">{v["policyName"]}</.badge>
+                  <% end %>
+                <% end %>
+              </div>
+              <details>
+                <summary class="text-muted cursor-pointer hover:text-foreground">
+                  {length(flat_messages = flatten_violations(violations))} message(s)
+                </summary>
+                <ul class="bg-inset rounded p-2 mt-1 space-y-1 list-disc ml-5">
+                  <li :for={{name, msg} <- flat_messages}>
+                    <strong>{name}:</strong> {msg}
+                  </li>
+                </ul>
+              </details>
+            </div>
+          </:col>
+          <:col :let={c} label="Actor">
+            <span class="text-xs">{c.actor_name || "—"} <span class="text-muted" title={actor_type_tooltip(c.actor_type)}>({actor_type_label(c.actor_type)})</span></span>
+          </:col>
+          <:col :let={c} label="Consumed">
+            <%= cond do %>
+              <% c.consumed_at -> %>
+                <span class="text-xs">{Calendar.strftime(c.consumed_at, "%Y-%m-%d %H:%M")}</span>
+              <% c.outcome == "passed" -> %>
+                <.badge color="blue">available</.badge>
+              <% true -> %>
+                <span class="text-muted text-xs">n/a</span>
+            <% end %>
+          </:col>
+        </.table>
+      </.card>
     </div>
     """
   end
+
+  defp plan_check_color("passed"), do: "green"
+  defp plan_check_color("failed"), do: "red"
+  defp plan_check_color("errored"), do: "yellow"
+  defp plan_check_color(_), do: "gray"
+
+  # plan_check.violations is a JSON-encoded list of `%{policyId, policyName, messages}`
+  # from `tf_controller.evaluate_policies/2`. Decode for the env-page renderer
+  # so it can show policy chips + the expandable message list.
+  defp parse_violations(nil), do: []
+  defp parse_violations(""), do: []
+  defp parse_violations("[]"), do: []
+
+  defp parse_violations(json) when is_binary(json) do
+    case Jason.decode(json) do
+      {:ok, list} when is_list(list) -> list
+      _ -> []
+    end
+  end
+
+  defp parse_violations(_), do: []
+
+  # Flatten the parsed violations list into [{policy_name, message}, ...]
+  # so HEEx can render in a single comprehension (no nested :for support).
+  defp flatten_violations(violations) when is_list(violations) do
+    Enum.flat_map(violations, fn v ->
+      name = v["policyName"] || "unknown"
+      Enum.map(v["messages"] || [], &{name, &1})
+    end)
+  end
+
+  defp flatten_violations(_), do: []
+
+  # Friendly label + tooltip for the actor_type internal jargon
+  # (env_secret / oidc / user / system). Mirrors PolicyDetailLive.
+  defp actor_type_label("env_secret"), do: "env credentials"
+  defp actor_type_label("oidc"), do: "OIDC token"
+  defp actor_type_label("user"), do: "user API key"
+  defp actor_type_label("system"), do: "system"
+  defp actor_type_label(other), do: to_string(other)
+
+  defp actor_type_tooltip("env_secret"),
+    do: "Authenticated with the env's static username + secret (legacy / break-glass)."
+
+  defp actor_type_tooltip("oidc"),
+    do: "Authenticated with an OIDC JWT (typical CI flow)."
+
+  defp actor_type_tooltip("user"),
+    do: "Authenticated with a user's API key (typical local-dev flow)."
+
+  defp actor_type_tooltip("system"), do: "Internal Lynx process."
+  defp actor_type_tooltip(_), do: nil
+
+  # Tri-state UI helpers for the gate selects: nil = inherit, true = on, false = off.
+  defp tri_state_value(nil), do: ""
+  defp tri_state_value(true), do: "true"
+  defp tri_state_value(false), do: "false"
+
+  defp tri_state_options(_key) do
+    [
+      {"Inherit global default", ""},
+      {"Always (override on)", "true"},
+      {"Never (override off)", "false"}
+    ]
+  end
+
+  defp source_label(:explicit), do: "explicit override"
+  defp source_label(:inherited), do: "inherited from global default"
 
   @impl true
   def handle_event("confirm_action", params, socket) do
@@ -417,6 +668,54 @@ defmodule LynxWeb.EnvironmentLive do
       {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
     end)
   end
+
+  def handle_event("save_apply_gate", params, socket) do
+    with_perm(socket, "policy_gate:manage", fn socket ->
+      attrs = %{
+        require_passing_plan: parse_tri_state(params["require_passing_plan"]),
+        block_violating_apply: parse_tri_state(params["block_violating_apply"]),
+        plan_max_age_seconds: parse_int(params["plan_max_age_seconds"], 1800)
+      }
+
+      case EnvironmentContext.update_env(socket.assigns.env, attrs) do
+        {:ok, env} ->
+          AuditContext.log_user(
+            socket.assigns.current_user,
+            "updated",
+            "environment",
+            env.uuid,
+            env.name
+          )
+
+          {:noreply,
+           socket
+           |> assign(:env, env)
+           |> assign(:policy_gate, PolicyGate.effective(env))
+           |> put_flash(:info, "Policy enforcement settings saved.")}
+
+        {:error, changeset} ->
+          msg =
+            changeset.errors
+            |> Enum.map(fn {f, {m, _}} -> "#{f}: #{m}" end)
+            |> Enum.join("; ")
+
+          {:noreply, put_flash(socket, :error, msg)}
+      end
+    end)
+  end
+
+  defp parse_tri_state("true"), do: true
+  defp parse_tri_state("false"), do: false
+  defp parse_tri_state(_), do: nil
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, _} when n > 0 -> n
+      _ -> default
+    end
+  end
+
+  defp parse_int(_, default), do: default
 
   # Server-side permission re-check for destructive event handlers. UI also
   # disables the buttons when the viewer lacks the perm — this is defense in

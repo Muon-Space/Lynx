@@ -108,6 +108,13 @@ defmodule LynxWeb.ProjectLive do
           <a :if={@current_user.role == "super"} href={"/admin/audit?resource_type=project&resource_id=#{@project.uuid}&include_children=1"} class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary">
             Audit history
           </a>
+          <.link
+            :if={RoleContext.has?(@viewer_perms, "policy:manage")}
+            navigate={~p"/admin/projects/#{@project.uuid}/policies"}
+            class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary"
+          >
+            Policies
+          </.link>
           <.button :if={RoleContext.has?(@viewer_perms, "env:manage")} phx-click="show_add_env" variant="primary">+ Add Environment</.button>
         </div>
       </div>

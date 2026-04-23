@@ -46,7 +46,16 @@ defmodule LynxWeb.ProjectsLive do
           <span>/</span>
           <span class="text-foreground font-medium">{@workspace.name}</span>
         </nav>
-        <.button phx-click="show_add" variant="primary">+ Add Project</.button>
+        <div class="flex items-center gap-2">
+          <a
+            :if={@current_user.role == "super"}
+            href={"/admin/workspaces/#{@workspace.uuid}/policies"}
+            class="text-xs px-3 py-1.5 rounded-lg border border-border-input text-secondary hover:bg-surface-secondary"
+          >
+            Policies
+          </a>
+          <.button phx-click="show_add" variant="primary">+ Add Project</.button>
+        </div>
       </div>
 
       <.modal :if={@show_add} id="add-project" show on_close="hide_add">

@@ -7,7 +7,10 @@ defmodule LynxWeb.TfController do
   alias Lynx.Context.StateContext
   alias Lynx.Context.LockContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.PlanCheckContext
+  alias Lynx.Context.PolicyContext
   alias Lynx.Context.RoleContext
+  alias Lynx.Service.{PolicyEngine, PolicyGate}
 
   require OpenTelemetry.Tracer, as: Tracer
 
@@ -98,6 +101,13 @@ defmodule LynxWeb.TfController do
           end)
         end
 
+      "plan" ->
+        Tracer.with_span "tf.plan.check", attributes: attrs do
+          require_permission(conn, "plan:check", fn conn ->
+            check_plan(conn, w_slug, p_slug, e_slug, sub_path, params)
+          end)
+        end
+
       _ ->
         conn |> send_resp(404, "Not found")
     end
@@ -183,7 +193,9 @@ defmodule LynxWeb.TfController do
         # cycle (used by `terraform apply` and `terraform import`) is impossible.
         # Anyone else (no ID, mismatched ID) is correctly rejected.
         if lock_holder?(conn, params, lock) do
-          do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+          with_apply_gate(conn, w_slug, p_slug, e_slug, sub_path, params, fn conn ->
+            do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+          end)
         else
           conn
           |> put_status(:locked)
@@ -192,8 +204,92 @@ defmodule LynxWeb.TfController do
         end
 
       _ ->
-        do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+        with_apply_gate(conn, w_slug, p_slug, e_slug, sub_path, params, fn conn ->
+          do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
+        end)
     end
+  end
+
+  # Apply gate (issue #38). When the env opts in, every state-write must
+  # be preceded by a passing plan_check from the same actor within the
+  # configured TTL. The plan_check row is consumed atomically here so two
+  # concurrent applies can't both spend the same approval.
+  defp with_apply_gate(conn, w_slug, p_slug, e_slug, sub_path, _params, then_fn) do
+    case resolve_env(w_slug, p_slug, e_slug) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> put_view(LynxWeb.LockJSON)
+        |> render(:error, %{message: "Environment not found"})
+
+      env ->
+        if PolicyGate.require_passing_plan?(env) do
+          case consume_recent_passing(env, sub_path, conn) do
+            :ok ->
+              then_fn.(conn)
+
+            {:error, reason} ->
+              Logger.info(
+                "tf apply gate denied: env=#{e_slug} sub=#{sub_path} actor=#{conn.assigns[:tf_username]} reason=#{reason}"
+              )
+
+              log_apply_blocked(conn, env, sub_path, "plan_gate", reason, [])
+
+              # 423 + LockJSON body so terraform's lock-error path surfaces
+              # the message instead of the generic "HTTP error: 403".
+              # See `policy_gate_lock_response/3`.
+              policy_gate_lock_response(conn, "apply_gate", "Apply gate: #{reason}")
+          end
+        else
+          then_fn.(conn)
+        end
+    end
+  end
+
+  defp consume_recent_passing(env, sub_path, conn) do
+    actor_signature = actor_signature(conn)
+
+    case PlanCheckContext.latest_unconsumed_passing(env.id, sub_path, actor_signature) do
+      nil ->
+        {:error, "no recent passing plan_check for this env / sub-path"}
+
+      plan_check ->
+        max_age = env.plan_max_age_seconds
+        age = DateTime.diff(DateTime.utc_now(), to_datetime(plan_check.inserted_at), :second)
+
+        cond do
+          age > max_age ->
+            {:error, "plan_check older than #{max_age}s (was #{age}s)"}
+
+          true ->
+            case PlanCheckContext.consume(plan_check) do
+              {:ok, _} -> :ok
+              :already_consumed -> {:error, "plan_check already consumed"}
+            end
+        end
+    end
+  end
+
+  defp resolve_env(w_slug, p_slug, e_slug) do
+    with %{id: ws_id} <- Lynx.Context.WorkspaceContext.get_workspace_by_slug(w_slug),
+         %{id: project_id} <-
+           Lynx.Context.ProjectContext.get_project_by_slug_and_workspace(p_slug, ws_id),
+         env when not is_nil(env) <-
+           EnvironmentContext.get_env_by_slug_project(project_id, e_slug) do
+      env
+    else
+      _ -> nil
+    end
+  end
+
+  defp to_datetime(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
+  defp to_datetime(%DateTime{} = dt), do: dt
+
+  # Build the actor signature used to bind a passing plan_check to the
+  # subsequent apply. Same credential = same signature; cross-credential
+  # apply attempts won't see the row.
+  defp actor_signature(conn) do
+    "#{conn.assigns[:tf_actor_type] || "unknown"}:#{conn.assigns[:tf_username] || "unknown"}"
   end
 
   defp lock_holder?(conn, params, lock) do
@@ -202,8 +298,112 @@ defmodule LynxWeb.TfController do
   end
 
   defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
-    body = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
+    state_map = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"])
 
+    case maybe_block_violating_apply(conn, w_slug, p_slug, e_slug, sub_path, state_map) do
+      {:blocked, msg, env, policy_names} ->
+        Logger.info(
+          "tf state-write blocked by policy: env=#{e_slug} sub=#{sub_path} actor=#{conn.assigns[:tf_username]}"
+        )
+
+        log_apply_blocked(conn, env, sub_path, "policy_violation", msg, policy_names)
+
+        policy_gate_lock_response(conn, "policy_violation", "Policy violation: #{msg}")
+
+      :ok ->
+        do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, Jason.encode!(state_map))
+    end
+  end
+
+  # Terraform's HTTP backend hard-codes the error format for non-2xx
+  # status codes on state writes ("HTTP error: 403") and drops the
+  # response body. The one exception terraform parses is `423 Locked`
+  # with a `LockInfo`-shaped JSON body — it shows the lock's `Info`
+  # field in the error UI. We hijack that path here so policy-violation
+  # and apply-gate denials reach the user via terraform CLI output.
+  #
+  # The synthetic Lock fields are deliberately obvious about being a
+  # gate response (Operation = the gate name, Who = the actor) so an
+  # operator looking at the raw response isn't confused into thinking
+  # it's a real concurrent-lock conflict.
+  defp policy_gate_lock_response(conn, gate, message) do
+    # Empirically verified: terraform's HTTP backend does parse the 423
+    # body server-side but the CLI displays its own LOCAL lock info
+    # rather than the parsed `LockInfo` from our response. So the body
+    # we send is correct + structured for any tool that fetches it
+    # directly (curl, custom CI), but the standard terraform CLI will
+    # NOT surface our message. The Lynx audit log carries the full
+    # reason; that's the source of truth for users hitting this gate.
+    synthetic_lock = %{
+      uuid: Ecto.UUID.generate(),
+      path: "policy_gate",
+      operation: gate,
+      who: conn.assigns[:tf_username] || "unknown",
+      version: "lynx",
+      updated_at: DateTime.utc_now(),
+      info: message
+    }
+
+    conn
+    |> put_status(:locked)
+    |> put_view(LynxWeb.LockJSON)
+    |> render(:lock_data, %{lock: synthetic_lock})
+  end
+
+  # Run effective policies against the state body, gated by the env's
+  # block_violating_apply flag (or the global default if the env inherits).
+  # Returns :ok if not enabled or no violations; {:blocked, msg} otherwise.
+  defp maybe_block_violating_apply(_conn, w_slug, p_slug, e_slug, _sub_path, state_map) do
+    case resolve_env(w_slug, p_slug, e_slug) do
+      nil ->
+        :ok
+
+      env ->
+        if PolicyGate.block_violating_apply?(env) do
+          input = PolicyGate.state_to_plan_input(state_map)
+          policies = PolicyContext.list_effective_policies_for_env(env.id)
+
+          violations =
+            Enum.flat_map(policies, fn policy ->
+              case PolicyEngine.eval_deny(policy.uuid, input) do
+                {:ok, []} ->
+                  []
+
+                {:ok, msgs} when is_list(msgs) ->
+                  Enum.map(msgs, &"#{policy.name}: #{&1}")
+
+                {:error, reason} ->
+                  # Fail-closed: if we can't evaluate, treat as a violation
+                  # so a misconfigured / down OPA can't accidentally permit
+                  # forbidden state. Matches the strict-validate semantics
+                  # we ship for policy save.
+                  ["#{policy.name}: engine error (#{inspect(reason)})"]
+              end
+            end)
+
+          case violations do
+            [] ->
+              :ok
+
+            _ ->
+              # Pass both name + uuid pairs so the audit row can render
+              # chips that link to the per-policy detail page (the new
+              # scheme) AND remain readable for older log readers (the
+              # old scheme stored just names).
+              policies_for_audit =
+                policies
+                |> Enum.map(fn p -> %{"name" => p.name, "uuid" => p.uuid} end)
+                |> Enum.uniq()
+
+              {:blocked, Enum.join(violations, "; "), env, policies_for_audit}
+          end
+        else
+          :ok
+        end
+    end
+  end
+
+  defp do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, body) do
     case StateContext.add_state(%{
            w_slug: w_slug,
            p_slug: p_slug,
@@ -314,6 +514,164 @@ defmodule LynxWeb.TfController do
       {action, []} -> {"", action}
       {action, path_parts} -> {Enum.join(path_parts, "/"), action}
     end
+  end
+
+  # POST /tf/.../plan — accepts `terraform show -json` output, evaluates
+  # every effective policy for the env, persists a plan_check row, and
+  # returns the verdict. Persists regardless of outcome so failed checks
+  # are auditable + the env page's history card has something to render.
+  defp check_plan(conn, _w_slug, _p_slug, e_slug, sub_path, params) do
+    case resolve_env_for_plan(conn) do
+      {:error, msg, status} ->
+        conn
+        |> put_status(status)
+        |> Phoenix.Controller.json(%{"errorMessage" => msg})
+
+      {:ok, env} ->
+        plan_input =
+          params
+          |> Map.drop(["w_slug", "p_slug", "e_slug", "rest", "t_slug"])
+
+        plan_json = Jason.encode!(plan_input)
+        policies = PolicyContext.list_effective_policies_for_env(env.id)
+
+        {outcome, violations} = evaluate_policies(policies, plan_input)
+
+        actor_signature = actor_signature(conn)
+        actor_type = conn.assigns[:tf_actor_type] || "unknown"
+        actor_name = conn.assigns[:tf_username]
+
+        attrs =
+          PlanCheckContext.new_plan_check(%{
+            environment_id: env.id,
+            sub_path: sub_path,
+            outcome: outcome,
+            violations: Jason.encode!(violations),
+            plan_json: plan_json,
+            actor_signature: actor_signature,
+            actor_name: actor_name,
+            actor_type: actor_type
+          })
+
+        case PlanCheckContext.create_plan_check(attrs) do
+          {:ok, record} ->
+            log_plan_check_event(conn, env, sub_path, outcome, length(policies))
+
+            conn
+            |> put_status(:ok)
+            |> Phoenix.Controller.json(%{
+              "id" => record.uuid,
+              "outcome" => outcome,
+              "violations" => violations,
+              "policiesEvaluated" => length(policies)
+            })
+
+          {:error, changeset} ->
+            Logger.error("plan_check insert failed: #{inspect(changeset.errors)} env=#{e_slug}")
+
+            conn
+            |> put_status(:internal_server_error)
+            |> Phoenix.Controller.json(%{"errorMessage" => "Failed to record plan check"})
+        end
+    end
+  end
+
+  defp resolve_env_for_plan(conn) do
+    case resolve_env(conn.params["w_slug"], conn.params["p_slug"], conn.params["e_slug"]) do
+      nil -> {:error, "Environment not found", :not_found}
+      env -> {:ok, env}
+    end
+  end
+
+  # Evaluate each policy serially. If any errors, the overall outcome is
+  # `errored` so operators see something went wrong; otherwise the outcome
+  # is `failed` if any policy returned violations, else `passed`. Returns
+  # `{outcome, violation_records}` where each violation_record carries
+  # the policy uuid + name + the messages.
+  defp evaluate_policies([], _input), do: {"passed", []}
+
+  defp evaluate_policies(policies, input) do
+    {outcome, violations} =
+      Enum.reduce(policies, {"passed", []}, fn policy, {acc_outcome, acc_violations} ->
+        case PolicyEngine.eval_deny(policy.uuid, input) do
+          {:ok, []} ->
+            {acc_outcome, acc_violations}
+
+          {:ok, msgs} when is_list(msgs) ->
+            row = %{
+              "policyId" => policy.uuid,
+              "policyName" => policy.name,
+              "messages" => msgs
+            }
+
+            new_outcome = if acc_outcome == "errored", do: "errored", else: "failed"
+            {new_outcome, [row | acc_violations]}
+
+          {:error, reason} ->
+            row = %{
+              "policyId" => policy.uuid,
+              "policyName" => policy.name,
+              "messages" => ["engine error: #{inspect(reason)}"]
+            }
+
+            {"errored", [row | acc_violations]}
+        end
+      end)
+
+    {outcome, Enum.reverse(violations)}
+  end
+
+  # Audit a 403 from either policy gate. `gate` is "plan_gate" or
+  # "policy_violation". `policies` is a list of `%{"name", "uuid"}` maps
+  # for the policies that contributed to the block (empty list for
+  # plan-gate denials — those reject on missing/stale plan_check, not on
+  # a specific policy). Renderers in audit_live use the uuids to deep-
+  # link each chip to the per-policy detail page.
+  defp log_apply_blocked(conn, env, sub_path, gate, reason, policies) do
+    actor_name = conn.assigns[:tf_username] || "system"
+    actor_type = conn.assigns[:tf_actor_type] || "system"
+
+    AuditContext.create_event(%{
+      actor_id: nil,
+      actor_name: actor_name,
+      actor_type: actor_type,
+      action: "apply_blocked",
+      resource_type: "environment",
+      resource_id: env.uuid,
+      resource_name: env.name,
+      metadata:
+        Jason.encode!(%{
+          "gate" => gate,
+          "sub_path" => sub_path,
+          "reason" => reason,
+          "policies" => policies
+        })
+    })
+  end
+
+  # Audit-event sibling of `log_tf_event/6` for the plan-check action,
+  # carrying outcome + policy count as JSON metadata. Uses env.uuid as
+  # the resource_id so the audit page's environment-link handler builds
+  # a working deep link.
+  defp log_plan_check_event(conn, env, sub_path, outcome, policies_evaluated) do
+    actor_name = conn.assigns[:tf_username] || "system"
+    actor_type = conn.assigns[:tf_actor_type] || "system"
+
+    AuditContext.create_event(%{
+      actor_id: nil,
+      actor_name: actor_name,
+      actor_type: actor_type,
+      action: "plan_checked",
+      resource_type: "environment",
+      resource_id: env.uuid,
+      resource_name: env.name,
+      metadata:
+        Jason.encode!(%{
+          "outcome" => outcome,
+          "policies_evaluated" => policies_evaluated,
+          "sub_path" => sub_path
+        })
+    })
   end
 
   # Common OTel span attributes for `/tf/` actions. The path tuple is the

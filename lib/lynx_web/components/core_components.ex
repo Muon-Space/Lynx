@@ -245,6 +245,11 @@ defmodule LynxWeb.CoreComponents do
       type={@type}
       class={[
         "inline-flex items-center justify-center rounded-lg font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2",
+        # Disabled state: dim + change cursor. The `disabled` HTML attr on
+        # the underlying button already blocks clicks (and hover styles
+        # don't apply on disabled per browser default). This just makes
+        # the visual match the functional state.
+        "disabled:opacity-50 disabled:cursor-not-allowed",
         button_size(@size),
         button_variant(@variant),
         @class
@@ -986,6 +991,7 @@ defmodule LynxWeb.CoreComponents do
             <.nav_link :if={@current_user.role == "super"} href="/admin/teams" active={@active == "teams"}>Teams</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/users" active={@active == "users"}>Users</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/roles" active={@active == "roles"}>Roles</.nav_link>
+            <.nav_link :if={@current_user.role == "super"} href="/admin/policies" active={@active == "policies"}>Policies</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/settings" active={@active == "settings"}>Settings</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/audit" active={@active == "audit"}>Audit Log</.nav_link>
           </div>

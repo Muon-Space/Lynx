@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "flatpickr/dist/flatpickr.min.css";
+@import "../../deps/live_monaco_editor/priv/static/live_monaco_editor.min.css";
 
 @source "../../lib/lynx_web/**/*.ex";
 @source "../../lib/lynx_web/**/*.heex";
@@ -121,10 +122,14 @@
     --border-default: #374151;
     --border-input: #4b5563;
 
-    /* Text */
+    /* Text — readability-first hierarchy. The previous --text-muted of
+       #6b7280 was below the comfortable contrast threshold on a dark
+       background for small body text (hints, captions). Lifted to
+       #8b95a5 — distinctly dimmer than secondary so the hierarchy
+       still reads, but readable at 12-14px sizes. */
     --text-primary: #f3f4f6;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
+    --text-secondary: #cbd5e1;
+    --text-muted: #8b95a5;
     --text-on-primary: #ffffff;
     --text-link: #60a5fa;
 
