@@ -298,9 +298,9 @@ defmodule LynxWeb.TfController do
   end
 
   defp do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params) do
-    body = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"]) |> Jason.encode!()
+    state_map = Map.drop(params, ["w_slug", "p_slug", "e_slug", "rest", "t_slug"])
 
-    case maybe_block_violating_apply(conn, w_slug, p_slug, e_slug, sub_path, body) do
+    case maybe_block_violating_apply(conn, w_slug, p_slug, e_slug, sub_path, state_map) do
       {:blocked, msg, env, policy_names} ->
         Logger.info(
           "tf state-write blocked by policy: env=#{e_slug} sub=#{sub_path} actor=#{conn.assigns[:tf_username]}"
@@ -311,7 +311,7 @@ defmodule LynxWeb.TfController do
         policy_gate_lock_response(conn, "policy_violation", "Policy violation: #{msg}")
 
       :ok ->
-        do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, body)
+        do_persist_state(conn, w_slug, p_slug, e_slug, sub_path, Jason.encode!(state_map))
     end
   end
 
@@ -353,14 +353,14 @@ defmodule LynxWeb.TfController do
   # Run effective policies against the state body, gated by the env's
   # block_violating_apply flag (or the global default if the env inherits).
   # Returns :ok if not enabled or no violations; {:blocked, msg} otherwise.
-  defp maybe_block_violating_apply(_conn, w_slug, p_slug, e_slug, _sub_path, body) do
+  defp maybe_block_violating_apply(_conn, w_slug, p_slug, e_slug, _sub_path, state_map) do
     case resolve_env(w_slug, p_slug, e_slug) do
       nil ->
         :ok
 
       env ->
         if PolicyGate.block_violating_apply?(env) do
-          input = PolicyGate.state_to_plan_input(body)
+          input = PolicyGate.state_to_plan_input(state_map)
           policies = PolicyContext.list_effective_policies_for_env(env.id)
 
           violations =

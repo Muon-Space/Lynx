@@ -67,27 +67,37 @@ defmodule Lynx.Service.PolicyGate do
   an "update" with the resource attributes as `change.after`. Lets
   policies that filter on `input.resource_changes[]` work for both
   plan-check AND apply-block enforcement.
+
+  Accepts either a pre-decoded state map (state-write path already has
+  the params parsed by Plug) or a JSON-encoded binary (other callers).
   """
   def state_to_plan_input(state_body) when is_binary(state_body) do
     case Jason.decode(state_body) do
-      {:ok, %{"resources" => resources} = state} when is_list(resources) ->
-        %{
-          "format_version" => "1.2",
-          "terraform_version" => Map.get(state, "terraform_version", "unknown"),
-          "_lynx_synthetic" => true,
-          "resource_changes" => Enum.flat_map(resources, &resource_to_changes/1)
-        }
-
-      _ ->
-        # Empty / malformed state — nothing to evaluate. Treat as no-op
-        # (zero changes); policies that look only at resource_changes[]
-        # produce no violations on this input.
-        %{
-          "format_version" => "1.2",
-          "_lynx_synthetic" => true,
-          "resource_changes" => []
-        }
+      {:ok, state} when is_map(state) -> state_to_plan_input(state)
+      _ -> empty_input()
     end
+  end
+
+  def state_to_plan_input(%{"resources" => resources} = state) when is_list(resources) do
+    %{
+      "format_version" => "1.2",
+      "terraform_version" => Map.get(state, "terraform_version", "unknown"),
+      "_lynx_synthetic" => true,
+      "resource_changes" => Enum.flat_map(resources, &resource_to_changes/1)
+    }
+  end
+
+  # Empty / malformed state — nothing to evaluate. Treat as no-op
+  # (zero changes); policies that look only at resource_changes[]
+  # produce no violations on this input.
+  def state_to_plan_input(_), do: empty_input()
+
+  defp empty_input do
+    %{
+      "format_version" => "1.2",
+      "_lynx_synthetic" => true,
+      "resource_changes" => []
+    }
   end
 
   defp resource_to_changes(%{

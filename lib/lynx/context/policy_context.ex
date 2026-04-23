@@ -9,7 +9,7 @@ defmodule Lynx.Context.PolicyContext do
   require Logger
 
   alias Lynx.Repo
-  alias Lynx.Model.{Environment, Policy, Project}
+  alias Lynx.Model.{AuditEvent, Environment, PlanCheck, Policy, Project, Workspace}
   alias Lynx.Service.PolicyEngine
 
   @doc "Build a new attrs map with a UUID stamped on. Mirrors the other contexts' new_X/1."
@@ -204,8 +204,6 @@ defmodule Lynx.Context.PolicyContext do
   def get_link_targets_by_uuids([]), do: %{}
 
   def get_link_targets_by_uuids(uuids) when is_list(uuids) do
-    alias Lynx.Model.{Environment, Workspace}
-
     policies = from(p in Policy, where: p.uuid in ^uuids) |> Repo.all()
 
     env_ids = Enum.flat_map(policies, &maybe_id(&1.environment_id))
@@ -263,8 +261,6 @@ defmodule Lynx.Context.PolicyContext do
   source then merged.
   """
   def recent_blocks_for_policy(%Policy{uuid: uuid}, limit \\ 25) do
-    alias Lynx.Model.{AuditEvent, Environment, PlanCheck, Workspace}
-
     pattern = "%#{uuid}%"
 
     # plan_checks: pull recent rows containing this policy's UUID in the

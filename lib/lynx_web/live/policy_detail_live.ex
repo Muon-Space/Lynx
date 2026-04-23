@@ -345,6 +345,11 @@ defmodule LynxWeb.PolicyDetailLive do
         <div class="text-muted ml-2">.address, .mode, .type, .name</div>
         <div class="text-muted ml-2">.change.actions[]   ("create" / "update" / "delete")</div>
         <div class="text-muted ml-2">.change.before, .change.after</div>
+        <div class="text-muted ml-2 italic">
+          Note: at apply-block time, only the after-state is known —
+          every change is tagged <code>actions: ["update"]</code>. Filter on
+          <code>change.after.*</code> for rules that should fire on both gates.
+        </div>
       </div>
       <div>
         <div class="text-clickable">input.planned_values.root_module</div>

@@ -107,18 +107,42 @@ defmodule Lynx.Context.OPABundleTokenContext do
 
   def delete_token_by_uuid(uuid) do
     case get_token_by_uuid(uuid) do
-      nil -> {:not_found, "Token not found"}
-      token -> Repo.delete(token) && {:ok, "Token deleted"}
+      nil ->
+        {:not_found, "Token not found"}
+
+      token ->
+        case Repo.delete(token) do
+          {:ok, _} -> {:ok, "Token deleted"}
+          {:error, changeset} -> {:error, changeset}
+        end
     end
   end
+
+  # OPA polls the bundle endpoint every ~10s per replica, so a synchronous
+  # `last_used_at` UPDATE on every request would translate to constant write
+  # amplification on a single row under multi-replica deploys. Skip the
+  # write if we already updated within the last minute — operator UX (the
+  # Settings page shows "last used 2 min ago" granularity) is unaffected.
+  @last_used_debounce_seconds 60
 
   defp touch_last_used(record) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    record
-    |> OPABundleToken.changeset(%{last_used_at: now})
-    |> Repo.update()
+    if needs_touch?(record.last_used_at, now) do
+      record
+      |> OPABundleToken.changeset(%{last_used_at: now})
+      |> Repo.update()
+    end
   end
+
+  defp needs_touch?(nil, _now), do: true
+
+  defp needs_touch?(%DateTime{} = last, now),
+    do: DateTime.diff(now, last, :second) >= @last_used_debounce_seconds
+
+  defp needs_touch?(%NaiveDateTime{} = last, now),
+    do:
+      NaiveDateTime.diff(now |> DateTime.to_naive(), last, :second) >= @last_used_debounce_seconds
 
   defp generate_random_token do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)

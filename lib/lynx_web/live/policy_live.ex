@@ -316,6 +316,12 @@ defmodule LynxWeb.PolicyLive do
                   <div class="text-muted ml-2">.address, .mode, .type, .name</div>
                   <div class="text-muted ml-2">.change.actions[]   ("create" / "update" / "delete")</div>
                   <div class="text-muted ml-2">.change.before, .change.after</div>
+                  <div class="text-muted ml-2 italic">
+                    Note: at apply-block time (Block apply on policy violation),
+                    only the after-state is known — every change is tagged
+                    <code>actions: ["update"]</code>. Filter on
+                    <code>change.after.*</code> for rules that should fire on both gates.
+                  </div>
                 </div>
                 <div>
                   <div class="text-clickable">input.planned_values.root_module</div>
@@ -326,6 +332,11 @@ defmodule LynxWeb.PolicyLive do
                   <div class="text-muted">parsed module config</div>
                 </div>
               </div>
+              <p class="text-xs text-muted mt-3">
+                Your <code>package</code> declaration is rewritten to a Lynx-controlled
+                namespace at bundle build time, so policies can't reference each other
+                by package name. Use <code>import</code> for OPA built-ins only.
+              </p>
             </div>
           </div>
 

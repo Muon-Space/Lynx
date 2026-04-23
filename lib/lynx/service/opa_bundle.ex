@@ -25,6 +25,10 @@ defmodule Lynx.Service.OPABundle do
   Build the bundle as `{etag, body}`. Caches the tarball under the ETag
   via `:persistent_term` — typical bundle is small (a few KB), and OPA
   will hit this once per poll across many pods.
+
+  Only the current etag's body is retained: when a new etag is stored,
+  the previous one is erased so the persistent_term store doesn't grow
+  by one tarball per policy update for the lifetime of the BEAM.
   """
   def build do
     etag = current_etag()
@@ -33,7 +37,7 @@ defmodule Lynx.Service.OPABundle do
       case :persistent_term.get({__MODULE__, :body, etag}, :none) do
         :none ->
           fresh = build_tarball(PolicyContext.list_enabled_policies())
-          :persistent_term.put({__MODULE__, :body, etag}, fresh)
+          replace_cached(etag, fresh)
           fresh
 
         cached ->
@@ -41,6 +45,29 @@ defmodule Lynx.Service.OPABundle do
       end
 
     {etag, body}
+  end
+
+  # `:persistent_term.put/2` triggers a global GC for all processes, so
+  # we want to do it sparingly. We only call it when the etag changes
+  # (= a policy was added / updated / disabled), and at the same time
+  # we drop the previous etag's entry. The pointer key is bare so
+  # readers in other processes can find the previous tag without a
+  # separate registry.
+  defp replace_cached(new_etag, body) do
+    :persistent_term.put({__MODULE__, :body, new_etag}, body)
+
+    case :persistent_term.get({__MODULE__, :current_etag}, nil) do
+      nil ->
+        :ok
+
+      same when same == new_etag ->
+        :ok
+
+      old ->
+        :persistent_term.erase({__MODULE__, :body, old})
+    end
+
+    :persistent_term.put({__MODULE__, :current_etag}, new_etag)
   end
 
   @doc "Just the ETag — used by the controller to short-circuit on If-None-Match."
