@@ -758,11 +758,14 @@ defmodule LynxWeb.EnvironmentLive do
   defp backend_config(app_url, workspace, project_slug, env) do
     ws_slug = if workspace, do: workspace.slug, else: "default"
 
+    # `password` is shown as a placeholder — the env secret is stored
+    # hashed and is not recoverable. Operators paste the value they
+    # saved at creation, or rotate the env to mint a new one.
     """
     terraform {
       backend "http" {
         username       = "#{env.username}"
-        password       = "#{env.secret}"
+        password       = "<env secret — saved at creation; rotate the env to get a new one>"
         address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/state"
         lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/lock"
         unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/unlock"
@@ -831,7 +834,7 @@ defmodule LynxWeb.EnvironmentLive do
 
       config = {
         username       = "#{env.username}"
-        password       = "#{env.secret}"
+        password       = "<env secret — saved at creation; rotate the env to get a new one>"
         address        = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/state"
         lock_address   = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/lock"
         unlock_address = "#{app_url}/tf/#{ws_slug}/#{project_slug}/#{env.slug}/${path_relative_to_include()}/unlock"

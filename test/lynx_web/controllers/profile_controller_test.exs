@@ -19,11 +19,15 @@ defmodule LynxWeb.ProfileControllerTest do
   end
 
   describe "fetch_api_key" do
-    test "returns the current user's api_key", %{conn: conn, api_key: api_key} do
+    test "returns the current user's api_key prefix (full key is unrecoverable)",
+         %{conn: conn, api_key: api_key} do
       conn = conn |> with_api_key(api_key) |> get("/api/v1/action/fetch_api_key")
       body = json_response(conn, 200)
-      # ProfileJSON renders the field as `apiKey`
-      assert is_binary(body["apiKey"])
+      # The full plaintext is stored hashed; the GET endpoint now only
+      # returns the prefix (`apiKeyPrefix`). To get a fresh full key,
+      # callers must call rotate_api_key.
+      assert body["apiKey"] == nil
+      assert is_binary(body["apiKeyPrefix"])
     end
   end
 

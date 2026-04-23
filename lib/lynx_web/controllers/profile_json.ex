@@ -11,7 +11,7 @@ defmodule LynxWeb.ProfileJSON do
     %{errorMessage: message}
   end
 
-  def render("user.json", %{api_key: api_key}) do
-    %{apiKey: api_key}
+  def render("user.json", %{api_key: api_key, api_key_prefix: prefix}) do
+    %{apiKey: api_key, apiKeyPrefix: prefix}
   end
 end

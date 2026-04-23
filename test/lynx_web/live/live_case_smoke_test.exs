@@ -56,7 +56,8 @@ defmodule LynxWeb.LiveCaseSmokeTest do
       # it to a connected LV process. If the LV crashes during connected
       # mount, this fails even though the disconnected GET succeeded.
       {:ok, view, _html} = live(conn)
-      assert has_element?(view, "code#api-key-content")
+      # Profile renders an API-key prefix card after the hash migration.
+      assert has_element?(view, "code#api-key-prefix")
     end
   end
 end

@@ -38,6 +38,9 @@ defmodule Lynx.Context.OPABundleTokenContext do
 
     case create_token(attrs) do
       {:ok, record} ->
+        # `attrs.token` is the original plaintext; the persisted record
+        # only has the hash + prefix. Return the plaintext once for the
+        # caller to surface to the operator.
         {:ok, %{uuid: record.uuid, name: record.name, token: attrs.token}}
 
       {:error, changeset} ->
@@ -61,7 +64,7 @@ defmodule Lynx.Context.OPABundleTokenContext do
       %{
         uuid: t.uuid,
         name: t.name,
-        token_prefix: mask_token(t.token),
+        token_prefix: format_prefix(t.token_prefix),
         is_active: t.is_active,
         last_used_at: t.last_used_at,
         inserted_at: t.inserted_at
@@ -74,11 +77,15 @@ defmodule Lynx.Context.OPABundleTokenContext do
   end
 
   @doc """
-  Look up an active token by its raw value. Bumps `last_used_at` as a
-  side effect when found. Returns the record or nil.
+  Look up an active token by its raw value. Hashes the presented value
+  via `TokenHash` before the equality probe — only the hash is stored.
+  Bumps `last_used_at` as a side effect when found. Returns the record
+  or nil.
   """
-  def validate_token(token) when is_binary(token) do
-    case from(t in OPABundleToken, where: t.token == ^token and t.is_active == true)
+  def validate_token(token) when is_binary(token) and token != "" do
+    hash = Lynx.Service.TokenHash.hash(token)
+
+    case from(t in OPABundleToken, where: t.token_hash == ^hash and t.is_active == true)
          |> Repo.one() do
       nil ->
         nil
@@ -148,8 +155,8 @@ defmodule Lynx.Context.OPABundleTokenContext do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
-  defp mask_token(token) when is_binary(token) and byte_size(token) > 8,
-    do: String.slice(token, 0, 8) <> "..."
-
-  defp mask_token(token), do: token
+  # The prefix column already stores the bare prefix (no `…`). Append it
+  # here so the UI can render `lyn_xxxxxxxx…` consistently.
+  defp format_prefix(nil), do: nil
+  defp format_prefix(prefix) when is_binary(prefix), do: prefix <> "..."
 end

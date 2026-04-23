@@ -24,7 +24,7 @@ defmodule Lynx.Context.EnvironmentContext do
       slug: attrs.slug,
       name: attrs.name,
       username: attrs.username,
-      secret: attrs.secret,
+      secret: Map.get(attrs, :secret),
       project_id: attrs.project_id,
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
@@ -267,13 +267,19 @@ defmodule Lynx.Context.EnvironmentContext do
             ProjectContext.get_project_id_with_uuid(data[:project_id])
           end
 
-        new_env = %{
-          name: data[:name] || env.name,
-          username: data[:username] || env.username,
-          secret: data[:secret] || env.secret,
-          slug: data[:slug] || env.slug,
-          project_id: project_id
-        }
+        # Only set :secret when the caller supplied a non-empty value —
+        # if omitted, the existing `secret_hash` stays untouched. The
+        # plaintext is unrecoverable, so falling back to `env.secret`
+        # (a virtual field, always nil on a freshly-loaded struct) would
+        # blow up the changeset.
+        new_env =
+          %{
+            name: data[:name] || env.name,
+            username: data[:username] || env.username,
+            slug: data[:slug] || env.slug,
+            project_id: project_id
+          }
+          |> maybe_put_secret(data[:secret])
 
         case update_env(env, new_env) do
           {:ok, env} ->
@@ -313,6 +319,10 @@ defmodule Lynx.Context.EnvironmentContext do
         {:error, Enum.at(messages, 0)}
     end
   end
+
+  defp maybe_put_secret(map, nil), do: map
+  defp maybe_put_secret(map, ""), do: map
+  defp maybe_put_secret(map, secret) when is_binary(secret), do: Map.put(map, :secret, secret)
 
   def delete_environment_by_uuid(project_uuid, environment_uuid) do
     case ProjectContext.get_project_by_uuid(project_uuid) do
@@ -404,7 +414,7 @@ defmodule Lynx.Context.EnvironmentContext do
                       not user.is_active ->
                         {:error, "Account is deactivated"}
 
-                      user.api_key != data[:secret] ->
+                      user.api_key_hash != Lynx.Service.TokenHash.hash(data[:secret]) ->
                         {:error, "Invalid API key"}
 
                       true ->
@@ -420,7 +430,8 @@ defmodule Lynx.Context.EnvironmentContext do
 
               # Environment username/secret auth (legacy full-access path)
               true ->
-                if env.username == data[:username] and env.secret == data[:secret] do
+                if env.username == data[:username] and
+                     env.secret_hash == Lynx.Service.TokenHash.hash(data[:secret]) do
                   {:ok, project, env, RoleContext.permissions_for_env_credentials(), "env_secret"}
                 else
                   {:error, "Invalid environment credentials"}

@@ -104,7 +104,11 @@ defmodule LynxWeb.ProfileController do
   end
 
   @doc """
-  Fetch API Key Endpoint
+  Fetch API Key Endpoint.
+
+  Returns only the prefix — the full key is stored hashed and is not
+  recoverable. To get a fresh full key, call `POST .../rotate_api_key`,
+  which mints a new value and returns it once.
   """
   def fetch_api_key(conn, _params) do
     case UserContext.fetch_user_by_uuid(conn.assigns[:user_uuid]) do
@@ -118,7 +122,7 @@ defmodule LynxWeb.ProfileController do
       {:ok, user} ->
         conn
         |> put_status(:ok)
-        |> render(:user, %{api_key: user.api_key})
+        |> render(:user, %{api_key: nil, api_key_prefix: user.api_key_prefix})
     end
   end
 
@@ -144,9 +148,14 @@ defmodule LynxWeb.ProfileController do
         |> render(:error, %{message: "Failed to rotate the API Key"})
 
       {:ok, _} ->
+        # Mint-once: return the freshly-generated plaintext. Subsequent
+        # fetches will only return `apiKeyPrefix`.
         conn
         |> put_status(:ok)
-        |> render(:user, %{api_key: api_key})
+        |> render(:user, %{
+          api_key: api_key,
+          api_key_prefix: Lynx.Service.TokenHash.prefix(api_key)
+        })
     end
   end
 

@@ -153,18 +153,39 @@ defmodule LynxWeb.PolicyDetailLiveTest do
   end
 
   describe "delete" do
-    test "removes the policy + audits + redirects to scope list", %{
+    test "Delete button shows a confirmation dialog before destroying", %{
       conn: conn,
-      policy: policy,
-      project: project
+      policy: policy
     } do
       conn = log_in_user(conn, create_super())
       {:ok, view, _} = live(conn, "/admin/policies/#{policy.uuid}")
 
+      view |> element("button", "Delete") |> render_click()
+
+      # Dialog should be visible with the destructive copy explaining
+      # the irreversible nature.
+      assert has_element?(view, "#confirm-dialog")
+      assert render(view) =~ "Delete policy"
+      assert render(view) =~ "permanent"
+
+      # Cancel keeps the policy intact.
+      render_click(view, "cancel_confirm")
+      refute has_element?(view, "#confirm-dialog")
+      assert PolicyContext.get_policy_by_uuid(policy.uuid) != nil
+    end
+
+    test "confirming the dialog removes the policy + audits + redirects",
+         %{conn: conn, policy: policy, project: project} do
+      conn = log_in_user(conn, create_super())
+      {:ok, view, _} = live(conn, "/admin/policies/#{policy.uuid}")
+
+      # Step 1: open the dialog.
+      view |> element("button", "Delete") |> render_click()
+      assert has_element?(view, "#confirm-dialog")
+
+      # Step 2: drive the actual delete event the confirm dialog fires.
       assert {:error, {:redirect, %{to: path}}} =
-               view
-               |> element("button", "Delete")
-               |> render_click()
+               render_click(view, "delete_policy", %{})
 
       assert path == "/admin/projects/#{project.uuid}/policies"
       assert PolicyContext.get_policy_by_uuid(policy.uuid) == nil

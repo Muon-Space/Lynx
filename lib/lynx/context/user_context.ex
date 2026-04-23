@@ -24,7 +24,7 @@ defmodule Lynx.Context.UserContext do
       verified: attrs.verified,
       last_seen: attrs.last_seen,
       role: attrs.role,
-      api_key: attrs.api_key,
+      api_key: Map.get(attrs, :api_key),
       auth_provider: Map.get(attrs, :auth_provider, "local"),
       external_id: Map.get(attrs, :external_id),
       is_active: Map.get(attrs, :is_active, true),
@@ -98,16 +98,21 @@ defmodule Lynx.Context.UserContext do
   end
 
   @doc """
-  Get user by API Key
+  Get user by API Key. Hashes the presented value via `TokenHash`
+  before the equality probe — only the hash is stored in the DB.
   """
-  def get_user_by_api_key(api_key) do
+  def get_user_by_api_key(api_key) when is_binary(api_key) and api_key != "" do
+    hash = Lynx.Service.TokenHash.hash(api_key)
+
     from(
       u in User,
-      where: u.api_key == ^api_key
+      where: u.api_key_hash == ^hash
     )
     |> limit(1)
     |> Repo.one()
   end
+
+  def get_user_by_api_key(_), do: nil
 
   @doc """
   Get user by email
