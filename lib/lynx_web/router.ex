@@ -60,6 +60,8 @@ defmodule LynxWeb.Router do
 
       live "/admin/snapshots", SnapshotsLive
       live "/admin/snapshots/:uuid", SnapshotLive
+
+      live "/admin/state-search", StateSearchLive
     end
 
     live_session :super, on_mount: [{LynxWeb.LiveAuth, :require_super}] do

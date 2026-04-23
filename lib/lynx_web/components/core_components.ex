@@ -982,6 +982,7 @@ defmodule LynxWeb.CoreComponents do
           <div :if={@current_user} class="flex items-center gap-1">
             <.nav_link href="/admin/workspaces" active={@active == "workspaces"}>Workspaces</.nav_link>
             <.nav_link href="/admin/snapshots" active={@active == "snapshots"}>Snapshots</.nav_link>
+            <.nav_link href="/admin/state-search" active={@active == "state-search"}>State Search</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/teams" active={@active == "teams"}>Teams</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/users" active={@active == "users"}>Users</.nav_link>
             <.nav_link :if={@current_user.role == "super"} href="/admin/roles" active={@active == "roles"}>Roles</.nav_link>

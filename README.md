@@ -32,6 +32,7 @@ This is a fork of [Clivern/Lynx](https://github.com/Clivern/Lynx) with significa
 - [Authentication options](#authentication-options)
 - [Role-based access control](#role-based-access-control)
 - [Snapshots](#snapshots)
+- [State search](#state-search)
 - [Audit log](#audit-log)
 - [SSO and SCIM](#sso-and-scim)
 - [REST API](#rest-api)
@@ -149,6 +150,12 @@ Global `super` users bypass per-project RBAC entirely — useful for the platfor
 Snapshots are point-in-time backups of project, environment, or unit state. Take a snapshot from the Snapshots page; restore with one click. Restoring an environment-scope snapshot recreates missing environments and replays state versions; restoring a unit-scope snapshot only replays state for that one unit.
 
 Restoring requires the `snapshot:restore` permission (admin role).
+
+## State search
+
+`/admin/state-search` runs full-text search across the latest version of every state file. Useful when you need to answer "which environments still reference `aws_iam_role.deploy_bot`?" without dropping into psql.
+
+Backed by a Postgres `tsvector` (GIN-indexed, `'simple'` config — exact tokens, no stemming). Results show `workspace › project › env / unit` with the matched fragment highlighted, and respect per-environment `state:read` so a user only ever sees envs they're already authorized on. Super users see every workspace.
 
 ## Audit log
 

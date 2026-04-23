@@ -10,8 +10,8 @@ defmodule Lynx.Context.StateContext do
   import Ecto.Query
 
   alias Lynx.Repo
-  alias Lynx.Model.{StateMeta, State}
-  alias Lynx.Context.{EnvironmentContext, ProjectContext, WorkspaceContext}
+  alias Lynx.Model.{StateMeta, State, User}
+  alias Lynx.Context.{EnvironmentContext, ProjectContext, RoleContext, WorkspaceContext}
   alias Lynx.Service.Settings
 
   @doc """
@@ -277,6 +277,156 @@ defmodule Lynx.Context.StateContext do
 
         count
     end
+  end
+
+  @doc """
+  Full-text search across state files, scoped to environments the user has
+  `state:read` on. Super users see every workspace.
+
+  Only the latest version per `(environment_id, sub_path)` is considered, so
+  a single env / unit shows up at most once even if it has hundreds of past
+  versions of the matching state.
+
+  Results are ranked by `ts_rank` against the `'simple'` tsvector built by
+  the migration; ties broken by recency. The snippet is `ts_headline`
+  output with `<mark>...</mark>` around matched terms — render with
+  `Phoenix.HTML.raw/1`. The matched fragment is HTML-safe because
+  `ts_headline` only emits the configured `StartSel` / `StopSel` markers,
+  which we strip + re-wrap on the LV side; the rest of the text is escaped
+  there.
+
+  Options:
+    * `:limit` — final result limit after RBAC filtering. Default 50.
+    * `:candidate_limit` — DB-side limit before RBAC filtering. Default 100.
+      Set higher if a user with narrow access keeps seeing fewer results
+      than they should; lower for snappier queries.
+
+  Returns a list of maps:
+
+      %{
+        state_id: integer,
+        state_uuid: String.t(),
+        sub_path: String.t(),
+        snippet: String.t(),    # contains <mark>...</mark> markers
+        rank: float,
+        inserted_at: NaiveDateTime.t(),
+        environment: %{id: integer, uuid: String.t(), name: String.t(), slug: String.t()},
+        project:     %{id: integer, uuid: String.t(), name: String.t(), slug: String.t()},
+        workspace:   %{uuid: String.t(), name: String.t(), slug: String.t()}
+      }
+  """
+  def search_states_for_user(query, %User{} = user, opts \\ []) when is_binary(query) do
+    trimmed = String.trim(query)
+    limit = Keyword.get(opts, :limit, 50)
+    candidate_limit = Keyword.get(opts, :candidate_limit, 100)
+
+    if trimmed == "" do
+      []
+    else
+      candidates = run_state_search(trimmed, candidate_limit)
+
+      candidates
+      |> filter_by_state_read(user)
+      |> Enum.take(limit)
+    end
+  end
+
+  defp run_state_search(query, candidate_limit) do
+    sql = """
+    SELECT
+      s.id, s.uuid, s.sub_path, s.inserted_at,
+      ts_rank(s.search_vector, plainto_tsquery('simple', $1)) AS rank,
+      ts_headline('simple', s.value, plainto_tsquery('simple', $1),
+        'StartSel=⟦MARK⟧,StopSel=⟦/MARK⟧,MaxFragments=1,MinWords=5,MaxWords=24,ShortWord=0') AS snippet,
+      e.id, e.uuid, e.name, e.slug,
+      p.id, p.uuid, p.name, p.slug,
+      w.uuid, w.name, w.slug
+    FROM states s
+    JOIN environments e ON e.id = s.environment_id
+    JOIN projects p ON p.id = e.project_id
+    JOIN workspaces w ON w.id = p.workspace_id
+    WHERE s.search_vector @@ plainto_tsquery('simple', $1)
+      AND s.id = (
+        SELECT MAX(s2.id) FROM states s2
+        WHERE s2.environment_id = s.environment_id
+          AND s2.sub_path = s.sub_path
+      )
+    ORDER BY rank DESC, s.inserted_at DESC
+    LIMIT $2
+    """
+
+    %{rows: rows} = Repo.query!(sql, [query, candidate_limit])
+    Enum.map(rows, &row_to_result/1)
+  end
+
+  defp row_to_result([
+         state_id,
+         state_uuid,
+         sub_path,
+         inserted_at,
+         rank,
+         snippet,
+         env_id,
+         env_uuid,
+         env_name,
+         env_slug,
+         project_id,
+         project_uuid,
+         project_name,
+         project_slug,
+         workspace_uuid,
+         workspace_name,
+         workspace_slug
+       ]) do
+    %{
+      state_id: state_id,
+      state_uuid: cast_uuid(state_uuid),
+      sub_path: sub_path,
+      snippet: snippet,
+      rank: rank,
+      inserted_at: inserted_at,
+      environment: %{
+        id: env_id,
+        uuid: cast_uuid(env_uuid),
+        name: env_name,
+        slug: env_slug
+      },
+      project: %{
+        id: project_id,
+        uuid: cast_uuid(project_uuid),
+        name: project_name,
+        slug: project_slug
+      },
+      workspace: %{
+        uuid: cast_uuid(workspace_uuid),
+        name: workspace_name,
+        slug: workspace_slug
+      }
+    }
+  end
+
+  # Postgres returns UUIDs as raw 16-byte binaries through Repo.query!; cast
+  # to the canonical string form for downstream rendering / linking.
+  defp cast_uuid(<<_::binary-size(16)>> = bin), do: Ecto.UUID.cast!(bin)
+  defp cast_uuid(other), do: other
+
+  # Drop results the user can't read, caching `effective_permissions/3` per
+  # (project_id, env_id) pair so a user-search of N rows costs O(unique
+  # envs), not O(N), DB queries.
+  defp filter_by_state_read(results, %User{role: "super"}), do: results
+
+  defp filter_by_state_read(results, %User{} = user) do
+    pairs = Enum.map(results, &{&1.project.id, &1.environment.id}) |> Enum.uniq()
+
+    perm_cache =
+      Map.new(pairs, fn {project_id, env_id} ->
+        {{project_id, env_id}, RoleContext.effective_permissions(user, project_id, env_id)}
+      end)
+
+    Enum.filter(results, fn r ->
+      perms = Map.get(perm_cache, {r.project.id, r.environment.id}, MapSet.new())
+      RoleContext.has?(perms, "state:read")
+    end)
   end
 
   def list_sub_paths(environment_id) do
