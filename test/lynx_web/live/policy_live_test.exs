@@ -37,6 +37,7 @@ defmodule LynxWeb.PolicyLiveTest do
 
     test "redirects on unknown project uuid", %{conn: conn} do
       conn = log_in_user(conn, create_super())
+
       assert {:error, {:redirect, %{to: "/admin/workspaces"}}} =
                live(conn, "/admin/projects/#{Ecto.UUID.generate()}/policies")
     end
@@ -95,7 +96,8 @@ defmodule LynxWeb.PolicyLiveTest do
       |> element("button[phx-value-uuid='#{policy.uuid}']", "Edit")
       |> render_click()
 
-      view |> render_submit("save", %{"name" => "updated", "description" => "", "enabled" => "on"})
+      view
+      |> render_submit("save", %{"name" => "updated", "description" => "", "enabled" => "on"})
 
       assert PolicyContext.get_policy_by_uuid(policy.uuid).name == "updated"
 
