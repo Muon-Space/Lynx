@@ -16,6 +16,9 @@ defmodule Lynx.Model.State do
     field :value, :string
     field :sub_path, :string, default: ""
     field :environment_id, :id
+    # Postgres-managed (STORED generated column). Skip on every SELECT —
+    # it's a tsvector over the full state body, often megabytes.
+    field :search_vector, :string, load_in_query: false, read_after_writes: false
 
     timestamps()
   end
