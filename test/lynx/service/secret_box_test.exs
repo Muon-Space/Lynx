@@ -15,7 +15,9 @@ defmodule Lynx.Service.SecretBoxTest do
   describe "encrypt/decrypt roundtrip" do
     test "decrypt(encrypt(x)) returns the original plaintext" do
       assert {:ok, "hello"} = SecretBox.decrypt(SecretBox.encrypt("hello"))
-      assert {:ok, "with spaces and 🦊"} = SecretBox.decrypt(SecretBox.encrypt("with spaces and 🦊"))
+
+      assert {:ok, "with spaces and 🦊"} =
+               SecretBox.decrypt(SecretBox.encrypt("with spaces and 🦊"))
     end
 
     test "long PEM-shaped plaintext roundtrips" do
