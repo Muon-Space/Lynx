@@ -185,7 +185,10 @@ defmodule LynxWeb.TfControllerPlanTest do
         |> put_req_header("content-type", "application/json")
         |> post("/tf/ws/proj/prod/state", %{"version" => 4})
 
-      assert conn.status == 403
+      # Apply-gate denials return 423 with a LockJSON body so terraform's
+      # lock-error path can surface the message (the only path it doesn't
+      # drop the body on). State-push 4xx surfaces no body.
+      assert conn.status == 423
       assert conn.resp_body =~ "Apply gate"
     end
 
@@ -212,7 +215,7 @@ defmodule LynxWeb.TfControllerPlanTest do
         |> put_req_header("content-type", "application/json")
         |> post("/tf/ws/proj/prod/state", %{"version" => 5})
 
-      assert conn2.status == 403
+      assert conn2.status == 423
       assert conn2.resp_body =~ "Apply gate"
     end
 
@@ -253,7 +256,7 @@ defmodule LynxWeb.TfControllerPlanTest do
         |> put_req_header("content-type", "application/json")
         |> post("/tf/ws/proj/prod/state", %{"version" => 4})
 
-      assert conn.status == 403
+      assert conn.status == 423
       assert conn.resp_body =~ "older than"
     end
 
@@ -270,6 +273,109 @@ defmodule LynxWeb.TfControllerPlanTest do
       # findable by latest_unconsumed_passing for actor B.
       assert PlanCheckContext.latest_unconsumed_passing(env.id, "", "user:other@example.com") ==
                nil
+    end
+  end
+
+  describe "block_violating_apply gate (state-write evaluation)" do
+    setup %{env: env, project: project} do
+      # Per-env override on, no plan upload required. The state body
+      # synthesizer produces `resource_changes[]` with action=update from
+      # whatever's in the pushed state, which is what each policy sees.
+      {:ok, env} = EnvironmentContext.update_env(env, %{block_violating_apply: true})
+
+      {:ok, policy} =
+        PolicyContext.create_policy(
+          PolicyContext.new_policy(%{
+            name: "no-public-buckets",
+            project_id: project.id,
+            rego_source: "package x"
+          })
+        )
+
+      {:ok, env: env, policy: policy}
+    end
+
+    test "rejects state-write when a policy fires + emits apply_blocked audit", %{
+      conn: conn,
+      env: env,
+      policy: policy
+    } do
+      # Stub fires deny on any input that mentions a public S3 bucket
+      # in resource_changes[].after.acl.
+      Stub.register(policy.uuid, fn input ->
+        for change <- Map.get(input, "resource_changes", []),
+            get_in(change, ["change", "after", "acl"]) == "public-read" do
+          "S3 bucket #{change["address"]} is public"
+        end
+      end)
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/ws/proj/prod/state", %{
+          "version" => 4,
+          "resources" => [
+            %{
+              "mode" => "managed",
+              "type" => "aws_s3_bucket",
+              "name" => "foo",
+              "instances" => [%{"attributes" => %{"acl" => "public-read"}}]
+            }
+          ]
+        })
+
+      assert conn.status == 423
+      assert conn.resp_body =~ "S3 bucket aws_s3_bucket.foo is public"
+
+      # Audit row written with the policy uuid in metadata so the
+      # per-policy detail page can find it.
+      import Ecto.Query
+
+      [event] =
+        Lynx.Repo.all(
+          from(a in Lynx.Model.AuditEvent,
+            where: a.action == "apply_blocked" and a.resource_id == ^env.uuid
+          )
+        )
+
+      meta = Jason.decode!(event.metadata)
+      assert meta["gate"] == "policy_violation"
+      assert [%{"name" => "no-public-buckets", "uuid" => uuid}] = meta["policies"]
+      assert uuid == policy.uuid
+    end
+
+    test "passes through when no resource trips a policy", %{
+      conn: conn,
+      env: env,
+      policy: policy
+    } do
+      Stub.register(policy.uuid, fn _input -> [] end)
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/ws/proj/prod/state", %{"version" => 4, "resources" => []})
+
+      assert conn.status == 200
+    end
+
+    test "fail-closed on engine error: state-write rejected when OPA can't be reached", %{
+      conn: conn,
+      env: env,
+      policy: policy
+    } do
+      Stub.fail(policy.uuid, :opa_unreachable)
+
+      conn =
+        conn
+        |> basic_auth(env.username, env.secret)
+        |> put_req_header("content-type", "application/json")
+        |> post("/tf/ws/proj/prod/state", %{"version" => 4, "resources" => []})
+
+      assert conn.status == 423
+      assert conn.resp_body =~ "engine error"
     end
   end
 end
