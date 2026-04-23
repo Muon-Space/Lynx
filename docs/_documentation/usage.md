@@ -219,12 +219,12 @@ A passing plan-check authorizes exactly one apply — single-use semantics. Run 
 
 ### Writing policies
 
-Policies are Rego, evaluated against the `terraform show -json` output. A simple "block public S3 buckets" rule:
+Policies are Rego, evaluated against the `terraform show -json` output. Lynx targets OPA 1.0+, which requires the `if` keyword on rule bodies and `contains` on partial-set rules. A simple "block public S3 buckets" rule:
 
 ```rego
 package main
 
-deny[msg] {
+deny contains msg if {
   some i
   resource := input.resource_changes[i]
   resource.type == "aws_s3_bucket"

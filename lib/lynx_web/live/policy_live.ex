@@ -110,7 +110,7 @@ defmodule LynxWeb.PolicyLive do
           <div>
             <label class="block text-sm font-medium text-secondary mb-1">Rego source</label>
             <p class="text-xs text-muted mb-2">
-              Define a <code>deny[msg]</code> rule that emits violation strings.
+              Define a <code>deny contains msg if</code> rule that emits violation strings (OPA 1.0+ syntax).
               The <code>package</code> line is rewritten to a Lynx-controlled namespace on save.
             </p>
             <LiveMonacoEditor.code_editor
@@ -314,8 +314,9 @@ defmodule LynxWeb.PolicyLive do
     package main
 
     # Emit a violation message per disallowed change. Lynx aggregates these
-    # across all attached policies into the plan_check `outcome`.
-    deny[msg] {
+    # across all attached policies into the plan_check `outcome`. Uses
+    # OPA 1.0+ partial-set syntax (`contains ... if`).
+    deny contains msg if {
       some i
       resource := input.resource_changes[i]
       resource.type == "aws_s3_bucket"

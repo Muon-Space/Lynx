@@ -39,7 +39,7 @@ defmodule Lynx.Service.PolicyEngine.OPAIntegrationTest do
       put_policy!(suffix, """
       package lynx.policy_#{suffix}
 
-      deny[msg] {
+      deny contains msg if {
         false
         msg := "never"
       }
@@ -55,7 +55,7 @@ defmodule Lynx.Service.PolicyEngine.OPAIntegrationTest do
       put_policy!(suffix, """
       package lynx.policy_#{suffix}
 
-      deny[msg] {
+      deny contains msg if {
         rc := input.resource_changes[_]
         rc.type == "aws_s3_bucket"
         rc.change.after.acl == "public-read"
