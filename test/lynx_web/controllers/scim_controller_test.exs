@@ -349,7 +349,10 @@ defmodule LynxWeb.SCIMControllerTest do
       # row was reactivated; if it differs, a new user was created
       # (which would orphan the old row + duplicate the email).
       body = json_response(repost, 201)
-      assert body["id"] == user_id, "Expected the same UUID (#{user_id}) — a different one means a new user was created instead of reactivating the existing row"
+
+      assert body["id"] == user_id,
+             "Expected the same UUID (#{user_id}) — a different one means a new user was created instead of reactivating the existing row"
+
       assert body["active"] == true
     end
 
