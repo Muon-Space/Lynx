@@ -14,7 +14,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
     :ok
   end
 
-  describe "find_or_link/4" do
+  describe "find_or_link/5" do
     test "creates user + identity on first sight (no email match, no identity match)" do
       create_fn = fn ->
         UserContext.create_sso_user(%{email: "fresh@example.com", name: "Fresh User"})
@@ -25,6 +25,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
                  "scim",
                  "okta-uid-001",
                  "fresh@example.com",
+                 "Fresh User",
                  create_fn
                )
 
@@ -33,6 +34,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
       identity = UserIdentityContext.get_identity("scim", "okta-uid-001")
       assert identity.user_id == user.id
       assert identity.email == "fresh@example.com"
+      assert identity.name == "Fresh User"
     end
 
     test "returns the existing user when the identity already matches" do
@@ -49,6 +51,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
                  "saml",
                  "saml-nameid-known",
                  "known@example.com",
+                 nil,
                  create_fn
                )
 
@@ -68,14 +71,17 @@ defmodule Lynx.Context.UserIdentityContextTest do
                  "saml",
                  "saml-nameid-merge",
                  "merge@example.com",
+                 "Aron from SAML",
                  create_fn
                )
 
       assert returned.id == user.id
 
-      # SAML identity is now linked to the same user.
+      # SAML identity is now linked to the same user, with its own
+      # name snapshot (separate from the canonical user.name).
       identity = UserIdentityContext.get_identity("saml", "saml-nameid-merge")
       assert identity.user_id == user.id
+      assert identity.name == "Aron from SAML"
 
       # Single users row, not a duplicate.
       import Ecto.Query
@@ -100,6 +106,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
                  "scim",
                  "okta-uid-multi",
                  "multi@example.com",
+                 nil,
                  no_create
                )
 
@@ -110,6 +117,7 @@ defmodule Lynx.Context.UserIdentityContextTest do
                  "saml",
                  "saml-nameid-multi",
                  "multi@example.com",
+                 nil,
                  no_create
                )
 

@@ -62,11 +62,15 @@ defmodule Lynx.Context.UserIdentityContext do
   @doc """
   Link an identity to an existing user. Idempotent on
   (user_id, provider) — re-linking the same provider for a user
-  updates `provider_uid` + `email` + `last_seen_at` rather than
-  inserting a duplicate. This is the "merge" point for the
-  find-or-link contract.
+  refreshes `provider_uid` + `email` + `name` + `last_seen_at`
+  rather than inserting a duplicate. This is the "merge" point
+  for the find-or-link contract.
+
+  `name` is the per-identity snapshot — what this IdP claimed for
+  the display name on this link. The canonical `users.name` is
+  separate; only privileged callers (SCIM) update it.
   """
-  def link_identity(%User{} = user, provider, provider_uid, email) do
+  def link_identity(%User{} = user, provider, provider_uid, email, name \\ nil) do
     case Repo.get_by(UserIdentity, user_id: user.id, provider: provider) do
       nil ->
         attrs = %{
@@ -75,6 +79,7 @@ defmodule Lynx.Context.UserIdentityContext do
           provider: provider,
           provider_uid: provider_uid,
           email: email,
+          name: name,
           last_seen_at: now()
         }
 
@@ -83,12 +88,18 @@ defmodule Lynx.Context.UserIdentityContext do
         |> Repo.insert()
 
       existing ->
-        existing
-        |> UserIdentity.changeset(%{
+        # Preserve the snapshot if this refresh didn't carry one — an
+        # IdP omitting the claim shouldn't blank the previously-stored
+        # value.
+        refresh_attrs = %{
           provider_uid: provider_uid,
-          email: email,
+          email: email || existing.email,
+          name: name || existing.name,
           last_seen_at: now()
-        })
+        }
+
+        existing
+        |> UserIdentity.changeset(refresh_attrs)
         |> Repo.update()
     end
   end
@@ -145,6 +156,10 @@ defmodule Lynx.Context.UserIdentityContext do
   flows should call — it handles the merge case (email match → link
   new identity to existing user) so duplicate users can't recur.
 
+  `name` is the per-identity name snapshot from the IdP claim.
+  Stored on the identity row only — callers decide whether to also
+  update the canonical `users.name` (SCIM does, drive-by SSO doesn't).
+
   Returns:
     * `{:ok, user, :existing_via_identity}` — identity hit, user already had this provider linked
     * `{:ok, user, :merged_by_email}` — email matched an existing user; new identity linked to them
@@ -156,33 +171,32 @@ defmodule Lynx.Context.UserIdentityContext do
   defaults their provisioning path needs (e.g. `verified: true` for
   SCIM, role from SAML attributes, etc.).
   """
-  def find_or_link(provider, provider_uid, email, create_user_fn)
+  def find_or_link(provider, provider_uid, email, name, create_user_fn)
       when is_function(create_user_fn, 0) do
     case get_user_by_identity(provider, provider_uid) do
       %User{} = user ->
-        # Refresh `last_seen_at` + email snapshot if the IdP's email
-        # for this identity drifted.
-        link_identity(user, provider, provider_uid, email)
+        # Refresh `last_seen_at` + email + name snapshot.
+        link_identity(user, provider, provider_uid, email, name)
         {:ok, user, :existing_via_identity}
 
       nil ->
-        find_by_email_or_create(provider, provider_uid, email, create_user_fn)
+        find_by_email_or_create(provider, provider_uid, email, name, create_user_fn)
     end
   end
 
-  defp find_by_email_or_create(provider, provider_uid, email, create_user_fn) do
+  defp find_by_email_or_create(provider, provider_uid, email, name, create_user_fn) do
     case email && Lynx.Context.UserContext.get_user_by_email(email) do
       %User{} = user ->
         # MERGE path: same human, new login method. Link this identity
         # to the existing user so future logins via this IdP resolve
         # back to the same canonical account.
-        link_identity(user, provider, provider_uid, email)
+        link_identity(user, provider, provider_uid, email, name)
         {:ok, user, :merged_by_email}
 
       _ ->
         case create_user_fn.() do
           {:ok, %User{} = user} ->
-            link_identity(user, provider, provider_uid, email)
+            link_identity(user, provider, provider_uid, email, name)
             {:ok, user, :created}
 
           {:error, _} = err ->

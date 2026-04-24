@@ -58,6 +58,13 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
       # did SAML send when this identity was first linked?".
       add :email, :string, null: true
 
+      # Same per-identity snapshot for the display name. Lets us
+      # preserve per-IdP truth without flickering the canonical
+      # `users.name` every time a different IdP signs the same user
+      # in. Only SCIM (the managed-source IdP) updates `users.name`;
+      # drive-by SAML/OIDC logins update only this snapshot.
+      add :name, :string, null: true
+
       add :last_seen_at, :utc_datetime, null: true
 
       timestamps()
@@ -119,9 +126,9 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
 
   defp backfill_identities_from_users do
     %Postgrex.Result{rows: rows} =
-      repo().query!("SELECT id, auth_provider, external_id, email FROM users")
+      repo().query!("SELECT id, auth_provider, external_id, email, name FROM users")
 
-    Enum.each(rows, fn [user_id, auth_provider, external_id, email] ->
+    Enum.each(rows, fn [user_id, auth_provider, external_id, email, name] ->
       provider = auth_provider || "local"
 
       # ON CONFLICT — running the migration after a partial-failure
@@ -130,11 +137,11 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
       # avoids the exception that would abort the txn.
       repo().query!(
         """
-        INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, inserted_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, name, inserted_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         ON CONFLICT (user_id, provider) DO NOTHING
         """,
-        [Ecto.UUID.bingenerate(), user_id, provider, external_id, email]
+        [Ecto.UUID.bingenerate(), user_id, provider, external_id, email, name]
       )
     end)
   end

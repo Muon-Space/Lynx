@@ -16,13 +16,19 @@ defmodule Lynx.Model.UserIdentity do
       the user's email when NameID format is emailAddress)
     * `"oidc"` — OIDC SSO (`provider_uid` is the OIDC `sub` claim)
 
-  ## Email field
+  ## Email + name fields
 
-  Snapshot of the email this identity presented when first linked.
-  IdPs change emails over time (org renames, marriage, etc.); storing
-  the snapshot lets operators audit which email a given identity
-  originally claimed without losing the data when the user's
-  canonical email changes.
+  Snapshots of what this identity presented when first linked /
+  most recently refreshed. IdPs change emails and names over time
+  (org renames, marriage, etc.); storing the snapshot lets operators
+  audit which value a given identity originally claimed without
+  losing the data when the canonical `users.email` / `users.name`
+  changes.
+
+  Name precedence: drive-by SAML / OIDC logins update only the
+  identity-row snapshot — they don't touch `users.name`. SCIM
+  (managed-source IdP) updates both. User edits in Profile win
+  until SCIM next syncs.
   """
 
   use Ecto.Schema
@@ -36,6 +42,7 @@ defmodule Lynx.Model.UserIdentity do
     field :provider, :string
     field :provider_uid, :string
     field :email, :string
+    field :name, :string
     field :last_seen_at, :utc_datetime
 
     timestamps()
@@ -44,7 +51,7 @@ defmodule Lynx.Model.UserIdentity do
   @doc false
   def changeset(identity, attrs) do
     identity
-    |> cast(attrs, [:uuid, :user_id, :provider, :provider_uid, :email, :last_seen_at])
+    |> cast(attrs, [:uuid, :user_id, :provider, :provider_uid, :email, :name, :last_seen_at])
     |> validate_required([:uuid, :user_id, :provider])
     |> validate_inclusion(:provider, @valid_providers)
     |> validate_provider_uid_for_remote()

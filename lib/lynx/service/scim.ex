@@ -63,16 +63,19 @@ defmodule Lynx.Service.SCIM do
   def create_user(attrs) do
     external_id = attrs[:external_id]
     email = attrs[:email]
+    name = attrs[:name]
 
     create_fn = fn -> do_create_user(attrs) end
 
-    case UserIdentityContext.find_or_link("scim", external_id, email, create_fn) do
+    case UserIdentityContext.find_or_link("scim", external_id, email, name, create_fn) do
       {:ok, user, linkage} ->
         # Reapply the SCIM-asserted attributes to the canonical user.
         # `:created` already has the right state from `do_create_user`,
         # but `:existing_via_identity` and `:merged_by_email` need a
         # refresh so a subsequent PATCH active=true takes effect on
-        # the row the SCIM lookup will return next time.
+        # the row the SCIM lookup will return next time. SCIM is the
+        # privileged managed-source IdP — its name updates DO win
+        # over any user-edited or SSO-set value.
         case linkage do
           :created -> {:ok, user}
           _ -> apply_scim_attrs(user, attrs)
@@ -125,11 +128,17 @@ defmodule Lynx.Service.SCIM do
         {:not_found, "User not found"}
 
       user ->
-        # Refresh the SCIM identity's `provider_uid` if the SCIM PUT
-        # carries a (possibly changed) externalId. Then apply the
+        # Refresh the SCIM identity's `provider_uid` + email/name
+        # snapshot if the SCIM PUT carries them. Then apply the
         # canonical-user attrs that actually live on `users`.
         if attrs[:external_id] do
-          UserIdentityContext.link_identity(user, "scim", attrs[:external_id], attrs[:email])
+          UserIdentityContext.link_identity(
+            user,
+            "scim",
+            attrs[:external_id],
+            attrs[:email],
+            attrs[:name]
+          )
         end
 
         new_attrs = %{

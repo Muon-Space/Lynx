@@ -78,6 +78,34 @@ defmodule Lynx.Service.SCIMTest do
       assert {:not_found, _} = SCIM.get_user(Ecto.UUID.generate())
     end
 
+    test "SCIM is privileged — re-creating an existing user with a new name DOES overwrite users.name" do
+      # SCIM is the managed-source IdP. Operators pushing a name
+      # update from Okta should see the canonical user.name change
+      # — unlike drive-by SAML/OIDC logins, which only update the
+      # identity-row snapshot.
+      {:ok, first} =
+        SCIM.create_user(%{
+          email: "scim_priv@example.com",
+          name: "Aron G.",
+          external_id: "scim-priv-001",
+          is_active: true
+        })
+
+      assert first.name == "Aron G."
+
+      # Same external_id, new canonical name — Okta pushed an update.
+      {:ok, second} =
+        SCIM.create_user(%{
+          email: "scim_priv@example.com",
+          name: "Aron Gates",
+          external_id: "scim-priv-001",
+          is_active: true
+        })
+
+      assert second.id == first.id
+      assert second.name == "Aron Gates"
+    end
+
     test "patch_user/2 deactivates a user" do
       {:ok, user} =
         SCIM.create_user(%{

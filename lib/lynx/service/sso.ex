@@ -87,20 +87,20 @@ defmodule Lynx.Service.SSO do
       end
     end
 
-    case UserIdentityContext.find_or_link(provider, external_id, email, create_fn) do
+    case UserIdentityContext.find_or_link(provider, external_id, email, name, create_fn) do
       {:ok, user, _linkage} ->
         cond do
           not user.is_active ->
             {:error, "Account is deactivated"}
 
           true ->
-            # Refresh display name + last_seen on the canonical user.
-            # Name preservation: only overwrite if the IdP supplied
-            # one (extractors leave nil otherwise).
-            UserContext.update_user(user, %{
-              name: name || user.name,
-              last_seen: DateTime.utc_now()
-            })
+            # Drive-by SSO logins do NOT overwrite `users.name`. The
+            # identity-row snapshot was already refreshed inside
+            # `find_or_link/5`; the canonical display name is owned
+            # by SCIM (managed source) and the user (Profile edit).
+            # Otherwise SAML logging in with "Aron G." would clobber
+            # SCIM's "Aron Gates" on every login.
+            UserContext.update_user(user, %{last_seen: DateTime.utc_now()})
         end
 
       {:error, _} = err ->
