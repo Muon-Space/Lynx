@@ -62,7 +62,13 @@ defmodule LynxWeb.ConnCase do
     # plain helper function we have to dispatch manually.
     Phoenix.ConnTest.dispatch(conn, LynxWeb.Endpoint, :post, "/action/install", params)
     user = Lynx.Context.UserContext.get_user_by_email(params.admin_email)
-    user.api_key
+
+    # The install action mints an api_key but discards the plaintext
+    # (only the hash is stored). Rotate to a known value so the test
+    # has a usable bearer.
+    new_key = Lynx.Service.AuthService.get_uuid()
+    {:ok, _} = Lynx.Context.UserContext.rotate_api_key(user.uuid, new_key)
+    new_key
   end
 
   @doc """

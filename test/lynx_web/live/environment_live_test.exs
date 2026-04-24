@@ -63,7 +63,10 @@ defmodule LynxWeb.EnvironmentLiveTest do
       config = backend_config(html)
       assert config =~ ~s(backend "http")
       assert config =~ env.username
-      assert config =~ env.secret
+      # The env secret is stored hashed and not recoverable — the copy
+      # snippet shows a placeholder instead of the live value.
+      assert config =~ "<env secret"
+      refute config =~ env.secret
     end
 
     test "lists units when state exists", %{conn: conn, project: project, env: env} do

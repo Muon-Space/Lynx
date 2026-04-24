@@ -60,6 +60,7 @@ defmodule LynxWeb.PolicyDetailLive do
            |> assign(:validation, :ok)
            |> assign(:validate_ref, nil)
            |> assign(:form_error, nil)
+           |> assign(:confirm, nil)
            |> assign(:recent_blocks, PolicyContext.recent_blocks_for_policy(policy, 25))}
         else
           {:ok,
@@ -142,6 +143,7 @@ defmodule LynxWeb.PolicyDetailLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="" />
     <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header
@@ -198,7 +200,9 @@ defmodule LynxWeb.PolicyDetailLive do
             </.button>
             <.button
               :if={@can_edit?}
-              phx-click="confirm_delete"
+              phx-click="confirm_action"
+              phx-value-event="delete_policy"
+              phx-value-message={"Delete policy \"#{@policy.name}\"? This is permanent and any environment that depends on it will stop being evaluated."}
               variant="ghost"
               size="sm"
             >
@@ -531,7 +535,20 @@ defmodule LynxWeb.PolicyDetailLive do
     end
   end
 
-  def handle_event("confirm_delete", _, socket) do
+  def handle_event("confirm_action", params, socket) do
+    {:noreply,
+     assign(socket, :confirm, %{
+       message: params["message"],
+       event: params["event"],
+       value: %{}
+     })}
+  end
+
+  def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
+
+  def handle_event("delete_policy", _, socket) do
+    socket = assign(socket, :confirm, nil)
+
     if socket.assigns.can_edit? do
       case PolicyContext.delete_policy(socket.assigns.policy) do
         {:ok, _} ->

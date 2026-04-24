@@ -79,7 +79,7 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
                       |> assign(:user_name, user.name)
                       |> assign(:user_email, user.email)
                       |> assign(:user_uuid, user.uuid)
-                      |> assign(:user_api_key, user.api_key)
+                      |> assign(:user_api_key, nil)
                     else
                       conn
                       |> assign(:is_logged, false)
@@ -124,7 +124,7 @@ defmodule Lynx.Middleware.APIAuthMiddleware do
                 |> assign(:user_name, user.name)
                 |> assign(:user_email, user.email)
                 |> assign(:user_uuid, user.uuid)
-                |> assign(:user_api_key, user.api_key)
+                |> assign(:user_api_key, nil)
               else
                 conn
                 |> assign(:is_logged, false)

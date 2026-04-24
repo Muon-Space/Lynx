@@ -57,6 +57,13 @@ defmodule LynxWeb.TfControllerTest do
 
     admin = UserContext.get_user_by_email("admin@example.com")
 
+    # The install action discards the plaintext api_key (only the hash
+    # is persisted). Rotate to a known plaintext so the email + api_key
+    # auth tests below have a usable bearer.
+    admin_api_key = Lynx.Service.AuthService.get_uuid()
+    {:ok, admin} = UserContext.rotate_api_key(admin.uuid, admin_api_key)
+    admin = %{admin | api_key: admin_api_key}
+
     {:ok, conn: conn, workspace: workspace, team: team, project: project, env: env, admin: admin}
   end
 

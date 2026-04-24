@@ -44,7 +44,7 @@ defmodule LynxWeb.ProjectLive do
               name: env.name,
               slug: env.slug,
               username: env.username,
-              secret: env.secret,
+              secret_prefix: env.secret_prefix,
               state_version: if(state_count > 0, do: "v#{state_count}", else: "v0"),
               is_locked: is_locked,
               inserted_at: env.inserted_at
@@ -141,7 +141,7 @@ defmodule LynxWeb.ProjectLive do
           <.input name="name" label="Name" value={@editing_env.name} required />
           <.input name="slug" label="Slug" value={@editing_env.slug} required />
           <.input name="username" label="Username" value={@editing_env.username} required />
-          <.input name="secret" label="Secret" value={@editing_env.secret} required />
+          <.input name="secret" label="Secret" value="" placeholder={env_secret_placeholder(@editing_env)} hint="Leave blank to keep current secret. Enter a new value to rotate." />
           <div class="flex gap-3 pt-2">
             <.button type="submit" variant="primary">Update</.button>
             <.button phx-click="hide_edit_env" variant="secondary">Cancel</.button>
@@ -926,7 +926,7 @@ defmodule LynxWeb.ProjectLive do
           name: env.name,
           slug: env.slug,
           username: env.username,
-          secret: env.secret,
+          secret_prefix: env.secret_prefix,
           state_version: if(state_count > 0, do: "v#{state_count}", else: "v0"),
           is_locked: is_locked,
           inserted_at: env.inserted_at
@@ -935,6 +935,10 @@ defmodule LynxWeb.ProjectLive do
 
     assign(socket, :environments, envs_with_info)
   end
+
+  defp env_secret_placeholder(%{secret_prefix: nil}), do: "(no secret stored)"
+  defp env_secret_placeholder(%{secret_prefix: prefix}) when is_binary(prefix), do: prefix <> "…"
+  defp env_secret_placeholder(_), do: "(secret hidden)"
 
   defp random_string(length) do
     :crypto.strong_rand_bytes(length)

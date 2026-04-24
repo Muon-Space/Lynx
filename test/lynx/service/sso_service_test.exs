@@ -54,7 +54,11 @@ defmodule Lynx.Service.SSOServiceTest do
       assert attrs.name == "Jane Doe"
     end
 
-    test "falls back to email as name when no name attributes" do
+    test "name is nil when no name attributes (extractor stays pure; fallback happens in SSO.find_or_create)" do
+      # Substituting email-for-name here would clobber SCIM-set names
+      # ("Aron Gates") with the email on every login. The extractor
+      # leaves it nil; `Lynx.Service.SSO.find_or_create_sso_user/2`
+      # synthesizes a fallback only on user creation.
       assertion = %{
         attributes: %{
           "email" => "noname@example.com"
@@ -63,7 +67,7 @@ defmodule Lynx.Service.SSOServiceTest do
       }
 
       {:ok, attrs} = SSOService.saml_assertion_to_attrs(assertion)
-      assert attrs.name == "noname@example.com"
+      assert attrs.name == nil
     end
 
     test "returns error when no email attribute found" do

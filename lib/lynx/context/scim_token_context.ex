@@ -31,16 +31,21 @@ defmodule Lynx.Context.SCIMTokenContext do
   end
 
   @doc """
-  Get active token by token value
+  Get active token by token value. Hashes the presented value via
+  `TokenHash` before the equality probe — only the hash is stored.
   """
-  def get_active_token(token) do
+  def get_active_token(token) when is_binary(token) and token != "" do
+    hash = Lynx.Service.TokenHash.hash(token)
+
     from(t in SCIMToken,
-      where: t.token == ^token,
+      where: t.token_hash == ^hash,
       where: t.is_active == true
     )
     |> limit(1)
     |> Repo.one()
   end
+
+  def get_active_token(_), do: nil
 
   @doc """
   List all tokens (active and inactive) as display maps with masked token
@@ -51,7 +56,7 @@ defmodule Lynx.Context.SCIMTokenContext do
     |> Enum.map(fn t ->
       %{
         uuid: t.uuid,
-        token_prefix: mask_token(t.token),
+        token_prefix: format_prefix(t.token_prefix),
         description: t.description,
         is_active: t.is_active,
         last_used_at: t.last_used_at,
@@ -126,18 +131,20 @@ defmodule Lynx.Context.SCIMTokenContext do
   with the plaintext token (shown once to the caller).
   """
   def generate_token(description \\ "") do
-    token = generate_random_token()
+    plaintext = generate_random_token()
 
     attrs = %{
       uuid: Ecto.UUID.generate(),
-      token: token,
+      token: plaintext,
       description: description,
       is_active: true
     }
 
     case create_token(attrs) do
       {:ok, record} ->
-        {:ok, %{uuid: record.uuid, token: token, description: record.description}}
+        # `record.token` is the virtual we put in the changeset — Ecto
+        # leaves it set on the in-memory struct so we can return it.
+        {:ok, %{uuid: record.uuid, token: plaintext, description: record.description}}
 
       {:error, changeset} ->
         messages =
@@ -183,9 +190,8 @@ defmodule Lynx.Context.SCIMTokenContext do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
-  defp mask_token(token) when is_binary(token) and byte_size(token) > 8 do
-    String.slice(token, 0, 8) <> "..."
-  end
-
-  defp mask_token(token), do: token
+  # The prefix column already stores the bare prefix (no `…`). Append it
+  # here so the UI can render `lyn_xxxxxxxx…` consistently.
+  defp format_prefix(nil), do: nil
+  defp format_prefix(prefix) when is_binary(prefix), do: prefix <> "..."
 end

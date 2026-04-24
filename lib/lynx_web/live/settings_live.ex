@@ -537,8 +537,16 @@ defmodule LynxWeb.SettingsLive do
 
   def handle_event("revoke_opa_token", %{"uuid" => uuid}, socket) do
     socket = assign(socket, :confirm, nil)
+    # Look up the record before revoking so the audit row carries the
+    # friendly name (e.g. "external") instead of falling back to the UUID.
+    name =
+      case OPABundleTokenContext.get_token_by_uuid(uuid) do
+        nil -> nil
+        record -> record.name
+      end
+
     OPABundleTokenContext.revoke_token_by_uuid(uuid)
-    AuditContext.log_user(socket.assigns.current_user, "revoked", "opa_bundle_token", uuid)
+    AuditContext.log_user(socket.assigns.current_user, "revoked", "opa_bundle_token", uuid, name)
 
     {:noreply,
      socket
