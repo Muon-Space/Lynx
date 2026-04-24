@@ -136,10 +136,15 @@ defmodule Mix.Tasks.Lynx.DedupeUsers do
 
     Enum.each(plan, fn %{email: email, winner: w, losers: ls} ->
       Mix.shell().info("  #{email}")
-      Mix.shell().info("    KEEP    #{w["uuid"]}  active=#{w["is_active"]}  provider=#{w["auth_provider"]}")
+
+      Mix.shell().info(
+        "    KEEP    #{w["uuid"]}  active=#{w["is_active"]}  provider=#{w["auth_provider"]}"
+      )
 
       Enum.each(ls, fn l ->
-        Mix.shell().info("    MERGE   #{l["uuid"]}  active=#{l["is_active"]}  provider=#{l["auth_provider"]}  →  #{w["uuid"]}")
+        Mix.shell().info(
+          "    MERGE   #{l["uuid"]}  active=#{l["is_active"]}  provider=#{l["auth_provider"]}  →  #{w["uuid"]}"
+        )
       end)
     end)
   end

@@ -30,7 +30,10 @@ defmodule Mix.Tasks.Lynx.DedupeUsersTest do
     # external_id, but the dedupe task runs against operator DBs that
     # still do. Re-add the columns just for these tests so we can
     # set up the duplicate-row scenario.
-    Repo.query!("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'local'")
+    Repo.query!(
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR DEFAULT 'local'"
+    )
+
     Repo.query!("ALTER TABLE users ADD COLUMN IF NOT EXISTS external_id VARCHAR")
 
     # Drop the unique-email index for the same reason — the operator
@@ -188,7 +191,9 @@ defmodule Mix.Tasks.Lynx.DedupeUsersTest do
         |> hd()
 
       assert count == 2
-      assert Repo.query!("SELECT id FROM users WHERE id = $1", [loser_id]) |> Map.fetch!(:rows) != []
+
+      assert Repo.query!("SELECT id FROM users WHERE id = $1", [loser_id]) |> Map.fetch!(:rows) !=
+               []
     end
   end
 

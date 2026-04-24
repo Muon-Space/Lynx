@@ -21,7 +21,12 @@ defmodule Lynx.Context.UserIdentityContextTest do
       end
 
       assert {:ok, user, :created} =
-               UserIdentityContext.find_or_link("scim", "okta-uid-001", "fresh@example.com", create_fn)
+               UserIdentityContext.find_or_link(
+                 "scim",
+                 "okta-uid-001",
+                 "fresh@example.com",
+                 create_fn
+               )
 
       assert user.email == "fresh@example.com"
 
@@ -32,13 +37,20 @@ defmodule Lynx.Context.UserIdentityContextTest do
 
     test "returns the existing user when the identity already matches" do
       user = create_user(%{email: "known@example.com"})
-      {:ok, _} = UserIdentityContext.link_identity(user, "saml", "saml-nameid-known", "known@example.com")
+
+      {:ok, _} =
+        UserIdentityContext.link_identity(user, "saml", "saml-nameid-known", "known@example.com")
 
       # `create_fn` should NOT be called — assertion via raise.
       create_fn = fn -> raise "create_fn should not have been invoked" end
 
       assert {:ok, returned, :existing_via_identity} =
-               UserIdentityContext.find_or_link("saml", "saml-nameid-known", "known@example.com", create_fn)
+               UserIdentityContext.find_or_link(
+                 "saml",
+                 "saml-nameid-known",
+                 "known@example.com",
+                 create_fn
+               )
 
       assert returned.id == user.id
     end
@@ -67,7 +79,13 @@ defmodule Lynx.Context.UserIdentityContextTest do
 
       # Single users row, not a duplicate.
       import Ecto.Query
-      count = Lynx.Repo.aggregate(from(u in Lynx.Model.User, where: u.email == "merge@example.com"), :count)
+
+      count =
+        Lynx.Repo.aggregate(
+          from(u in Lynx.Model.User, where: u.email == "merge@example.com"),
+          :count
+        )
+
       assert count == 1
     end
 
@@ -116,7 +134,12 @@ defmodule Lynx.Context.UserIdentityContextTest do
       # Same provider + user but new provider_uid → updates in place
       # (e.g. Okta migrated the user to a new internal ID).
       {:ok, second} =
-        UserIdentityContext.link_identity(user, "scim", "new-okta-uid", "idem-renamed@example.com")
+        UserIdentityContext.link_identity(
+          user,
+          "scim",
+          "new-okta-uid",
+          "idem-renamed@example.com"
+        )
 
       assert second.provider_uid == "new-okta-uid"
       assert second.email == "idem-renamed@example.com"
@@ -144,7 +167,9 @@ defmodule Lynx.Context.UserIdentityContextTest do
       user = create_user(%{email: "unlink@example.com"})
 
       {:ok, _local} = UserIdentityContext.link_identity(user, "local", nil, "unlink@example.com")
-      {:ok, scim} = UserIdentityContext.link_identity(user, "scim", "okta-uid-unlink", "unlink@example.com")
+
+      {:ok, scim} =
+        UserIdentityContext.link_identity(user, "scim", "okta-uid-unlink", "unlink@example.com")
 
       assert :ok = UserIdentityContext.delete_identity(scim)
 

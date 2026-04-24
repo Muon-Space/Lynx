@@ -98,8 +98,12 @@ defmodule Lynx.Service.SCIM do
   # operator may have set elsewhere.
   defp apply_scim_attrs(user, attrs) do
     update_attrs = %{}
-    update_attrs = if attrs[:email], do: Map.put(update_attrs, :email, attrs[:email]), else: update_attrs
-    update_attrs = if attrs[:name], do: Map.put(update_attrs, :name, attrs[:name]), else: update_attrs
+
+    update_attrs =
+      if attrs[:email], do: Map.put(update_attrs, :email, attrs[:email]), else: update_attrs
+
+    update_attrs =
+      if attrs[:name], do: Map.put(update_attrs, :name, attrs[:name]), else: update_attrs
 
     update_attrs =
       if Map.has_key?(attrs, :is_active),
