@@ -16,26 +16,32 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
 
     1. Creates `user_identities` (one row per user × login method)
     2. Backfills one identity per existing user from their
-       `(auth_provider, external_id, email)` tuple
+       `(auth_provider, external_id, email, name)` tuple
     3. Adds a DB trigger that refuses to delete a user's last identity
        (defence in depth — the application layer also enforces this)
-    4. Pre-flights for duplicate-email user rows; raises with a clear
-       remediation guide if any exist (operators must dedupe via
-       `mix lynx.dedupe_users` before the schema change can complete)
-    5. Drops `users.auth_provider` + `users.external_id` (no longer
+    4. Auto-merges duplicate-email user rows via
+       `Lynx.Service.UserDeduper.merge_all_duplicates/0` so operators
+       don't need a separate manual step. Heuristic picks active +
+       SCIM-managed rows as winners (the right answer for the common
+       case: stale local row alongside an active SCIM-provisioned one)
+    5. Re-checks for duplicates after the auto-merge; raises with the
+       remaining conflicts only if the auto-merge didn't resolve them
+       (rare — operators can override via
+       `Lynx.Service.UserDeduper.merge_all_duplicates(keep: "uuid")`
+       from a release `remote` shell)
+    6. Drops `users.auth_provider` + `users.external_id` (no longer
        read at runtime — `user_identities` is the source of truth)
-    6. Adds a unique index on `users.email` so duplicates can never
+    7. Adds a unique index on `users.email` so duplicates can never
        recur
 
   ## Operator notes
 
-  Run `mix lynx.dedupe_users --check` first to confirm no merge is
-  required. If duplicates exist, run `mix lynx.dedupe_users` (with
-  `--keep <uuid>` for each duplicate group) to merge them properly:
-  the task re-parents grants + sessions and links identities so no
-  data is silently dropped. Then apply this migration.
-
-  Snapshot the DB before either step.
+  Snapshot the DB before applying — the auto-merge is destructive
+  and the schema change is irreversible. The merge re-parents
+  `user_projects`, `user_teams`, `users_meta`, and `users_session` so
+  no data is silently dropped, but the loser user UUIDs are gone.
+  Every merge decision logs `info`-level so deploy logs carry an
+  audit trail of which row won each duplicate group.
   """
 
   use Ecto.Migration
@@ -103,10 +109,21 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
 
     flush()
 
-    # Refuse to proceed if duplicate-email users exist. The drop of
-    # `auth_provider` + `external_id` is irreversible and the unique
-    # index would fail anyway — better to halt with a clear message
-    # than to do half the migration and roll back.
+    # Auto-merge duplicate-email user rows so the unique index can
+    # apply. The heuristic prefers active + SCIM-managed rows — the
+    # correct winner in the common "stale local row alongside an
+    # active SCIM-provisioned one" failure mode this PR fixes.
+    %{merged_count: merged_count} = Lynx.Service.UserDeduper.merge_all_duplicates()
+
+    if merged_count > 0 do
+      IO.puts("UserDeduper merged #{merged_count} duplicate user row(s) — see info-level log lines above for per-group decisions.")
+    end
+
+    flush()
+
+    # If anything still slipped through (operator passed `keep:` for a
+    # non-existent UUID, or a brand-new duplicate appeared between the
+    # merge and now), refuse with a clear remediation.
     refuse_if_duplicate_emails()
 
     # Replace the existing non-unique `users_email_index` with a
@@ -195,17 +212,18 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
           |> Enum.join("\n")
 
         raise """
-        Cannot apply unique index on users.email — duplicate-email user rows exist:
+        Auto-merge did not resolve all duplicate-email user rows:
 
         #{formatted}
 
-        Resolve before re-running this migration:
+        This is unusual — `Lynx.Service.UserDeduper.merge_all_duplicates/0`
+        normally collapses every group. If you got here it likely means
+        a brand-new duplicate appeared between the merge and the unique-
+        index apply. Resolve via a release `remote` shell:
 
-          mix lynx.dedupe_users               # interactive: pick a winner per group
-          mix lynx.dedupe_users --keep <uuid> # non-interactive: keep the named winner
+          Lynx.Service.UserDeduper.merge_all_duplicates(keep: "winner-uuid")
 
-        The task re-parents grants + sessions, links the loser's identity
-        to the winner, then deletes the loser. Snapshot the DB first.
+        then re-run the migration. Snapshot the DB first.
         """
     end
   end
