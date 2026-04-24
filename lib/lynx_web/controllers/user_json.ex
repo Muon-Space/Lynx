@@ -25,15 +25,24 @@ defmodule LynxWeb.UserJSON do
     %{errorMessage: message}
   end
 
-  # Format user
+  # Format user. `authProviders` is sourced from the linked
+  # `user_identities` rows — a user can be linked to multiple IdPs
+  # (e.g. local password + SCIM) so the field is now a list. The old
+  # singular `authProvider` field is retained for backward compat,
+  # populated with the first non-local provider if any.
   defp render_user(user) do
+    providers =
+      Lynx.Context.UserIdentityContext.list_identities_for_user(user.id)
+      |> Enum.map(& &1.provider)
+
     %{
       id: user.uuid,
       email: user.email,
       name: user.name,
       role: user.role,
       isActive: user.is_active,
-      authProvider: user.auth_provider,
+      authProviders: providers,
+      authProvider: Enum.find(providers, &(&1 != "local")) || List.first(providers) || "local",
       createdAt: user.inserted_at,
       updatedAt: user.updated_at
     }

@@ -46,9 +46,12 @@ defmodule Lynx.Service.SSOTest do
       assert {:ok, user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert user.email == "sso_new@example.com"
       assert user.name == "SSO User"
-      assert user.external_id == "ext-user-001"
       assert user.is_active == true
       assert user.role == "regular"
+
+      # external_id is in `user_identities` now, not on `users`.
+      identity = Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-user-001")
+      assert identity.user_id == user.id
     end
 
     test "finds existing user by external_id on repeat login" do
@@ -102,7 +105,12 @@ defmodule Lynx.Service.SSOTest do
 
       {:ok, sso_user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert sso_user.id == local_user.id
-      assert sso_user.external_id == "ext-user-003"
+
+      # The external_id no longer lives on `users`; it's a row in
+      # `user_identities`. Verify the OIDC identity got linked to
+      # the existing local user (the merge).
+      assert Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-user-003").user_id ==
+               local_user.id
     end
 
     test "repeat SSO login with nil name preserves the existing name (regression: SCIM-set names were getting clobbered with email)" do

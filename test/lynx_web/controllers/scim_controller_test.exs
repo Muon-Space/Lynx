@@ -106,6 +106,59 @@ defmodule LynxWeb.SCIMControllerTest do
 
   # -- Users --
 
+  describe "SCIM Users — merge by email (no duplicate user rows)" do
+    test "POST /Users with externalId matching no identity but email matching an existing user merges, no duplicate row",
+         %{conn: conn, scim_token: scim_token} do
+      # Reproducer for the duplicate-user bug:
+      #   * Lynx user already exists (e.g. created via password signup
+      #     or an earlier SAML login that linked external_id=email)
+      #   * Okta later starts SCIM-provisioning with its stable user
+      #     UID as externalId — different from anything Lynx has
+      #   * BEFORE this fix: Lynx would create a SECOND users row
+      #     with the same email
+      #   * AFTER this fix: Lynx links a new SCIM identity to the
+      #     existing user (same UUID, same row)
+      {:ok, existing} =
+        Lynx.Service.SCIM.create_user(%{
+          email: "merge-target@example.com",
+          name: "Merge Target",
+          # No external_id on the first create — simulates a legacy
+          # local user without any IdP linkage.
+          is_active: true
+        })
+
+      conn =
+        conn
+        |> scim_conn(scim_token)
+        |> post("/scim/v2/Users", %{
+          "userName" => "merge-target@example.com",
+          "name" => %{"formatted" => "Merge Target"},
+          "externalId" => "okta-merge-uid-999",
+          "active" => true
+        })
+
+      body = json_response(conn, 201)
+      # Same UUID — no duplicate row was created.
+      assert body["id"] == existing.uuid
+      assert body["externalId"] == "okta-merge-uid-999"
+
+      # The DB has ONE user with this email, not two.
+      import Ecto.Query
+
+      count =
+        Lynx.Repo.aggregate(
+          from(u in Lynx.Model.User, where: u.email == "merge-target@example.com"),
+          :count
+        )
+
+      assert count == 1
+
+      # And the SCIM identity is linked to the existing user.
+      identity = Lynx.Context.UserIdentityContext.get_identity("scim", "okta-merge-uid-999")
+      assert identity.user_id == existing.id
+    end
+  end
+
   describe "SCIM Users" do
     test "POST /Users creates a user", %{conn: conn, scim_token: scim_token} do
       body = %{

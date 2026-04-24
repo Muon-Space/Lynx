@@ -17,6 +17,9 @@ defmodule Lynx.Context.UserContext do
   Creates a new user with the provided attributes
   """
   def new_user(attrs \\ %{}) do
+    # `auth_provider` + `external_id` columns are deprecated — they
+    # live in `user_identities` now. The columns stay on `users` for
+    # one release as a rollback safety net but no new writes go there.
     %{
       email: attrs.email,
       name: attrs.name,
@@ -25,8 +28,6 @@ defmodule Lynx.Context.UserContext do
       last_seen: attrs.last_seen,
       role: attrs.role,
       api_key: Map.get(attrs, :api_key),
-      auth_provider: Map.get(attrs, :auth_provider, "local"),
-      external_id: Map.get(attrs, :external_id),
       is_active: Map.get(attrs, :is_active, true),
       uuid: Map.get(attrs, :uuid, Ecto.UUID.generate())
     }
@@ -393,18 +394,6 @@ defmodule Lynx.Context.UserContext do
   end
 
   @doc """
-  Get user by external ID
-  """
-  def get_user_by_external_id(external_id) do
-    from(
-      u in User,
-      where: u.external_id == ^external_id
-    )
-    |> limit(1)
-    |> Repo.one()
-  end
-
-  @doc """
   Get active users
   """
   def get_active_users(offset, limit) do
@@ -565,7 +554,15 @@ defmodule Lynx.Context.UserContext do
     end
   end
 
-  @doc "Create an SSO/SCIM user (no password — auth handled externally)."
+  @doc """
+  Create an SSO/SCIM user (no password — auth handled externally).
+
+  Caller is responsible for linking a `user_identities` row after
+  this returns — the `:auth_provider` / `:external_id` params are
+  accepted but no longer persisted to `users` (see `new_user/1`).
+  Use `UserIdentityContext.find_or_link/4` instead, which calls into
+  this for the create branch.
+  """
   def create_sso_user(params \\ %{}) do
     user =
       new_user(%{
@@ -576,8 +573,6 @@ defmodule Lynx.Context.UserContext do
         api_key: AuthService.get_uuid(),
         role: params[:role] || "regular",
         last_seen: DateTime.utc_now(),
-        auth_provider: params[:auth_provider],
-        external_id: params[:external_id],
         is_active: Map.get(params, :is_active, true)
       })
 

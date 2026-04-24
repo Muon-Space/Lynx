@@ -127,7 +127,10 @@ defmodule Lynx.Service.SCIMService do
     %{
       "schemas" => [@user_schema],
       "id" => user.uuid,
-      "externalId" => user.external_id,
+      # `externalId` is the IdP's SCIM-side identifier — pulled from
+      # the linked `user_identities` row rather than the deprecated
+      # `users.external_id` column.
+      "externalId" => scim_external_id(user),
       "userName" => user.email,
       "name" => %{
         "formatted" => user.name
@@ -146,6 +149,19 @@ defmodule Lynx.Service.SCIMService do
         "location" => "/scim/v2/Users/#{user.uuid}"
       }
     }
+  end
+
+  defp scim_external_id(user) do
+    case Lynx.Context.UserIdentityContext.list_identities_for_user(user.id) do
+      [] ->
+        nil
+
+      identities ->
+        case Enum.find(identities, &(&1.provider == "scim")) do
+          nil -> nil
+          identity -> identity.provider_uid
+        end
+    end
   end
 
   @doc """
