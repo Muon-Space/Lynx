@@ -33,29 +33,126 @@ defmodule Lynx.Service.UserDeduperTest do
     :ok
   end
 
+  # Insert a user row + the matching backfilled identity row, mirroring
+  # what migration `…000013` does to the DB before invoking
+  # `UserDeduper.merge_all_duplicates/0`. Without this, tests miss the
+  # constraint-collision bug that hit production: backfill creates the
+  # loser's identity row with `(provider, provider_uid) = (local,
+  # "aron@email")`, then the merge would have INSERTed a duplicate.
   defp insert_dup(email, attrs) do
     attrs = Map.new(attrs)
+    auth_provider = attrs[:auth_provider] || "local"
+    external_id = attrs[:external_id]
 
+    [user_id, user_uuid] =
+      Repo.query!(
+        """
+        INSERT INTO users (uuid, email, name, password_hash, verified, last_seen, role, api_key_hash, is_active, auth_provider, external_id, inserted_at, updated_at)
+        VALUES ($1, $2, $3, $4, true, $5, 'regular', $6, $7, $8, $9, NOW(), NOW())
+        RETURNING id, uuid::text
+        """,
+        [
+          Ecto.UUID.bingenerate(),
+          email,
+          attrs[:name] || email,
+          "__placeholder__",
+          attrs[:last_seen] || DateTime.utc_now() |> DateTime.truncate(:second),
+          Lynx.Service.TokenHash.hash(Ecto.UUID.generate()),
+          Map.get(attrs, :is_active, true),
+          auth_provider,
+          external_id
+        ]
+      )
+      |> Map.fetch!(:rows)
+      |> hd()
+
+    # Backfill-equivalent: insert the identity row the migration would
+    # have populated for this user. Skip on conflict so a duplicate
+    # (provider, provider_uid) across the test's two users doesn't
+    # blow up the setup itself — the merge is what we want to exercise.
     Repo.query!(
       """
-      INSERT INTO users (uuid, email, name, password_hash, verified, last_seen, role, api_key_hash, is_active, auth_provider, external_id, inserted_at, updated_at)
-      VALUES ($1, $2, $3, $4, true, $5, 'regular', $6, $7, $8, $9, NOW(), NOW())
-      RETURNING id, uuid::text
+      INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, name, inserted_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT DO NOTHING
       """,
       [
         Ecto.UUID.bingenerate(),
+        user_id,
+        auth_provider,
+        external_id,
         email,
-        attrs[:name] || email,
-        "__placeholder__",
-        attrs[:last_seen] || DateTime.utc_now() |> DateTime.truncate(:second),
-        Lynx.Service.TokenHash.hash(Ecto.UUID.generate()),
-        Map.get(attrs, :is_active, true),
-        attrs[:auth_provider] || "local",
-        attrs[:external_id]
+        attrs[:name] || email
       ]
     )
-    |> Map.fetch!(:rows)
-    |> hd()
+
+    [user_id, user_uuid]
+  end
+
+  describe "merge_all_duplicates/1 — regression: backfill-then-merge collision" do
+    test "Aron's exact prod scenario: backfill created identity rows for both users; merge succeeds + preserves loser's identity on the winner" do
+      # User #1 (legacy local): backfill produces
+      #   identity (loser_id, "local", "aron@example.com")
+      # User #2 (active SCIM): backfill produces
+      #   identity (winner_id, "scim", "okta-uid-aron")
+      #
+      # The earlier crash: merge tried to INSERT the loser's identity
+      # under the winner's user_id, hitting the (provider, provider_uid)
+      # unique constraint because backfill had already inserted that
+      # exact row. The fix removes the redundant INSERT and uses
+      # UPDATE re-parenting (with both NOT EXISTS guards) instead, so
+      # the loser's (local, "aron@example.com") identity is moved to
+      # the winner without collision.
+      #
+      # Net effect: the winner ends up linked via BOTH "local" (the
+      # legacy SAML-via-email path) AND "scim" (the active managed
+      # path). Future logins through either resolve to the canonical
+      # user — no IdP linkage is lost.
+      [_loser_id, loser_uuid] =
+        insert_dup("aron@example.com",
+          name: "Old Local",
+          auth_provider: "local",
+          external_id: "aron@example.com",
+          is_active: false,
+          last_seen: ~U[2026-01-01 00:00:00Z]
+        )
+
+      [winner_id, _winner_uuid] =
+        insert_dup("aron@example.com",
+          name: "Aron Gates",
+          auth_provider: "scim",
+          external_id: "okta-uid-aron",
+          is_active: true,
+          last_seen: ~U[2026-01-15 00:00:00Z]
+        )
+
+      # Must succeed without raising on the unique index.
+      assert %{merged_count: 1} = UserDeduper.merge_all_duplicates()
+
+      refute_uuid_exists(loser_uuid)
+
+      [providers] =
+        Repo.query!(
+          "SELECT ARRAY_AGG(provider ORDER BY provider) FROM user_identities WHERE user_id = $1",
+          [winner_id]
+        )
+        |> Map.fetch!(:rows)
+
+      assert providers == [["local", "scim"]]
+
+      # The "local" identity row that the legacy code created (with
+      # email-as-NameID) is now linked to the canonical user, so
+      # future SAML logins via that path resolve correctly.
+      [count] =
+        Repo.query!(
+          "SELECT COUNT(*) FROM user_identities WHERE user_id = $1 AND provider = 'local' AND provider_uid = 'aron@example.com'",
+          [winner_id]
+        )
+        |> Map.fetch!(:rows)
+        |> hd()
+
+      assert count == 1
+    end
   end
 
   describe "merge_all_duplicates/1 — winner heuristic" do

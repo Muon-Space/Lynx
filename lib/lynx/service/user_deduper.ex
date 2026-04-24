@@ -188,28 +188,7 @@ defmodule Lynx.Service.UserDeduper do
     winner_id = winner["id"]
     loser_id = loser["id"]
 
-    # 1. Link the loser's identity to the winner (if the loser had one).
-    #    Conflict on (user_id, provider) means the winner already has
-    #    an identity for this provider — we keep theirs and skip.
-    if loser["auth_provider"] do
-      Repo.query!(
-        """
-        INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, name, inserted_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-        ON CONFLICT (user_id, provider) DO NOTHING
-        """,
-        [
-          Ecto.UUID.bingenerate(),
-          winner_id,
-          loser["auth_provider"],
-          loser["external_id"],
-          loser["uuid"],
-          loser["name"]
-        ]
-      )
-    end
-
-    # 2. Re-parent FK references. We list them explicitly — there's no
+    # 1. Re-parent FK references. We list them explicitly — there's no
     #    generic "for each FK pointing to users" mass-update in Postgres.
     #    If a new table that FKs to users gets added, add it here too.
     Repo.query!("UPDATE user_projects SET user_id = $1 WHERE user_id = $2", [
@@ -229,8 +208,23 @@ defmodule Lynx.Service.UserDeduper do
       loser_id
     ])
 
-    # 3. Re-parent any user_identities the loser already had where the
-    #    winner doesn't already have an identity for that provider.
+    # 2. Re-parent the loser's identities to the winner where safe.
+    #    The backfill step in migration `…000013` already inserted
+    #    one identity per user from `(auth_provider, external_id)`,
+    #    so the loser's IdP linkage is already represented as a row
+    #    here — we just move the row's `user_id` to the winner.
+    #
+    #    Two guards prevent constraint violations:
+    #      a. The winner doesn't already have an identity for that
+    #         provider (would violate the (user_id, provider) index)
+    #      b. No OTHER row has the same (provider, provider_uid)
+    #         (would violate the (provider, provider_uid) partial
+    #         unique index — exactly Aron's prod scenario, where both
+    #         users' backfilled identities collided on `(local,
+    #         "aron@email")`)
+    #
+    #    Loser-side rows that fail either guard stay on the loser and
+    #    get cleaned up by the cascade when we delete the user below.
     Repo.query!(
       """
       UPDATE user_identities SET user_id = $1
@@ -239,17 +233,24 @@ defmodule Lynx.Service.UserDeduper do
           SELECT 1 FROM user_identities w
           WHERE w.user_id = $1 AND w.provider = user_identities.provider
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_identities other
+          WHERE other.provider = user_identities.provider
+            AND other.provider_uid IS NOT DISTINCT FROM user_identities.provider_uid
+            AND other.id != user_identities.id
+        )
       """,
       [winner_id, loser_id]
     )
 
-    # Anything that conflicts (winner already has an identity for that
-    # provider) gets dropped — the winner's identity is canonical.
-    Repo.query!("DELETE FROM user_identities WHERE user_id = $1", [loser_id])
-
-    # 4. Delete the loser. The on_delete: :delete_all FK cascades any
-    #    leftover refs that we haven't explicitly re-parented above
-    #    (none expected after the steps above).
+    # 3. Delete the loser. The `on_delete: :delete_all` FK on
+    #    `user_identities.user_id` cascades any remaining loser-side
+    #    identity rows — and the `refuse_last_user_identity_delete`
+    #    trigger allows it because the user is gone by the time the
+    #    cascade fires (the trigger's "still exists?" check returns
+    #    false). Doing the user-delete first is what makes the
+    #    cascade work; deleting identities directly first would trip
+    #    the lockout guard.
     Repo.query!("DELETE FROM users WHERE id = $1", [loser_id])
   end
 end
