@@ -17,30 +17,28 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
     1. Creates `user_identities` (one row per user × login method)
     2. Backfills one identity per existing user from their
        `(auth_provider, external_id, email)` tuple
-    3. Auto-merges duplicate-email user rows: keeps the most-recently-
-       updated one as canonical, links the loser's identity to it,
-       re-parents user_projects + user_metas + user_sessions, deletes
-       the loser
-    4. Adds a unique index on `users.email` so duplicates can never
+    3. Adds a DB trigger that refuses to delete a user's last identity
+       (defence in depth — the application layer also enforces this)
+    4. Pre-flights for duplicate-email user rows; raises with a clear
+       remediation guide if any exist (operators must dedupe via
+       `mix lynx.dedupe_users` before the schema change can complete)
+    5. Drops `users.auth_provider` + `users.external_id` (no longer
+       read at runtime — `user_identities` is the source of truth)
+    6. Adds a unique index on `users.email` so duplicates can never
        recur
-
-  `users.auth_provider` and `users.external_id` are intentionally NOT
-  dropped here — runtime auth lookups switch to `user_identities`,
-  but the columns stay for one release as a rollback safety net.
-  A follow-up migration drops them after the new code is bedded in.
 
   ## Operator notes
 
-  Auto-merge of duplicate-email rows is destructive. Snapshot the DB
-  before applying. The merge keeps grants + sessions on the winning
-  row, so users won't lose access — but the merge picks a winner
-  automatically, and if the wrong one is picked you can't undo it
-  except from snapshot.
+  Run `mix lynx.dedupe_users --check` first to confirm no merge is
+  required. If duplicates exist, run `mix lynx.dedupe_users` (with
+  `--keep <uuid>` for each duplicate group) to merge them properly:
+  the task re-parents grants + sessions and links identities so no
+  data is silently dropped. Then apply this migration.
+
+  Snapshot the DB before either step.
   """
 
   use Ecto.Migration
-
-  import Ecto.Query
 
   def up do
     create table(:user_identities) do
@@ -84,85 +82,40 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
 
     flush()
 
-    # The next two steps mutate `users` rows. Wrap in a transaction so
-    # a partial failure rolls back cleanly.
-    auto_merge_duplicate_email_users()
+    # Backfill happens BEFORE the duplicate check + column drops so we
+    # don't lose the (auth_provider, external_id) data if the operator
+    # has to interrupt and run the dedupe task.
     backfill_identities_from_users()
 
     flush()
 
-    # `create_users.exs` already created a non-unique `users_email_index`
-    # — drop it first so the unique replacement can claim the same
-    # name. If we left both, queries that planned against the old
-    # one would still work, but we'd carry redundant index storage.
+    # Defence-in-depth: the application layer's `delete_identity/1`
+    # refuses to remove the user's last identity, but a SQL DELETE
+    # would bypass it. Trigger enforces the same rule at the DB level.
+    install_last_identity_guard_trigger()
+
+    flush()
+
+    # Refuse to proceed if duplicate-email users exist. The drop of
+    # `auth_provider` + `external_id` is irreversible and the unique
+    # index would fail anyway — better to halt with a clear message
+    # than to do half the migration and roll back.
+    refuse_if_duplicate_emails()
+
+    # Replace the existing non-unique `users_email_index` with a
+    # unique one. We use a different name to avoid the "relation
+    # already exists" collision Postgres throws when reusing the
+    # default index name.
     drop_if_exists index(:users, [:email])
-
-    # Now that duplicates are merged, the unique index is safe to
-    # apply. If it fails here it means the auto-merge missed a case
-    # — rollback + investigate before retrying.
     create unique_index(:users, [:email], name: :users_email_unique_index)
+
+    # Drop the deprecated columns. `user_identities` is the source of
+    # truth from this point forward.
+    alter table(:users) do
+      remove :auth_provider
+      remove :external_id
+    end
   end
-
-  # -- Auto-merge --
-
-  # For each (lowercased) email with more than one user row: pick the
-  # most-recently-updated row as the winner, re-parent everything
-  # owned by the losers (user_projects, user_metas, user_sessions),
-  # then delete the losers. The winner gets identity rows reflecting
-  # ALL the (provider, external_id) combinations the losers had, so
-  # SCIM / SAML lookups against any of those keys still resolve.
-  defp auto_merge_duplicate_email_users do
-    %Postgrex.Result{rows: groups} =
-      repo().query!("""
-      SELECT LOWER(email) AS email, ARRAY_AGG(id ORDER BY updated_at DESC) AS ids
-      FROM users
-      GROUP BY LOWER(email)
-      HAVING COUNT(*) > 1
-      """)
-
-    Enum.each(groups, fn [email, ids] ->
-      [winner_id | loser_ids] = ids
-
-      Enum.each(loser_ids, fn loser_id ->
-        merge_loser_into_winner(winner_id, loser_id, email)
-      end)
-    end)
-  end
-
-  defp merge_loser_into_winner(winner_id, loser_id, email) do
-    # First, snapshot the loser's auth_provider + external_id so we can
-    # link it as an identity on the winner (the loser's row is about to
-    # be deleted).
-    %Postgrex.Result{rows: [[loser_provider, loser_external_id]]} =
-      repo().query!(
-        "SELECT auth_provider, external_id FROM users WHERE id = $1",
-        [loser_id]
-      )
-
-    insert_identity(winner_id, loser_provider, loser_external_id, email)
-
-    # Re-parent any FK references. We list them explicitly so a future
-    # table addition doesn't silently get missed — Postgres doesn't
-    # support a generic "for each FK pointing to users" mass UPDATE.
-    repo().query!("UPDATE user_projects SET user_id = $1 WHERE user_id = $2", [
-      winner_id,
-      loser_id
-    ])
-
-    repo().query!("UPDATE user_metas SET user_id = $1 WHERE user_id = $2", [
-      winner_id,
-      loser_id
-    ])
-
-    # Delete the loser's sessions outright (rather than re-parent) — a
-    # session represents an authenticated browser; the winner's own
-    # sessions are the only ones that belong on them.
-    repo().query!("DELETE FROM user_sessions WHERE user_id = $1", [loser_id])
-
-    repo().query!("DELETE FROM users WHERE id = $1", [loser_id])
-  end
-
-  # -- Backfill --
 
   defp backfill_identities_from_users do
     %Postgrex.Result{rows: rows} =
@@ -170,37 +123,102 @@ defmodule Lynx.Repo.Migrations.CreateUserIdentities do
 
     Enum.each(rows, fn [user_id, auth_provider, external_id, email] ->
       provider = auth_provider || "local"
-      insert_identity(user_id, provider, external_id, email)
+
+      # ON CONFLICT — running the migration after a partial-failure
+      # restore shouldn't double-insert. The unique constraint on
+      # (user_id, provider) would catch it anyway, but being explicit
+      # avoids the exception that would abort the txn.
+      repo().query!(
+        """
+        INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, inserted_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        ON CONFLICT (user_id, provider) DO NOTHING
+        """,
+        [Ecto.UUID.bingenerate(), user_id, provider, external_id, email]
+      )
     end)
   end
 
-  defp insert_identity(_user_id, nil, _external_id, _email), do: :skip
+  defp install_last_identity_guard_trigger do
+    repo().query!("""
+    CREATE OR REPLACE FUNCTION refuse_last_user_identity_delete()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      IF (SELECT COUNT(*) FROM user_identities WHERE user_id = OLD.user_id) <= 1 THEN
+        -- Allow the cascade from `users` deletion (whole user is going away).
+        IF EXISTS (SELECT 1 FROM users WHERE id = OLD.user_id) THEN
+          RAISE EXCEPTION 'cannot delete the last identity for user % — would lock them out', OLD.user_id
+            USING ERRCODE = 'check_violation';
+        END IF;
+      END IF;
+      RETURN OLD;
+    END;
+    $$ LANGUAGE plpgsql;
+    """)
 
-  defp insert_identity(user_id, provider, provider_uid, email) do
-    # ON CONFLICT DO NOTHING — running the migration twice (e.g. after
-    # a partial-failure restore) shouldn't double-insert. The unique
-    # constraint on (user_id, provider) would catch it anyway, but
-    # being explicit avoids an exception that would abort the txn.
-    repo().query!(
-      """
-      INSERT INTO user_identities (uuid, user_id, provider, provider_uid, email, inserted_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-      ON CONFLICT (user_id, provider) DO NOTHING
-      """,
-      [Ecto.UUID.bingenerate(), user_id, provider, provider_uid, email]
-    )
+    repo().query!("""
+    CREATE TRIGGER user_identities_refuse_last_delete
+    BEFORE DELETE ON user_identities
+    FOR EACH ROW
+    EXECUTE FUNCTION refuse_last_user_identity_delete();
+    """)
+  end
+
+  defp refuse_if_duplicate_emails do
+    %Postgrex.Result{rows: rows} =
+      repo().query!("""
+      SELECT LOWER(email) AS email,
+             COUNT(*) AS dup_count,
+             ARRAY_AGG(uuid::text ORDER BY updated_at DESC) AS uuids_recent_first
+      FROM users
+      GROUP BY LOWER(email)
+      HAVING COUNT(*) > 1
+      ORDER BY email
+      """)
+
+    case rows do
+      [] ->
+        :ok
+
+      duplicates ->
+        formatted =
+          Enum.map(duplicates, fn [email, count, uuids] ->
+            "  • #{email} (#{count} rows): #{Enum.join(uuids, ", ")}"
+          end)
+          |> Enum.join("\n")
+
+        raise """
+        Cannot apply unique index on users.email — duplicate-email user rows exist:
+
+        #{formatted}
+
+        Resolve before re-running this migration:
+
+          mix lynx.dedupe_users               # interactive: pick a winner per group
+          mix lynx.dedupe_users --keep <uuid> # non-interactive: keep the named winner
+
+        The task re-parents grants + sessions, links the loser's identity
+        to the winner, then deletes the loser. Snapshot the DB first.
+        """
+    end
   end
 
   def down do
+    # Rollback adds the dropped columns back as nullable, then deletes
+    # the trigger + function and the user_identities table. Pre-existing
+    # `auth_provider` / `external_id` values are NOT recovered — restore
+    # from snapshot if you need them.
+    alter table(:users) do
+      add_if_not_exists :auth_provider, :string, default: "local"
+      add_if_not_exists :external_id, :string
+    end
+
     drop_if_exists unique_index(:users, [:email], name: :users_email_unique_index)
-    # Restore the original non-unique email index that `create_users.exs`
-    # had — anything that was depending on it for query planning still
-    # has it after rollback.
     create_if_not_exists index(:users, [:email])
+
+    repo().query!("DROP TRIGGER IF EXISTS user_identities_refuse_last_delete ON user_identities;")
+    repo().query!("DROP FUNCTION IF EXISTS refuse_last_user_identity_delete();")
+
     drop_if_exists table(:user_identities)
-    # users.{auth_provider, external_id} are still on `users` — not
-    # touched in `up` either, so down has nothing to restore there.
-    # Auto-merged duplicate users are NOT recoverable; restore from
-    # snapshot if rollback is required.
   end
 end

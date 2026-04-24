@@ -589,13 +589,16 @@ components:
       type: object
     User:
       properties:
-        authProvider:
-          enum:
-            - local
-            - oidc
-            - saml
-            - scim
-          type: string
+        authProviders:
+          description: All identity providers linked to this user. A user may have multiple (e.g. local password + SCIM).
+          items:
+            enum:
+              - local
+              - oidc
+              - saml
+              - scim
+            type: string
+          type: array
         createdAt:
           format: date-time
           type: string

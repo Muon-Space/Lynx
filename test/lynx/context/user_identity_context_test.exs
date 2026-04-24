@@ -154,6 +154,63 @@ defmodule Lynx.Context.UserIdentityContextTest do
     end
   end
 
+  describe "DB trigger: refuse_last_user_identity_delete" do
+    test "raw SQL DELETE of the last identity is refused at the DB layer" do
+      # Defence in depth — the application context's `delete_identity/1`
+      # has its own guard, but a `psql` session bypassing the app code
+      # would otherwise be able to lock a user out.
+      user = create_user(%{email: "db-trigger@example.com"})
+
+      {:ok, only_identity} =
+        UserIdentityContext.link_identity(user, "local", nil, "db-trigger@example.com")
+
+      assert_raise Postgrex.Error, ~r/last identity for user/, fn ->
+        Lynx.Repo.query!("DELETE FROM user_identities WHERE id = $1", [only_identity.id])
+      end
+
+      assert UserIdentityContext.list_identities_for_user(user.id) |> length() == 1
+    end
+
+    test "DELETE of one identity when the user still has another succeeds" do
+      user = create_user(%{email: "db-trigger-multi@example.com"})
+
+      {:ok, _local} =
+        UserIdentityContext.link_identity(user, "local", nil, "db-trigger-multi@example.com")
+
+      {:ok, scim} =
+        UserIdentityContext.link_identity(
+          user,
+          "scim",
+          "okta-trig-uid",
+          "db-trigger-multi@example.com"
+        )
+
+      assert {:ok, _} =
+               Lynx.Repo.query("DELETE FROM user_identities WHERE id = $1", [scim.id])
+
+      assert UserIdentityContext.list_identities_for_user(user.id) |> length() == 1
+    end
+
+    test "cascade from users delete is allowed (whole user is going away)" do
+      user = create_user(%{email: "db-trigger-cascade@example.com"})
+
+      {:ok, _} =
+        UserIdentityContext.link_identity(
+          user,
+          "local",
+          nil,
+          "db-trigger-cascade@example.com"
+        )
+
+      # Deleting the user should cascade-delete their identity without
+      # the trigger raising — the trigger checks "is the user still
+      # there?" so it only protects against orphaning a still-active
+      # user.
+      assert {:ok, _} = Lynx.Repo.delete(user)
+      assert UserIdentityContext.list_identities_for_user(user.id) == []
+    end
+  end
+
   describe "get_user_by_identity/2" do
     test "returns nil for nil/empty provider_uid" do
       assert UserIdentityContext.get_user_by_identity("scim", nil) == nil
