@@ -105,6 +105,43 @@ defmodule Lynx.Service.SSOTest do
       assert sso_user.external_id == "ext-user-003"
     end
 
+    test "repeat SSO login with nil name preserves the existing name (regression: SCIM-set names were getting clobbered with email)" do
+      # Provision the user with a friendly name (mirrors the SCIM flow,
+      # which writes "Aron Gates" rather than the email).
+      provisioned = %{
+        external_id: "ext-scim-001",
+        email: "aron@example.com",
+        name: "Aron Gates"
+      }
+
+      {:ok, first_user} = SSO.find_or_create_sso_user(provisioned, "oidc")
+      assert first_user.name == "Aron Gates"
+
+      # Subsequent SSO login where the IdP didn't include a `name`
+      # claim — the extractor passes nil through. The update branch
+      # must keep the existing name, not overwrite with email.
+      login_no_name = %{
+        external_id: "ext-scim-001",
+        email: "aron@example.com",
+        name: nil
+      }
+
+      {:ok, second_user} = SSO.find_or_create_sso_user(login_no_name, "oidc")
+      assert second_user.id == first_user.id
+      assert second_user.name == "Aron Gates"
+    end
+
+    test "first JIT user with nil name still gets a non-nil name (falls back to email)" do
+      attrs = %{
+        external_id: "ext-jit-noname",
+        email: "noname@example.com",
+        name: nil
+      }
+
+      assert {:ok, user} = SSO.find_or_create_sso_user(attrs, "oidc")
+      assert user.name == "noname@example.com"
+    end
+
     test "rejects deactivated user" do
       attrs = %{
         external_id: "ext-user-deactivated",

@@ -163,16 +163,23 @@ defmodule Lynx.Service.SSOService do
   end
 
   defp extract_oidc_claims(claims) do
+    # Pure extraction: returns nil when the IdP didn't provide a name.
+    # The fallback to email lives in `Lynx.Service.SSO.find_or_create_sso_user/2`
+    # so it ONLY applies on user creation. On subsequent logins, a nil
+    # name preserves whatever the user / SCIM already set — otherwise
+    # IdPs that omit `name` would clobber SCIM-provisioned full names
+    # ("Aron Gates") with the email on every login.
     name =
       cond do
         Map.has_key?(claims, "name") and claims["name"] != "" ->
           claims["name"]
 
         Map.has_key?(claims, "given_name") ->
-          "#{claims["given_name"]} #{claims["family_name"] || ""}" |> String.trim()
+          combined = "#{claims["given_name"]} #{claims["family_name"] || ""}" |> String.trim()
+          if combined == "", do: nil, else: combined
 
         true ->
-          claims["email"] || "Unknown"
+          nil
       end
 
     %{
@@ -208,11 +215,15 @@ defmodule Lynx.Service.SSOService do
         {:error, "No email attribute found in SAML assertion"}
 
       email ->
+        # Pure extraction: nil when the IdP didn't provide a name.
+        # `Lynx.Service.SSO.find_or_create_sso_user/2` falls back to
+        # email only on user creation; on update, a nil name preserves
+        # whatever SCIM / the operator already set.
         {:ok,
          %{
            external_id: external_id,
            email: email,
-           name: name || email
+           name: name
          }}
     end
   end

@@ -72,9 +72,14 @@ defmodule Lynx.Service.SSO do
         case UserContext.get_user_by_email(email) do
           nil ->
             if is_jit_enabled?() do
+              # First-time JIT provisioning: fall back to email if the IdP
+              # didn't provide a name. The extractors deliberately leave
+              # `name` as nil so the *update* branches below preserve
+              # whatever SCIM / the operator set; we only synthesize one
+              # here when there's no existing user to preserve.
               UserContext.create_sso_user(%{
                 email: email,
-                name: name,
+                name: name || email,
                 auth_provider: provider,
                 external_id: external_id
               })
