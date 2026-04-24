@@ -7,10 +7,7 @@ defmodule Lynx.Service.SCIM do
   SCIM 2.0 Module - orchestrates SCIM user and group operations
   """
 
-  alias Lynx.Context.UserContext
-  alias Lynx.Context.TeamContext
-  alias Lynx.Context.UserContext
-  alias Lynx.Context.TeamContext
+  alias Lynx.Context.{TeamContext, UserContext, UserIdentityContext}
   alias Lynx.Service.SlugService
 
   # -- Users --
@@ -51,38 +48,75 @@ defmodule Lynx.Service.SCIM do
   end
 
   @doc """
-  Create a SCIM user (idempotent by external_id)
+  Create or merge a SCIM user.
+
+  Routes through `UserIdentityContext.find_or_link/4`: if the SCIM
+  external_id is already linked, that identity wins; otherwise an
+  email match auto-links the SCIM identity to an existing user
+  (the merge — same human, new login method); otherwise a brand
+  new user + SCIM identity is created.
+
+  After resolution we apply any payload changes (active flag, email,
+  name) to the canonical user so subsequent SCIM PATCHes / PUTs
+  observe the SCIM-asserted state.
   """
   def create_user(attrs) do
     external_id = attrs[:external_id]
+    email = attrs[:email]
+    name = attrs[:name]
 
-    if external_id do
-      case UserContext.get_user_by_external_id(external_id) do
-        nil -> do_create_user(attrs)
-        existing -> update_user(existing.uuid, attrs)
-      end
-    else
-      case UserContext.get_user_by_email(attrs[:email]) do
-        nil ->
-          do_create_user(attrs)
+    create_fn = fn -> do_create_user(attrs) end
 
-        existing ->
-          UserContext.update_user(existing, %{
-            external_id: external_id,
-            auth_provider: "scim"
-          })
-      end
+    case UserIdentityContext.find_or_link("scim", external_id, email, name, create_fn) do
+      {:ok, user, linkage} ->
+        # Reapply the SCIM-asserted attributes to the canonical user.
+        # `:created` already has the right state from `do_create_user`,
+        # but `:existing_via_identity` and `:merged_by_email` need a
+        # refresh so a subsequent PATCH active=true takes effect on
+        # the row the SCIM lookup will return next time. SCIM is the
+        # privileged managed-source IdP — its name updates DO win
+        # over any user-edited or SSO-set value.
+        case linkage do
+          :created -> {:ok, user}
+          _ -> apply_scim_attrs(user, attrs)
+        end
+
+      {:error, _} = err ->
+        err
     end
   end
 
   defp do_create_user(attrs) do
+    # Identity linkage happens in `UserIdentityContext.find_or_link/4`
+    # — this call only mints the canonical user row.
     UserContext.create_sso_user(%{
       email: attrs[:email],
       name: attrs[:name],
-      auth_provider: "scim",
-      external_id: attrs[:external_id],
       is_active: Map.get(attrs, :is_active, true)
     })
+  end
+
+  # Apply SCIM-supplied attributes to an existing user. Only updates
+  # fields the SCIM payload actually carries — preserves what the
+  # operator may have set elsewhere.
+  defp apply_scim_attrs(user, attrs) do
+    update_attrs = %{}
+
+    update_attrs =
+      if attrs[:email], do: Map.put(update_attrs, :email, attrs[:email]), else: update_attrs
+
+    update_attrs =
+      if attrs[:name], do: Map.put(update_attrs, :name, attrs[:name]), else: update_attrs
+
+    update_attrs =
+      if Map.has_key?(attrs, :is_active),
+        do: Map.put(update_attrs, :is_active, attrs[:is_active]),
+        else: update_attrs
+
+    case map_size(update_attrs) do
+      0 -> {:ok, user}
+      _ -> UserContext.update_user(user, update_attrs)
+    end
   end
 
   @doc """
@@ -94,10 +128,22 @@ defmodule Lynx.Service.SCIM do
         {:not_found, "User not found"}
 
       user ->
+        # Refresh the SCIM identity's `provider_uid` + email/name
+        # snapshot if the SCIM PUT carries them. Then apply the
+        # canonical-user attrs that actually live on `users`.
+        if attrs[:external_id] do
+          UserIdentityContext.link_identity(
+            user,
+            "scim",
+            attrs[:external_id],
+            attrs[:email],
+            attrs[:name]
+          )
+        end
+
         new_attrs = %{
           email: attrs[:email] || user.email,
           name: attrs[:name] || user.name,
-          external_id: attrs[:external_id] || user.external_id,
           is_active: Map.get(attrs, :is_active, user.is_active)
         }
 

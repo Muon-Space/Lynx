@@ -72,7 +72,12 @@ defmodule LynxWeb.Schemas.User do
       name: %Schema{type: :string},
       role: %Schema{type: :string, enum: ["super", "regular"]},
       isActive: %Schema{type: :boolean},
-      authProvider: %Schema{type: :string, enum: ["local", "oidc", "saml", "scim"]},
+      authProviders: %Schema{
+        type: :array,
+        description:
+          "All identity providers linked to this user. A user may have multiple (e.g. local password + SCIM).",
+        items: %Schema{type: :string, enum: ["local", "oidc", "saml", "scim"]}
+      },
       createdAt: %Schema{type: :string, format: :"date-time"},
       updatedAt: %Schema{type: :string, format: :"date-time"}
     }

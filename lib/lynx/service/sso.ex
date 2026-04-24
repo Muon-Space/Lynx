@@ -7,10 +7,8 @@ defmodule Lynx.Service.SSO do
   SSO Module - handles JIT provisioning and SSO configuration
   """
 
-  alias Lynx.Context.UserContext
-  alias Lynx.Context.UserContext
-  alias Lynx.Service.Settings
-  alias Lynx.Service.AuthService
+  alias Lynx.Context.{UserContext, UserIdentityContext}
+  alias Lynx.Service.{AuthService, Settings}
 
   @doc """
   Check if SSO is enabled
@@ -55,59 +53,58 @@ defmodule Lynx.Service.SSO do
   end
 
   @doc """
-  Find or create a user from SSO claims.
+  Find or create a user from SSO claims via the identity-linking layer.
 
-  Lookup order:
-  1. By external_id (repeat SSO login)
-  2. By email (local/SCIM user's first SSO login - links the account)
-  3. Not found - creates new user (only if JIT provisioning is enabled)
+  Routes through `UserIdentityContext.find_or_link/4`, which is the
+  single point of truth for the "is this a known user?" decision —
+  shared with SCIM provisioning. When the IdP-asserted identity isn't
+  yet linked but the email matches an existing user, the new identity
+  is auto-linked to that user (the "merge"), so the same human can
+  log in via SAML, OIDC, SCIM, or password without spawning duplicate
+  user rows.
+
+  Returns `{:ok, user}` on success, or `{:error, reason}` if the user
+  is deactivated / JIT is disabled / DB-level failure.
   """
   def find_or_create_sso_user(attrs, provider) when provider in ["oidc", "saml"] do
     external_id = attrs[:external_id]
     email = attrs[:email]
     name = attrs[:name]
 
-    case UserContext.get_user_by_external_id(external_id) do
-      nil ->
-        case UserContext.get_user_by_email(email) do
-          nil ->
-            if is_jit_enabled?() do
-              # First-time JIT provisioning: fall back to email if the IdP
-              # didn't provide a name. The extractors deliberately leave
-              # `name` as nil so the *update* branches below preserve
-              # whatever SCIM / the operator set; we only synthesize one
-              # here when there's no existing user to preserve.
-              UserContext.create_sso_user(%{
-                email: email,
-                name: name || email,
-                auth_provider: provider,
-                external_id: external_id
-              })
-            else
-              {:error,
-               "User not found. JIT provisioning is disabled -- users must be provisioned via SCIM before they can log in."}
-            end
+    create_fn = fn ->
+      if is_jit_enabled?() do
+        # Identity linkage happens in `UserIdentityContext.find_or_link/4`
+        # — this just mints the canonical user row. Name fallback is
+        # only applied when the IdP didn't provide one (extractors
+        # leave it nil so merge branches preserve existing names).
+        UserContext.create_sso_user(%{
+          email: email,
+          name: name || email
+        })
+      else
+        {:error,
+         "User not found. JIT provisioning is disabled -- users must be provisioned via SCIM before they can log in."}
+      end
+    end
 
-          existing_user ->
-            if existing_user.is_active do
-              UserContext.update_user(existing_user, %{
-                external_id: external_id,
-                name: name || existing_user.name
-              })
-            else
-              {:error, "Account is deactivated"}
-            end
+    case UserIdentityContext.find_or_link(provider, external_id, email, name, create_fn) do
+      {:ok, user, _linkage} ->
+        cond do
+          not user.is_active ->
+            {:error, "Account is deactivated"}
+
+          true ->
+            # Drive-by SSO logins do NOT overwrite `users.name`. The
+            # identity-row snapshot was already refreshed inside
+            # `find_or_link/5`; the canonical display name is owned
+            # by SCIM (managed source) and the user (Profile edit).
+            # Otherwise SAML logging in with "Aron G." would clobber
+            # SCIM's "Aron Gates" on every login.
+            UserContext.update_user(user, %{last_seen: DateTime.utc_now()})
         end
 
-      existing_user ->
-        if existing_user.is_active do
-          UserContext.update_user(existing_user, %{
-            name: name || existing_user.name,
-            last_seen: DateTime.utc_now()
-          })
-        else
-          {:error, "Account is deactivated"}
-        end
+      {:error, _} = err ->
+        err
     end
   end
 

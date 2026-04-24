@@ -46,12 +46,15 @@ defmodule Lynx.Service.SSOTest do
       assert {:ok, user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert user.email == "sso_new@example.com"
       assert user.name == "SSO User"
-      assert user.external_id == "ext-user-001"
       assert user.is_active == true
       assert user.role == "regular"
+
+      # external_id is in `user_identities` now, not on `users`.
+      identity = Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-user-001")
+      assert identity.user_id == user.id
     end
 
-    test "finds existing user by external_id on repeat login" do
+    test "finds existing user by external_id on repeat login (canonical name preserved; identity snapshot updated)" do
       attrs = %{
         external_id: "ext-user-002",
         email: "sso_repeat@example.com",
@@ -59,8 +62,12 @@ defmodule Lynx.Service.SSOTest do
       }
 
       {:ok, first_user} = SSO.find_or_create_sso_user(attrs, "oidc")
+      assert first_user.name == "SSO Repeat"
 
-      # Second login with same external_id
+      # Second login with same external_id and a drifted name. Per
+      # the name-precedence rule, the canonical `users.name` does NOT
+      # change on drive-by SSO logins — only the per-identity snapshot
+      # updates.
       attrs2 = %{
         external_id: "ext-user-002",
         email: "sso_repeat@example.com",
@@ -69,7 +76,10 @@ defmodule Lynx.Service.SSOTest do
 
       {:ok, second_user} = SSO.find_or_create_sso_user(attrs2, "oidc")
       assert second_user.id == first_user.id
-      assert second_user.name == "SSO Repeat Updated"
+      assert second_user.name == "SSO Repeat"
+
+      identity = Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-user-002")
+      assert identity.name == "SSO Repeat Updated"
     end
 
     test "links existing local user by email on first SSO login" do
@@ -102,7 +112,12 @@ defmodule Lynx.Service.SSOTest do
 
       {:ok, sso_user} = SSO.find_or_create_sso_user(attrs, "oidc")
       assert sso_user.id == local_user.id
-      assert sso_user.external_id == "ext-user-003"
+
+      # The external_id no longer lives on `users`; it's a row in
+      # `user_identities`. Verify the OIDC identity got linked to
+      # the existing local user (the merge).
+      assert Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-user-003").user_id ==
+               local_user.id
     end
 
     test "repeat SSO login with nil name preserves the existing name (regression: SCIM-set names were getting clobbered with email)" do
@@ -129,6 +144,39 @@ defmodule Lynx.Service.SSOTest do
       {:ok, second_user} = SSO.find_or_create_sso_user(login_no_name, "oidc")
       assert second_user.id == first_user.id
       assert second_user.name == "Aron Gates"
+    end
+
+    test "drive-by SSO login does NOT overwrite users.name when IdP claims a different name (SCIM/user owns canonical)" do
+      # Pin the name-precedence rule: SAML / OIDC drive-by logins
+      # update the identity-row snapshot but never touch the canonical
+      # `users.name`. Otherwise SAML carrying "Aron G." would clobber
+      # SCIM-pushed "Aron Gates" on every login → flicker.
+      provisioned = %{
+        external_id: "ext-canonical-001",
+        email: "canonical@example.com",
+        name: "Aron Gates"
+      }
+
+      {:ok, first_user} = SSO.find_or_create_sso_user(provisioned, "oidc")
+      assert first_user.name == "Aron Gates"
+
+      # Same external_id presents a different name — the canonical
+      # user.name must NOT change.
+      drift = %{
+        external_id: "ext-canonical-001",
+        email: "canonical@example.com",
+        name: "Aron G."
+      }
+
+      {:ok, second_user} = SSO.find_or_create_sso_user(drift, "oidc")
+      assert second_user.id == first_user.id
+      assert second_user.name == "Aron Gates"
+
+      # But the per-identity snapshot DID update.
+      identity =
+        Lynx.Context.UserIdentityContext.get_identity("oidc", "ext-canonical-001")
+
+      assert identity.name == "Aron G."
     end
 
     test "first JIT user with nil name still gets a non-nil name (falls back to email)" do
