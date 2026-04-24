@@ -40,13 +40,24 @@ defmodule Lynx.Service.SCIMService do
         {:error, format_error(400, "userName or emails[0].value is required")}
 
       _ ->
-        {:ok,
-         %{
-           email: email,
-           name: name,
-           external_id: body["externalId"],
-           is_active: Map.get(body, "active", true)
-         }}
+        # Only put `:is_active` in attrs when the body actually carries
+        # `active`. Defaulting to `true` here silently flips deactivated
+        # users back to active on a PUT that omits the attribute — the
+        # downstream `Map.get(attrs, :is_active, user.is_active)` in
+        # `SCIM.update_user/2` already handles the create-vs-preserve
+        # distinction correctly when the key is absent.
+        attrs = %{
+          email: email,
+          name: name,
+          external_id: body["externalId"]
+        }
+
+        attrs =
+          if Map.has_key?(body, "active"),
+            do: Map.put(attrs, :is_active, body["active"]),
+            else: attrs
+
+        {:ok, attrs}
     end
   end
 

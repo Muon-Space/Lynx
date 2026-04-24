@@ -107,6 +107,36 @@ defmodule Lynx.Service.SCIMTest do
       assert {:not_found, _} = SCIM.delete_user(Ecto.UUID.generate())
     end
 
+    test "delete_user/1 deletes any active sessions so the user is logged out everywhere" do
+      # Without the session purge, a deactivated user's cookie remains
+      # a valid session bearer; once SCIM reactivates them, those
+      # stale sessions become live again — which would let an
+      # already-open browser tab keep working.
+      {:ok, user} =
+        SCIM.create_user(%{
+          email: "scim_deactivate_sessions@example.com",
+          name: "Active Session User",
+          external_id: "scim-ext-active-session"
+        })
+
+      # Plant a session row directly so the test doesn't rely on
+      # going through the full login flow.
+      {:ok, _} =
+        UserContext.create_user_session(
+          UserContext.new_session(%{
+            value: "test-session-token",
+            expire_at: DateTime.utc_now() |> DateTime.add(3600, :second),
+            user_id: user.id
+          })
+        )
+
+      assert UserContext.get_user_sessions(user.id) != []
+
+      assert :ok = SCIM.delete_user(user.uuid)
+
+      assert UserContext.get_user_sessions(user.id) == []
+    end
+
     test "list_users/3 returns users" do
       {:ok, _} =
         SCIM.create_user(%{

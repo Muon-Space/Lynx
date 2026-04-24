@@ -121,7 +121,11 @@ defmodule Lynx.Service.SCIM do
 
   defp apply_user_patch_operations(_user, operations) do
     Enum.reduce(operations, %{}, fn op, acc ->
-      case op do
+      # RFC 7644 §3.5.2: the `op` value MUST be matched case-insensitively
+      # ("add", "remove", "replace"). Okta sends "Replace" with a capital R
+      # by default; case-sensitive matching silently no-ops the request,
+      # so a user reactivated in Okta stays deactivated in Lynx.
+      case normalize_op(op) do
         %{"op" => "replace", "value" => values} when is_map(values) ->
           Map.merge(acc, map_scim_user_values(values))
 
@@ -133,6 +137,11 @@ defmodule Lynx.Service.SCIM do
       end
     end)
   end
+
+  defp normalize_op(%{"op" => op} = m) when is_binary(op),
+    do: Map.put(m, "op", String.downcase(op))
+
+  defp normalize_op(m), do: m
 
   defp map_scim_user_values(values) do
     result = %{}
@@ -166,7 +175,14 @@ defmodule Lynx.Service.SCIM do
   defp map_scim_user_path(_, _), do: %{}
 
   @doc """
-  Delete (deactivate) a SCIM user
+  Delete (deactivate) a SCIM user.
+
+  Flips `is_active: false` AND deletes every active `user_sessions`
+  row for the user. Without the session purge, a deactivated user's
+  cookie remains a valid session bearer; once SCIM reactivates them,
+  those stale sessions become live again. The session purge plus the
+  `is_active` check in `LiveAuth` (and `LoginLive` mount) ensure the
+  user is actually logged out across all browsers + devices.
   """
   def delete_user(uuid) do
     case UserContext.get_user_by_uuid(uuid) do
@@ -175,6 +191,7 @@ defmodule Lynx.Service.SCIM do
 
       user ->
         UserContext.update_user(user, %{is_active: false})
+        UserContext.delete_user_sessions(user.id)
         :ok
     end
   end
@@ -309,7 +326,9 @@ defmodule Lynx.Service.SCIM do
 
       team ->
         Enum.each(operations, fn op ->
-          apply_group_patch_operation(team, op)
+          # Same case-insensitive op normalization as user patches —
+          # see normalize_op/1 + RFC 7644 §3.5.2.
+          apply_group_patch_operation(team, normalize_op(op))
         end)
 
         {:ok, TeamContext.get_team_by_uuid(uuid)}

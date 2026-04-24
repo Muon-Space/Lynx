@@ -34,7 +34,9 @@ defmodule LynxWeb.EnvironmentLive do
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid}, _session, socket) do
     case ProjectContext.fetch_project_by_uuid(project_uuid) do
       {:not_found, _} ->
-        {:ok, redirect(socket, to: "/admin/projects")}
+        # `/admin/projects` (no uuid) is not a route — fall back to the
+        # workspaces landing instead of bouncing the user into a 404.
+        {:ok, redirect(socket, to: "/admin/workspaces")}
 
       {:ok, project} ->
         case EnvironmentContext.get_env_by_uuid(env_uuid) do

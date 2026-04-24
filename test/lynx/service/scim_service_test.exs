@@ -63,10 +63,23 @@ defmodule Lynx.Service.SCIMServiceTest do
       assert {:error, _} = SCIMService.parse_user_resource(body)
     end
 
-    test "defaults active to true" do
-      body = %{"userName" => "default_active@example.com"}
+    test "omits :is_active from attrs when 'active' is missing from body" do
+      # Pure parser: doesn't synthesize a default. Downstream
+      # `SCIM.do_create_user/1` defaults to true; `SCIM.update_user/2`
+      # preserves the current value. Defaulting in the parser would
+      # silently flip a deactivated user back to active on a PUT that
+      # omits the attribute (e.g. a tool sending only a name change).
+      body = %{"userName" => "no_active_field@example.com"}
       {:ok, attrs} = SCIMService.parse_user_resource(body)
-      assert attrs.is_active == true
+      refute Map.has_key?(attrs, :is_active)
+    end
+
+    test "passes through 'active' from body when present" do
+      body_true = %{"userName" => "active@example.com", "active" => true}
+      assert {:ok, %{is_active: true}} = SCIMService.parse_user_resource(body_true)
+
+      body_false = %{"userName" => "inactive@example.com", "active" => false}
+      assert {:ok, %{is_active: false}} = SCIMService.parse_user_resource(body_false)
     end
   end
 

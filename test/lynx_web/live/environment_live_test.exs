@@ -41,7 +41,9 @@ defmodule LynxWeb.EnvironmentLiveTest do
       bad_path =
         "/admin/projects/00000000-0000-0000-0000-000000000000/environments/#{env.uuid}"
 
-      assert {:error, {:redirect, %{to: "/admin/projects"}}} = live(conn, bad_path)
+      # Falls back to the workspaces landing — `/admin/projects` (no uuid)
+      # doesn't exist as a route.
+      assert {:error, {:redirect, %{to: "/admin/workspaces"}}} = live(conn, bad_path)
     end
 
     test "redirects when env not found", %{conn: conn, project: project} do
