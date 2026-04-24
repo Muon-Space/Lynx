@@ -16,12 +16,15 @@ defmodule LynxWeb.LoginLiveTest do
       assert html =~ ~s(name="password")
     end
 
-    test "redirects authenticated user to /admin/projects", %{conn: conn} do
+    test "redirects authenticated user to /admin/workspaces (canonical landing)", %{conn: conn} do
+      # `/admin/projects` (no uuid) is not a route — only `/admin/projects/:uuid`
+      # exists. Redirecting there 404s the user out of the app, so the
+      # post-login landing is the workspaces list instead.
       mark_installed()
       user = create_user()
       conn = log_in_user(conn, user)
 
-      assert {:error, {:redirect, %{to: "/admin/projects"}}} = live(conn, "/login")
+      assert {:error, {:redirect, %{to: "/admin/workspaces"}}} = live(conn, "/login")
     end
 
     test "shows SSO button when SSO is enabled", %{conn: conn} do

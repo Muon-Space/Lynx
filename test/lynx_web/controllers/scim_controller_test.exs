@@ -245,6 +245,174 @@ defmodule LynxWeb.SCIMControllerTest do
     end
   end
 
+  # -- Reactivate cycle (regression coverage) --
+
+  # Reproducer for the reported regression: SCIM-provision a user,
+  # SCIM-deactivate them, then SCIM-reactivate. The user must end up
+  # `is_active: true` in the DB and the GET /Users response must
+  # report `active: true`. Several flavours because Okta uses a mix
+  # of these depending on how the integration is wired.
+  defp create_cycle_user(conn, scim_token, suffix) do
+    create_conn =
+      conn
+      |> scim_conn(scim_token)
+      |> post("/scim/v2/Users", %{
+        "userName" => "scim_cycle_#{suffix}@example.com",
+        "name" => %{"formatted" => "Cycle User"},
+        "externalId" => "scim-cycle-#{suffix}"
+      })
+
+    body = json_response(create_conn, 201)
+    %{id: body["id"], external_id: "scim-cycle-#{suffix}"}
+  end
+
+  defp patch_active(scim_token, user_id, active) do
+    build_conn()
+    |> scim_conn(scim_token)
+    |> patch("/scim/v2/Users/#{user_id}", %{
+      "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+      "Operations" => [%{"op" => "replace", "value" => %{"active" => active}}]
+    })
+  end
+
+  defp put_user(scim_token, user_id, payload) do
+    build_conn()
+    |> scim_conn(scim_token)
+    |> put("/scim/v2/Users/#{user_id}", payload)
+  end
+
+  describe "deactivate → reactivate round-trip" do
+    test "PATCH active=false → PATCH active=true round-trips back to active",
+         %{conn: conn, scim_token: scim_token} do
+      %{id: user_id} = create_cycle_user(conn, scim_token, "patch-patch")
+
+      deactivate = patch_active(scim_token, user_id, false)
+      assert json_response(deactivate, 200)["active"] == false
+
+      reactivate = patch_active(scim_token, user_id, true)
+      assert json_response(reactivate, 200)["active"] == true
+
+      get_resp =
+        build_conn()
+        |> scim_conn(scim_token)
+        |> get("/scim/v2/Users/#{user_id}")
+
+      assert json_response(get_resp, 200)["active"] == true
+    end
+
+    test "PATCH active=false → PUT with active=true round-trips back to active",
+         %{conn: conn, scim_token: scim_token} do
+      %{id: user_id} = create_cycle_user(conn, scim_token, "patch-put")
+
+      deactivate = patch_active(scim_token, user_id, false)
+      assert json_response(deactivate, 200)["active"] == false
+
+      reactivate =
+        put_user(scim_token, user_id, %{
+          "userName" => "scim_cycle_patch-put@example.com",
+          "name" => %{"formatted" => "Cycle User"},
+          "externalId" => "scim-cycle-patch-put",
+          "active" => true
+        })
+
+      assert json_response(reactivate, 200)["active"] == true
+    end
+
+    test "DELETE → POST same externalId reactivates (Okta's typical reactivate path)",
+         %{conn: conn, scim_token: scim_token} do
+      # Okta often handles "reactivate" by re-pushing the user via
+      # POST with the same externalId rather than PATCH. Lynx's
+      # `SCIM.create_user/1` routes that to `update_user` when the
+      # external_id matches.
+      %{id: user_id, external_id: ext_id} = create_cycle_user(conn, scim_token, "delete-post")
+
+      delete_resp =
+        build_conn()
+        |> scim_conn(scim_token)
+        |> delete("/scim/v2/Users/#{user_id}")
+
+      assert response(delete_resp, 204)
+
+      repost =
+        build_conn()
+        |> scim_conn(scim_token)
+        |> post("/scim/v2/Users", %{
+          "userName" => "scim_cycle_delete-post@example.com",
+          "name" => %{"formatted" => "Cycle User"},
+          "externalId" => ext_id,
+          "active" => true
+        })
+
+      # The controller always returns 201 from POST /Users, so we can't
+      # distinguish create-vs-update by status. The real signal is the
+      # returned `id` — if it matches the original UUID, the existing
+      # row was reactivated; if it differs, a new user was created
+      # (which would orphan the old row + duplicate the email).
+      body = json_response(repost, 201)
+      assert body["id"] == user_id, "Expected the same UUID (#{user_id}) — a different one means a new user was created instead of reactivating the existing row"
+      assert body["active"] == true
+    end
+
+    test "PATCH with capital-R 'Replace' op (Okta-style) deactivates correctly (SCIM spec: op is case-insensitive)",
+         %{conn: conn, scim_token: scim_token} do
+      # RFC 7644 §3.5.2: the `op` value MUST be matched case-insensitively.
+      # Okta sends "op":"Replace" (capital R) by default. If Lynx's
+      # pattern matching only accepts lowercase, the operation is
+      # silently dropped — the user stays in whatever state they
+      # were in before.
+      %{id: user_id} = create_cycle_user(conn, scim_token, "case-deactivate")
+
+      conn =
+        build_conn()
+        |> scim_conn(scim_token)
+        |> patch("/scim/v2/Users/#{user_id}", %{
+          "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          "Operations" => [%{"op" => "Replace", "value" => %{"active" => false}}]
+        })
+
+      assert json_response(conn, 200)["active"] == false
+    end
+
+    test "PATCH with capital-R 'Replace' op reactivates correctly (Okta's actual reactivate request)",
+         %{conn: conn, scim_token: scim_token} do
+      %{id: user_id} = create_cycle_user(conn, scim_token, "case-reactivate")
+
+      # Deactivate via lowercase first (we know that works).
+      _ = patch_active(scim_token, user_id, false)
+
+      # Reactivate via capital-R "Replace" — this is what Okta sends.
+      reactivate =
+        build_conn()
+        |> scim_conn(scim_token)
+        |> patch("/scim/v2/Users/#{user_id}", %{
+          "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          "Operations" => [%{"op" => "Replace", "path" => "active", "value" => true}]
+        })
+
+      assert json_response(reactivate, 200)["active"] == true
+    end
+
+    test "PUT that omits active does NOT silently flip a deactivated user back",
+         %{conn: conn, scim_token: scim_token} do
+      # Negative pin: a PUT that omits `active` must preserve the
+      # current value (not default to true). Otherwise tools that
+      # send a name change without `active` would silently reactivate.
+      %{id: user_id} = create_cycle_user(conn, scim_token, "preserve")
+
+      deactivate = patch_active(scim_token, user_id, false)
+      assert json_response(deactivate, 200)["active"] == false
+
+      unrelated_update =
+        put_user(scim_token, user_id, %{
+          "userName" => "scim_cycle_preserve@example.com",
+          "name" => %{"formatted" => "Renamed"},
+          "externalId" => "scim-cycle-preserve"
+        })
+
+      assert json_response(unrelated_update, 200)["active"] == false
+    end
+  end
+
   # -- Groups --
 
   describe "SCIM Groups" do

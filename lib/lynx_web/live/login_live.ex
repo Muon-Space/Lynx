@@ -1,6 +1,7 @@
 defmodule LynxWeb.LoginLive do
   use LynxWeb, :live_view
 
+  alias Lynx.Context.UserContext
   alias Lynx.Service.Install
   alias Lynx.Service.SSO
 
@@ -9,14 +10,20 @@ defmodule LynxWeb.LoginLive do
     if not Install.is_installed() do
       {:ok, redirect(socket, to: "/install")}
     else
-      # Check if already logged in
+      # Check if already logged in. We require BOTH a valid session row
+      # AND an active user — a stale session against a deactivated user
+      # must fall through to the login form, otherwise we'd send them
+      # straight to /admin/workspaces only for `LiveAuth` to bounce them
+      # right back to /login (redirect loop).
       token = session["token"]
       uid = session["uid"]
 
-      case Lynx.Service.AuthService.is_authenticated(uid, token) do
-        {true, _} ->
-          {:ok, redirect(socket, to: "/admin/projects")}
-
+      with {true, user_session} <- Lynx.Service.AuthService.is_authenticated(uid, token),
+           %{is_active: true} <- UserContext.get_user_by_id(user_session.user_id) do
+        # Canonical post-login landing is the workspaces list. The bare
+        # `/admin/projects` path doesn't exist (only `/admin/projects/:uuid`).
+        {:ok, redirect(socket, to: "/admin/workspaces")}
+      else
         _ ->
           socket =
             socket
