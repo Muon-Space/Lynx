@@ -191,12 +191,36 @@ defmodule Lynx.Service.UserDeduper do
     # 1. Re-parent FK references. We list them explicitly — there's no
     #    generic "for each FK pointing to users" mass-update in Postgres.
     #    If a new table that FKs to users gets added, add it here too.
-    Repo.query!("UPDATE user_projects SET user_id = $1 WHERE user_id = $2", [
-      winner_id,
-      loser_id
-    ])
+    #
+    #    `user_projects` and `user_teams` both have a unique constraint
+    #    on `(user_id, <thing>_id)`, so a naked UPDATE would fail when
+    #    winner and loser were both in the same project / team. Skip
+    #    rows where the winner is already a member; the loser-side
+    #    leftover gets cascade-deleted with the loser user below.
+    Repo.query!(
+      """
+      UPDATE user_projects SET user_id = $1
+      WHERE user_id = $2
+        AND NOT EXISTS (
+          SELECT 1 FROM user_projects w
+          WHERE w.user_id = $1 AND w.project_id = user_projects.project_id
+        )
+      """,
+      [winner_id, loser_id]
+    )
 
-    Repo.query!("UPDATE user_teams SET user_id = $1 WHERE user_id = $2", [winner_id, loser_id])
+    Repo.query!(
+      """
+      UPDATE user_teams SET user_id = $1
+      WHERE user_id = $2
+        AND NOT EXISTS (
+          SELECT 1 FROM user_teams w
+          WHERE w.user_id = $1 AND w.team_id = user_teams.team_id
+        )
+      """,
+      [winner_id, loser_id]
+    )
+
     Repo.query!("UPDATE users_meta SET user_id = $1 WHERE user_id = $2", [winner_id, loser_id])
 
     # Re-parent (not delete) sessions — operator's open browser tabs

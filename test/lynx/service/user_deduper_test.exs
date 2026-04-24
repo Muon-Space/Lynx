@@ -271,6 +271,78 @@ defmodule Lynx.Service.UserDeduperTest do
     end
   end
 
+  describe "merge_all_duplicates/1 — duplicate team/project memberships" do
+    test "winner + loser both in the same team: re-parent skips the conflict (no duplicate user_teams row)" do
+      [loser_id, _] =
+        insert_dup("dup-team@example.com",
+          is_active: false,
+          last_seen: ~U[2026-01-01 00:00:00Z]
+        )
+
+      [winner_id, _] =
+        insert_dup("dup-team@example.com",
+          auth_provider: "scim",
+          external_id: "okta-uid-dup-team",
+          is_active: true,
+          last_seen: ~U[2026-01-15 00:00:00Z]
+        )
+
+      # Both users are members of the same team. Without the NOT
+      # EXISTS guard in UserDeduper.merge, the re-parent UPDATE
+      # would either fail on the unique index OR (pre-index) create
+      # a duplicate row that surfaces as duplicate chips in the
+      # team-edit modal.
+      [team_id, _] = insert_team("Dup Team")
+      add_to_team(loser_id, team_id)
+      add_to_team(winner_id, team_id)
+
+      UserDeduper.merge_all_duplicates()
+
+      [count] =
+        Repo.query!("SELECT COUNT(*) FROM user_teams WHERE user_id = $1 AND team_id = $2", [
+          winner_id,
+          team_id
+        ])
+        |> Map.fetch!(:rows)
+        |> hd()
+
+      assert count == 1
+    end
+
+    test "winner + loser both in the same project: re-parent skips the conflict" do
+      [loser_id, _] =
+        insert_dup("dup-proj@example.com",
+          is_active: false,
+          last_seen: ~U[2026-01-01 00:00:00Z]
+        )
+
+      [winner_id, _] =
+        insert_dup("dup-proj@example.com",
+          auth_provider: "scim",
+          external_id: "okta-uid-dup-proj",
+          is_active: true,
+          last_seen: ~U[2026-01-15 00:00:00Z]
+        )
+
+      [project_id, _] = insert_project("Dup Project")
+      [role_id] = insert_role("planner")
+      add_to_project(loser_id, project_id, role_id)
+      add_to_project(winner_id, project_id, role_id)
+
+      UserDeduper.merge_all_duplicates()
+
+      [count] =
+        Repo.query!(
+          "SELECT COUNT(*) FROM user_projects WHERE user_id = $1 AND project_id = $2",
+          [winner_id, project_id]
+        )
+        |> Map.fetch!(:rows)
+        |> hd()
+
+      assert count == 1
+    end
+  end
+
   describe "merge_all_duplicates/1 — data preservation" do
     test "re-parents user_sessions onto the winner so logged-in browsers stay authenticated" do
       [loser_id, _] =
@@ -348,6 +420,60 @@ defmodule Lynx.Service.UserDeduperTest do
     test "no-op when no duplicates exist" do
       assert %{merged_count: 0, decisions: []} = UserDeduper.merge_all_duplicates()
     end
+  end
+
+  defp insert_team(name) do
+    Repo.query!(
+      """
+      INSERT INTO teams (uuid, name, slug, description, inserted_at, updated_at)
+      VALUES ($1, $2, $3, $4, NOW(), NOW())
+      RETURNING id, uuid::text
+      """,
+      [Ecto.UUID.bingenerate(), name, String.replace(name, " ", "-") |> String.downcase(), name]
+    )
+    |> Map.fetch!(:rows)
+    |> hd()
+  end
+
+  defp add_to_team(user_id, team_id) do
+    Repo.query!(
+      """
+      INSERT INTO user_teams (uuid, user_id, team_id, inserted_at, updated_at)
+      VALUES ($1, $2, $3, NOW(), NOW())
+      """,
+      [Ecto.UUID.bingenerate(), user_id, team_id]
+    )
+  end
+
+  defp insert_project(name) do
+    Repo.query!(
+      """
+      INSERT INTO projects (uuid, name, slug, description, inserted_at, updated_at)
+      VALUES ($1, $2, $3, $4, NOW(), NOW())
+      RETURNING id, uuid::text
+      """,
+      [Ecto.UUID.bingenerate(), name, String.replace(name, " ", "-") |> String.downcase(), name]
+    )
+    |> Map.fetch!(:rows)
+    |> hd()
+  end
+
+  defp insert_role(name) do
+    # Pick the seeded role id rather than insert one — the install
+    # action seeds the standard role set.
+    Repo.query!("SELECT id FROM roles WHERE name = $1 LIMIT 1", [name])
+    |> Map.fetch!(:rows)
+    |> hd()
+  end
+
+  defp add_to_project(user_id, project_id, role_id) do
+    Repo.query!(
+      """
+      INSERT INTO user_projects (uuid, user_id, project_id, role_id, inserted_at, updated_at)
+      VALUES ($1, $2, $3, $4, NOW(), NOW())
+      """,
+      [Ecto.UUID.bingenerate(), user_id, project_id, role_id]
+    )
   end
 
   defp refute_uuid_exists(uuid) do
