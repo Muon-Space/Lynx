@@ -169,7 +169,8 @@ defmodule LynxWeb.ProjectController do
             description: params["description"],
             slug: params["slug"],
             team_id: params["team_id"],
-            team_ids: params["team_ids"]
+            team_ids: params["team_ids"],
+            workspace_id: resolve_workspace_id(params["workspace_id"])
           })
 
         case result do
@@ -373,6 +374,16 @@ defmodule LynxWeb.ProjectController do
       {:ok, ""}
     else
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # API surface uses workspace UUIDs; the context expects the DB integer pk.
+  defp resolve_workspace_id(nil), do: nil
+
+  defp resolve_workspace_id(uuid) when is_binary(uuid) do
+    case Lynx.Context.WorkspaceContext.get_workspace_by_uuid(uuid) do
+      nil -> nil
+      ws -> ws.id
     end
   end
 end

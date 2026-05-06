@@ -18,6 +18,9 @@ components:
             description: Team UUID
             type: string
           type: array
+        workspace_id:
+          description: Workspace UUID. If omitted, the project is created with no workspace association (only reachable at /tf/default/...).
+          type: string
       required:
         - name
         - slug
@@ -146,6 +149,10 @@ components:
           type: string
         providerId:
           type: integer
+        role:
+          description: Role name granted on match ("planner" / "applier" / "admin").
+          nullable: true
+          type: string
         successMessage:
           description: Present on create
           type: string
@@ -198,6 +205,9 @@ components:
           type: array
         updatedAt:
           format: date-time
+          type: string
+        workspaceId:
+          description: Workspace UUID this project belongs to. Null for legacy projects with no workspace.
           type: string
       title: Project
       type: object
@@ -357,8 +367,11 @@ components:
         provider_id:
           description: Provider UUID
           type: string
+        role:
+          description: Role granted on match, by NAME ("planner", "applier", "admin"). Friendlier than role_id; used if role_id is not set.
+          type: string
         role_id:
-          description: Role granted on match. Defaults to applier.
+          description: Role granted on match (DB pk). Defaults to applier.
           type: integer
       required:
         - name

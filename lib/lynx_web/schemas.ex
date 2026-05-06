@@ -204,6 +204,11 @@ defmodule LynxWeb.Schemas.Project do
       name: %Schema{type: :string},
       slug: %Schema{type: :string},
       description: %Schema{type: :string},
+      workspaceId: %Schema{
+        type: :string,
+        description:
+          "Workspace UUID this project belongs to. Null for legacy projects with no workspace."
+      },
       teams: %Schema{type: :array, items: ProjectTeamRef},
       team: %Schema{
         oneOf: [ProjectTeamRef, %Schema{type: :null}],
@@ -247,6 +252,11 @@ defmodule LynxWeb.Schemas.ProjectCreate do
       team_ids: %Schema{
         type: :array,
         items: %Schema{type: :string, description: "Team UUID"}
+      },
+      workspace_id: %Schema{
+        type: :string,
+        description:
+          "Workspace UUID. If omitted, the project is created with no workspace association (only reachable at /tf/default/...)."
       }
     }
   })
@@ -531,6 +541,11 @@ defmodule LynxWeb.Schemas.OIDCRule do
       claimRules: %Schema{type: :object, additionalProperties: %Schema{type: :string}},
       providerId: %Schema{type: :integer},
       environmentId: %Schema{type: :integer},
+      role: %Schema{
+        type: :string,
+        nullable: true,
+        description: "Role name granted on match (\"planner\" / \"applier\" / \"admin\")."
+      },
       isActive: %Schema{type: :boolean},
       successMessage: %Schema{type: :string, description: "Present on create"},
       createdAt: %Schema{type: :string, format: :"date-time"}
@@ -564,7 +579,15 @@ defmodule LynxWeb.Schemas.OIDCRuleCreate do
       name: %Schema{type: :string},
       provider_id: %Schema{type: :string, description: "Provider UUID"},
       environment_id: %Schema{type: :string, description: "Environment UUID"},
-      role_id: %Schema{type: :integer, description: "Role granted on match. Defaults to applier."},
+      role_id: %Schema{
+        type: :integer,
+        description: "Role granted on match (DB pk). Defaults to applier."
+      },
+      role: %Schema{
+        type: :string,
+        description:
+          "Role granted on match, by NAME (\"planner\", \"applier\", \"admin\"). Friendlier than role_id; used if role_id is not set."
+      },
       claim_rules: %Schema{
         oneOf: [
           %Schema{type: :object, additionalProperties: %Schema{type: :string}},

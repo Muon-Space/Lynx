@@ -233,6 +233,7 @@ defmodule LynxWeb.OIDCProviderController do
                 claimRules: Jason.decode!(r.claim_rules),
                 providerId: r.provider_id,
                 environmentId: r.environment_id,
+                role: role_name_for(r.role_id),
                 isActive: r.is_active,
                 createdAt: r.inserted_at
               }
@@ -261,7 +262,8 @@ defmodule LynxWeb.OIDCProviderController do
              name: params["name"],
              claim_rules: claim_rules,
              provider_id: provider.id,
-             environment_id: env_id
+             environment_id: env_id,
+             role_id: resolve_role_id(params)
            }) do
         {:ok, rule} ->
           conn
@@ -292,6 +294,29 @@ defmodule LynxWeb.OIDCProviderController do
 
       {:not_found, _} ->
         conn |> put_status(:not_found) |> json(%{errorMessage: "Rule not found"})
+    end
+  end
+
+  # Accept either an integer role_id (DB pk) or a string role name
+  # ("planner", "applier", "admin"). Returns nil to mean "use the backend
+  # default" (which is applier).
+  defp resolve_role_id(%{"role_id" => id}) when is_integer(id), do: id
+
+  defp resolve_role_id(%{"role" => name}) when is_binary(name) and name != "" do
+    case Lynx.Context.RoleContext.get_role_by_name(name) do
+      nil -> nil
+      role -> role.id
+    end
+  end
+
+  defp resolve_role_id(_), do: nil
+
+  defp role_name_for(nil), do: nil
+
+  defp role_name_for(id) do
+    case Lynx.Context.RoleContext.get_role_by_id(id) do
+      nil -> nil
+      role -> role.name
     end
   end
 end
