@@ -96,6 +96,7 @@ When deploying via Helm or any production Docker setup, the app reads these env 
 | `OPA_URL` | optional | Base URL Lynx uses to query OPA for plan evaluation. Defaults to `http://localhost:8181`. |
 | `OPA_TIMEOUT_MS` | optional | HTTP timeout (in ms) for the OPA evaluation call. Defaults to `5000`. |
 | `OPA_BUNDLE_TOKEN` | optional | Bearer token OPA must present when polling `/api/v1/opa/bundle.tar.gz`. If unset, only DB-managed tokens minted from **Settings → OPA** are accepted. |
+| `OIDC_JWT_EXP_GRACE_SECONDS` | optional | Seconds past a JWT's `exp` claim that the OIDC validator still accepts. Defaults to `0` (strict expiry). Set to e.g. `1800` when this instance backs CI running terragrunt jobs longer than the upstream IdP's token lifetime — GitHub Actions OIDC tokens are fixed at 5 minutes, and any `run --all` job past that mark fails state pulls without a grace window. |
 
 ### OpenTelemetry traces
 

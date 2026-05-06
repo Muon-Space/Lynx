@@ -83,6 +83,15 @@ config :lynx,
 # OIDC configuration is read from the DB (Settings tab) so it can be changed
 # at runtime without an app restart — see `Lynx.Service.SSOService`.
 
+# OIDC JWT expiry grace (issue: long terragrunt run-all jobs vs GitHub's
+# fixed 5-minute OIDC token lifetime). Lets the validator accept a token
+# for `OIDC_JWT_EXP_GRACE_SECONDS` past the JWT's own `exp` claim.
+# Default 0 (strict expiry — pre-patch behavior). For CI-backing instances,
+# 1800 (30 min) covers ~all observed run-all durations.
+config :lynx,
+  oidc_jwt_exp_grace_seconds:
+    String.to_integer(System.get_env("OIDC_JWT_EXP_GRACE_SECONDS") || "0")
+
 # SAML configuration
 if (System.get_env("AUTH_SSO_ENABLED") || "false") == "true" and
      (System.get_env("SSO_PROTOCOL") || "oidc") == "saml" do
