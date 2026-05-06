@@ -40,6 +40,23 @@ defmodule Lynx.Service.JWTServiceTest do
     :ok
   end
 
+  # Temporarily set the OIDC JWT exp grace window for the duration of `fun`.
+  # Restores the prior value on exit so tests don't leak global config.
+  # Safe under `async: false`.
+  defp with_grace(seconds, fun) do
+    prior = Application.get_env(:lynx, :oidc_jwt_exp_grace_seconds)
+    Application.put_env(:lynx, :oidc_jwt_exp_grace_seconds, seconds)
+
+    try do
+      fun.()
+    after
+      case prior do
+        nil -> Application.delete_env(:lynx, :oidc_jwt_exp_grace_seconds)
+        v -> Application.put_env(:lynx, :oidc_jwt_exp_grace_seconds, v)
+      end
+    end
+  end
+
   describe "init_cache/0" do
     test "creates the ETS table when missing" do
       :ets.delete(@cache_table)
@@ -139,6 +156,31 @@ defmodule Lynx.Service.JWTServiceTest do
       jwt = sign_jwt(jwk, %{"sub" => "x", "exp" => "not-a-number"})
 
       assert {:ok, _} = JWTService.validate_token("https://idp.example.com", jwt)
+    end
+
+    test "with grace window, accepts a token expired within the window", %{} do
+      with_grace(300, fn ->
+        {jwk, public_jwk} = build_signing_keypair()
+        seed_jwks_cache("https://idp.example.com", %{"keys" => [public_jwk]})
+
+        claims = %{"sub" => "x", "exp" => :os.system_time(:second) - 60}
+        jwt = sign_jwt(jwk, claims)
+
+        assert {:ok, _} = JWTService.validate_token("https://idp.example.com", jwt)
+      end)
+    end
+
+    test "with grace window, still rejects a token expired beyond the window", %{} do
+      with_grace(60, fn ->
+        {jwk, public_jwk} = build_signing_keypair()
+        seed_jwks_cache("https://idp.example.com", %{"keys" => [public_jwk]})
+
+        claims = %{"sub" => "x", "exp" => :os.system_time(:second) - 600}
+        jwt = sign_jwt(jwk, claims)
+
+        assert {:error, "Token expired"} =
+                 JWTService.validate_token("https://idp.example.com", jwt)
+      end)
     end
   end
 

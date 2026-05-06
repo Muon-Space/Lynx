@@ -128,7 +128,14 @@ defmodule Lynx.Service.JWTService do
         :ok
 
       exp when is_number(exp) ->
-        if exp > :os.system_time(:second) do
+        # Optional grace window past the JWT's exp claim. GitHub OIDC tokens
+        # have a fixed 5-minute lifetime (no way to extend), and any
+        # `terragrunt run --all` job longer than that fails every state pull
+        # after the boundary. The grace lets long CI jobs keep using a single
+        # token they minted at job start. Default 0 (strict).
+        grace = Application.get_env(:lynx, :oidc_jwt_exp_grace_seconds, 0)
+
+        if exp + grace > :os.system_time(:second) do
           :ok
         else
           {:error, "Token expired"}
