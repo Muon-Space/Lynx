@@ -66,7 +66,12 @@ defmodule LynxWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    # Terraform state files for cluster-shaped infra routinely run 8-15 MiB.
+    # Plug's default of 8 MiB rejects them with 413. 100 MiB gives us
+    # ~10x headroom over today's largest observed states; if a single
+    # state ever crosses that, consider splitting the unit.
+    length: 100_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head
