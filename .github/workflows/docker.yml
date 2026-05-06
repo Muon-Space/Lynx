@@ -34,7 +34,7 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
-          registry: containers.muonspace.ghe.com
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -60,7 +60,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.platform_tag }}
+          tags: ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.platform_tag }}
           platforms: ${{ matrix.platform }}
           cache-from: type=gha,scope=lynx-${{ steps.vars.outputs.platform_tag }}
           cache-to: type=gha,mode=max,scope=lynx-${{ steps.vars.outputs.platform_tag }}
@@ -97,23 +97,23 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
-          registry: containers.muonspace.ghe.com
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push version manifest
         run: |
           docker manifest create \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }} \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-amd64 \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-arm64
-          docker manifest push containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }} \
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-amd64 \
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-arm64
+          docker manifest push ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}
 
       - name: Create and push latest manifest
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           docker manifest create \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:latest \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-amd64 \
-            containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-arm64
-          docker manifest push containers.muonspace.ghe.com/${{ steps.vars.outputs.owner }}/lynx:latest
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:latest \
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-amd64 \
+            ghcr.io/${{ steps.vars.outputs.owner }}/lynx:${{ steps.vars.outputs.tag }}-linux-arm64
+          docker manifest push ghcr.io/${{ steps.vars.outputs.owner }}/lynx:latest
