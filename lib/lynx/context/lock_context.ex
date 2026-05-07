@@ -337,16 +337,27 @@ defmodule Lynx.Context.LockContext do
     end
   end
 
+  @doc """
+  Force-clear EVERY active lock on an environment — the env-wide lock
+  AND any per-unit (sub_path) locks. The admin-button semantic is
+  "stop tracking any lock for this env, period," so cascading prevents
+  the painful state where the env shows locked because a unit is
+  locked but force-unlock at the env level only clears the env-wide
+  row. (Earlier behavior cleared just one row, picked arbitrarily by
+  the DB — frequently a no-op from the user's perspective.)
+  """
   def force_unlock(environment_id) do
-    case get_active_lock_by_environment_id(environment_id) do
-      nil ->
-        {:success, "Environment was not locked"}
+    {count, _} =
+      from(l in Lock,
+        where: l.environment_id == ^environment_id and l.is_active == true,
+        update: [set: [is_active: false, updated_at: ^NaiveDateTime.utc_now(:second)]]
+      )
+      |> Repo.update_all([])
 
-      lock ->
-        case update_lock(lock, %{is_active: false}) do
-          {:ok, _} -> {:success, "Environment unlocked"}
-          {:error, _} -> {:error, "Failed to unlock environment"}
-        end
+    case count do
+      0 -> {:success, "Environment was not locked"}
+      1 -> {:success, "Environment unlocked"}
+      n -> {:success, "Environment unlocked (#{n} locks cleared)"}
     end
   end
 end

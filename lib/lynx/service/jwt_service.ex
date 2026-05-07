@@ -133,7 +133,12 @@ defmodule Lynx.Service.JWTService do
         # `terragrunt run --all` job longer than that fails every state pull
         # after the boundary. The grace lets long CI jobs keep using a single
         # token they minted at job start. Default 0 (strict).
-        grace = Application.get_env(:lynx, :oidc_jwt_exp_grace_seconds, 0)
+        #
+        # Resolution order (DB row wins): Settings UI value → env var
+        # `OIDC_JWT_EXP_GRACE_SECONDS` → 0. Operators can seed via env var
+        # then take over via /admin/settings; either path works without
+        # the other.
+        grace = resolve_grace_seconds()
 
         if exp + grace > :os.system_time(:second) do
           :ok
@@ -143,6 +148,24 @@ defmodule Lynx.Service.JWTService do
 
       _ ->
         :ok
+    end
+  end
+
+  defp resolve_grace_seconds do
+    raw = Lynx.Service.Settings.get_sso_config("oidc_jwt_exp_grace_seconds", "0")
+
+    case raw do
+      raw when is_binary(raw) ->
+        case Integer.parse(raw) do
+          {n, _} when n >= 0 -> n
+          _ -> 0
+        end
+
+      n when is_integer(n) and n >= 0 ->
+        n
+
+      _ ->
+        0
     end
   end
 

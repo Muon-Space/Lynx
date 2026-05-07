@@ -23,7 +23,8 @@ defmodule LynxWeb.ProjectControllerTest do
 
   describe "create" do
     test "creates a project", %{conn: conn, api_key: api_key} do
-      # ProjectController.validate_create_request requires non-empty team_ids
+      # `team_ids` is optional (see "creates a project without any teams"
+      # below) but the happy path here still attaches one.
       admin = Lynx.Context.UserContext.get_user_by_email("john@example.com")
 
       team_resp =
@@ -60,6 +61,22 @@ defmodule LynxWeb.ProjectControllerTest do
         |> post("/api/v1/project", %{slug: "x", description: "y"})
 
       assert response(conn, 400)
+    end
+
+    test "creates a project without any teams", %{conn: conn, api_key: api_key} do
+      conn =
+        conn
+        |> with_api_key(api_key)
+        |> post("/api/v1/project", %{
+          name: "Solo",
+          slug: "solo",
+          description: "no team attached"
+        })
+
+      body = json_response(conn, 201)
+      assert body["name"] == "Solo"
+      assert body["teams"] == []
+      assert body["team"] == nil
     end
   end
 

@@ -49,9 +49,13 @@ defmodule LynxWeb.SettingsLive do
       |> assign(:scim_enabled, Settings.get_sso_config("scim_enabled", "false") == "true")
       |> assign(:scim_tokens, SCIMTokenContext.list_tokens())
       |> assign(:new_token, nil)
-      # OIDC Providers
+      # OIDC Providers + JWT validation knobs
       |> assign(:oidc_providers, OIDCBackend.list_providers())
       |> assign(:show_add_provider, false)
+      |> assign(
+        :oidc_jwt_exp_grace_seconds,
+        Settings.get_sso_config("oidc_jwt_exp_grace_seconds", "0")
+      )
       # OPA bundle tokens (issue #38)
       |> assign(:opa_bundle_tokens, OPABundleTokenContext.list_tokens())
       |> assign(:new_opa_token, nil)
@@ -221,6 +225,29 @@ defmodule LynxWeb.SettingsLive do
             </.table>
           </div>
         </div>
+      </.card>
+
+      <%!-- OIDC JWT Validation --%>
+      <.card :if={@tab == "oidc"} class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">JWT Validation</h3>
+        <p class="text-sm text-muted mb-4">
+          Seconds past a JWT's <code class="bg-input px-1 rounded">exp</code> claim that the validator still accepts.
+          GitHub Actions OIDC tokens have a fixed 5-minute lifetime; longer terragrunt
+          <code class="bg-input px-1 rounded">run --all</code>
+          jobs need a grace window or every state pull after the boundary fails. <strong>Default 0 (strict).</strong>
+          Common value for CI-backing instances: <code class="bg-input px-1 rounded">1800</code> (30 min).
+        </p>
+
+        <form phx-submit="save_oidc_jwt_settings" class="space-y-4">
+          <.input
+            name="oidc_jwt_exp_grace_seconds"
+            label="JWT Expiry Grace (seconds)"
+            type="number"
+            value={@oidc_jwt_exp_grace_seconds}
+            hint="Tradeoff: a stale OIDC token from a completed CI run can be replayed within this window. The token's repository/environment claims still pin it to the original caller."
+          />
+          <.button type="submit" variant="primary" size="sm">Save</.button>
+        </form>
       </.card>
 
       <%!-- OIDC Providers --%>
@@ -552,6 +579,33 @@ defmodule LynxWeb.SettingsLive do
      socket
      |> assign(:opa_bundle_tokens, OPABundleTokenContext.list_tokens())
      |> put_flash(:info, "Token revoked")}
+  end
+
+  # -- OIDC JWT Validation --
+  def handle_event("save_oidc_jwt_settings", params, socket) do
+    raw = params["oidc_jwt_exp_grace_seconds"] || ""
+
+    case Integer.parse(raw) do
+      {n, _} when n >= 0 ->
+        Settings.upsert_config("oidc_jwt_exp_grace_seconds", to_string(n))
+
+        AuditContext.log_user(
+          socket.assigns.current_user,
+          "updated",
+          "settings",
+          nil,
+          "oidc (jwt_exp_grace_seconds=#{n})"
+        )
+
+        {:noreply,
+         socket
+         |> assign(:oidc_jwt_exp_grace_seconds, to_string(n))
+         |> put_flash(:info, "OIDC JWT settings saved")}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, "JWT expiry grace must be a non-negative integer (seconds)")}
+    end
   end
 
   # -- OIDC Providers --
