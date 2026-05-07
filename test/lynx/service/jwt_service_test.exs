@@ -1,5 +1,10 @@
 defmodule Lynx.Service.JWTServiceTest do
-  use ExUnit.Case, async: false
+  # DataCase provides the SQL sandbox checkout — JWTService.check_expiry now
+  # reads the grace window via `Settings.get_sso_config`, which hits the
+  # `configs` table. Without sandbox ownership the tests get
+  # `DBConnection.OwnershipError`. Stays `async: false` because
+  # `with_grace/2` mutates global Application env.
+  use Lynx.DataCase, async: false
 
   alias Lynx.Service.JWTService
 
@@ -176,6 +181,40 @@ defmodule Lynx.Service.JWTServiceTest do
         seed_jwks_cache("https://idp.example.com", %{"keys" => [public_jwk]})
 
         claims = %{"sub" => "x", "exp" => :os.system_time(:second) - 600}
+        jwt = sign_jwt(jwk, claims)
+
+        assert {:error, "Token expired"} =
+                 JWTService.validate_token("https://idp.example.com", jwt)
+      end)
+    end
+
+    test "DB config overrides the env-var bootstrap default", %{} do
+      # Env-var fallback says strict (0); DB config opts into a window.
+      # The Settings UI write path that the admin uses goes through
+      # `upsert_config/2` — same call here so the test pins the contract
+      # the UI relies on.
+      with_grace(0, fn ->
+        Lynx.Service.Settings.upsert_config("oidc_jwt_exp_grace_seconds", "300")
+
+        {jwk, public_jwk} = build_signing_keypair()
+        seed_jwks_cache("https://idp.example.com", %{"keys" => [public_jwk]})
+
+        claims = %{"sub" => "x", "exp" => :os.system_time(:second) - 60}
+        jwt = sign_jwt(jwk, claims)
+
+        assert {:ok, _} = JWTService.validate_token("https://idp.example.com", jwt)
+      end)
+    end
+
+    test "DB grace of 0 still rejects an expired token (matches env-var strict mode)", %{} do
+      with_grace(3600, fn ->
+        # DB explicitly strict — overrides the permissive env var.
+        Lynx.Service.Settings.upsert_config("oidc_jwt_exp_grace_seconds", "0")
+
+        {jwk, public_jwk} = build_signing_keypair()
+        seed_jwks_cache("https://idp.example.com", %{"keys" => [public_jwk]})
+
+        claims = %{"sub" => "x", "exp" => :os.system_time(:second) - 60}
         jwt = sign_jwt(jwk, claims)
 
         assert {:error, "Token expired"} =

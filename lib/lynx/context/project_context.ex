@@ -10,7 +10,7 @@ defmodule Lynx.Context.ProjectContext do
   import Ecto.Query
 
   alias Lynx.Repo
-  alias Lynx.Model.{ProjectMeta, Project, ProjectTeam}
+  alias Lynx.Model.{ProjectMeta, Project, ProjectTeam, UserProject}
 
   @doc """
   Get a new project
@@ -524,24 +524,92 @@ defmodule Lynx.Context.ProjectContext do
 
   # -- High-level orchestration (was ProjectModule) --
 
-  @doc "Get user-scoped projects (paginated) — projects whose teams the user belongs to."
-  def get_projects_for_user(user_id, offset, limit) do
-    teams_ids =
-      user_id
-      |> Lynx.Context.UserContext.get_user_teams()
-      |> Enum.map(& &1.id)
+  @doc """
+  Get user-scoped projects (paginated). Visibility is the union of:
 
-    get_projects_by_teams(teams_ids, offset, limit)
+    * Projects whose teams the user belongs to (`project_teams` ∪ `user_teams`)
+    * Projects with a direct `user_projects` grant for this user
+
+  The direct-grant path is what makes team-less projects visible to a
+  non-super user — without it, only super sees those rows.
+  """
+  def get_projects_for_user(user_id, offset, limit) do
+    project_ids = visible_project_ids_for_user(user_id)
+
+    from(p in Project,
+      where: p.id in ^project_ids,
+      order_by: [desc: p.inserted_at],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
   end
 
-  @doc "Count user-scoped projects."
+  @doc "Count user-scoped projects (same union semantics as `get_projects_for_user/3`)."
   def count_projects_for_user(user_id) do
-    teams_ids =
+    project_ids = visible_project_ids_for_user(user_id)
+    length(project_ids)
+  end
+
+  @doc """
+  Same union as `get_projects_for_user/3`, scoped to a single workspace.
+  Used by the per-workspace projects landing page so team-less projects
+  with direct user grants surface for non-super users.
+  """
+  def get_projects_by_workspace_for_user(workspace_id, user_id, offset, limit) do
+    project_ids = visible_project_ids_for_user(user_id)
+
+    from(p in Project,
+      where: p.workspace_id == ^workspace_id and p.id in ^project_ids,
+      order_by: [desc: p.inserted_at],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  @doc "Workspace-scoped count for `get_projects_by_workspace_for_user/4`."
+  def count_projects_by_workspace_for_user(workspace_id, user_id) do
+    project_ids = visible_project_ids_for_user(user_id)
+
+    from(p in Project,
+      select: count(p.id),
+      where: p.workspace_id == ^workspace_id and p.id in ^project_ids
+    )
+    |> Repo.one()
+  end
+
+  # Project IDs visible to a user via either path. Returned as a deduped
+  # list so callers can `where: p.id in ^ids`. Two PK lookups + a uniq is
+  # cheaper than the OR-joined select for typical grant counts (single
+  # digit teams + a handful of direct grants per user).
+  defp visible_project_ids_for_user(user_id) do
+    team_ids =
       user_id
       |> Lynx.Context.UserContext.get_user_teams()
       |> Enum.map(& &1.id)
 
-    count_projects_by_teams(teams_ids)
+    team_project_ids =
+      if team_ids == [] do
+        []
+      else
+        from(pt in ProjectTeam,
+          where: pt.team_id in ^team_ids,
+          select: pt.project_id,
+          distinct: true
+        )
+        |> Repo.all()
+      end
+
+    direct_project_ids =
+      from(up in UserProject,
+        where: up.user_id == ^user_id,
+        select: up.project_id,
+        distinct: true
+      )
+      |> Repo.all()
+
+    Enum.uniq(team_project_ids ++ direct_project_ids)
   end
 
   def update_project_from_data(data \\ %{}) do

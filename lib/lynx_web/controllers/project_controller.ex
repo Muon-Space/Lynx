@@ -274,7 +274,7 @@ defmodule LynxWeb.ProjectController do
       slug_required: "Project slug is required",
       slug_invalid: "Project slug is invalid",
       slug_used: "Project slug is already used",
-      team_id_required: "Team is required"
+      team_id_invalid: "Team id is invalid"
     }
 
     with {:ok, _} <- ValidatorService.is_string?(params["name"], errs.name_required),
@@ -307,13 +307,17 @@ defmodule LynxWeb.ProjectController do
              errs.slug_invalid
            ),
          {:ok, _} <-
-           validate_team_ids(params, errs.team_id_required) do
+           validate_team_ids(params, errs.team_id_invalid) do
       {:ok, ""}
     else
       {:error, reason} -> {:error, reason}
     end
   end
 
+  # Team is OPTIONAL: a project may be created without team membership and
+  # accessed only by super users + holders of a direct user_projects grant.
+  # When team_id / team_ids IS supplied, the value is still shape-validated
+  # so a malformed UUID surfaces as a 400 rather than a silent drop.
   defp validate_team_ids(params, err) do
     cond do
       is_list(params["team_ids"]) and length(params["team_ids"]) > 0 ->
@@ -323,7 +327,7 @@ defmodule LynxWeb.ProjectController do
         ValidatorService.is_uuid?(params["team_id"], err)
 
       true ->
-        {:error, err}
+        {:ok, nil}
     end
   end
 

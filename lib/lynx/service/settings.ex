@@ -203,5 +203,13 @@ defmodule Lynx.Service.Settings do
   defp env_fallback("scim_enabled", default),
     do: to_string(Application.get_env(:lynx, :scim_enabled, default))
 
+  # OIDC JWT expiry grace (seconds past the JWT's exp claim that the
+  # validator still accepts). Bootstrap default comes from the
+  # OIDC_JWT_EXP_GRACE_SECONDS env var via runtime.exs; the Settings UI
+  # writes a DB row that takes precedence at lookup time. Stored as a
+  # string for parity with the rest of the configs table.
+  defp env_fallback("oidc_jwt_exp_grace_seconds", default),
+    do: to_string(Application.get_env(:lynx, :oidc_jwt_exp_grace_seconds, default))
+
   defp env_fallback(_, default), do: default
 end

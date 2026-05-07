@@ -361,15 +361,13 @@ defmodule LynxWeb.EnvironmentController do
         |> render(:error, %{message: "Environment not found"})
 
       env_id ->
-        case LockContext.force_unlock(env_id) do
-          {:success, msg} ->
-            AuditContext.log(conn, "unlocked", "environment", e_uuid)
+        # `force_unlock/1` is a cascade — clears the env-wide lock AND every
+        # active per-unit lock. Always returns `{:success, msg}`; the message
+        # carries a count when more than one row was cleared.
+        {:success, msg} = LockContext.force_unlock(env_id)
+        AuditContext.log(conn, "unlocked", "environment", e_uuid)
 
-            conn |> put_status(:ok) |> json(%{successMessage: msg})
-
-          {:error, msg} ->
-            conn |> put_status(:bad_request) |> render(:error, %{message: msg})
-        end
+        conn |> put_status(:ok) |> json(%{successMessage: msg})
     end
   end
 

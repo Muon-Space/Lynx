@@ -260,16 +260,15 @@ defmodule LynxWeb.ProjectsLive do
         {Lynx.Context.ProjectContext.get_projects_by_workspace(workspace.id, offset, @per_page),
          Lynx.Context.ProjectContext.count_projects_by_workspace(workspace.id)}
       else
-        user_teams = TeamContext.get_user_teams(user.id)
-        team_ids = Enum.map(user_teams, & &1.id)
-
-        {Lynx.Context.ProjectContext.get_projects_by_workspace_and_teams(
+        # Union of team grants + direct user_projects grants — without the
+        # latter, team-less projects are invisible to non-super users.
+        {Lynx.Context.ProjectContext.get_projects_by_workspace_for_user(
            workspace.id,
-           team_ids,
+           user.id,
            offset,
            @per_page
          ),
-         Lynx.Context.ProjectContext.count_projects_by_workspace_and_teams(workspace.id, team_ids)}
+         Lynx.Context.ProjectContext.count_projects_by_workspace_for_user(workspace.id, user.id)}
       end
 
     assign(socket, projects: projects, total_pages: max(ceil(total / @per_page), 1))
