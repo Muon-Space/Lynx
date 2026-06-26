@@ -32,6 +32,10 @@ defmodule Lynx.Model.Config do
       :value
     ])
     |> validate_length(:name, min: 1, max: 200)
-    |> validate_length(:value, max: 2000)
+    # Encrypted secrets (a SecretBox envelope around e.g. an RSA-2048/4096 SAML
+    # SP private key) run ~2.3-4.4 KB — well past the original 2 KB cap, which
+    # silently failed those saves. The DB column is `text`, so this is the only
+    # bound.
+    |> validate_length(:value, max: 8000)
   end
 end

@@ -60,11 +60,32 @@ defmodule Lynx.Service.SAMLService do
       :zlib.deflateEnd(z)
       :zlib.close(z)
 
-      encoded = Base.encode64(deflated)
-      redirect_url = "#{login_url}?SAMLRequest=#{URI.encode_www_form(encoded)}"
+      saml_request = Base.encode64(deflated)
+      sign_requests = Settings.get_sso_config("sso_saml_sign_requests", "false") == "true"
+      {key, _cert} = load_sp_credentials()
 
-      {:ok, redirect_url}
+      {:ok, build_redirect_url(login_url, saml_request, sign_requests, key)}
     end
+  end
+
+  # HTTP-Redirect binding (SAML 2.0 §3.4.4.1). For a *signed* request the
+  # signature is DETACHED: it is computed over the URL query string
+  # "SAMLRequest=<enc>&SigAlg=<enc>" and carried in the SigAlg + Signature query
+  # parameters. esaml's embedded XML-DSig is not honored by IdPs for redirect
+  # binding, so the request XML stays unsigned and we sign the query string here
+  # with the SP private key (RSA-SHA256).
+  defp build_redirect_url(login_url, saml_request, true, key) when key != :undefined do
+    sig_alg = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+
+    signing_input =
+      "SAMLRequest=#{URI.encode_www_form(saml_request)}&SigAlg=#{URI.encode_www_form(sig_alg)}"
+
+    signature = :public_key.sign(signing_input, :sha256, key) |> Base.encode64()
+    "#{login_url}?#{signing_input}&Signature=#{URI.encode_www_form(signature)}"
+  end
+
+  defp build_redirect_url(login_url, saml_request, _sign_requests, _key) do
+    "#{login_url}?SAMLRequest=#{URI.encode_www_form(saml_request)}"
   end
 
   @doc """
@@ -374,7 +395,6 @@ defmodule Lynx.Service.SAMLService do
     metadata_uri = app_url <> "/auth/sso/metadata"
 
     {key, cert} = load_sp_credentials()
-    sign_requests = Settings.get_sso_config("sso_saml_sign_requests", "false") == "true"
 
     sp =
       esaml_sp(
@@ -382,7 +402,9 @@ defmodule Lynx.Service.SAMLService do
         tech: esaml_contact(name: ~c"Admin", email: ~c"admin@localhost"),
         key: key,
         certificate: cert,
-        sp_sign_requests: sign_requests and key != :undefined,
+        # Redirect-binding requests are signed via a detached query-string
+        # signature in build_redirect_url/4, not esaml's embedded XML-DSig.
+        sp_sign_requests: false,
         sp_sign_metadata: false,
         idp_signs_envelopes: true,
         idp_signs_assertions: false,
