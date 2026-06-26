@@ -18,6 +18,24 @@ defmodule Lynx.Service.SAMLServiceTest do
     set_config("app_email", "ops@lynx.test")
   end
 
+  # Derive the RSA public key from a PEM private key so we can verify a
+  # detached redirect-binding signature produced by the SP.
+  defp sp_pubkey(key_pem) do
+    [entry] = :public_key.pem_decode(key_pem)
+    rsa_priv = :public_key.pem_entry_decode(entry)
+    # :RSAPrivateKey = {:RSAPrivateKey, version, modulus, publicExponent, ...}
+    {:RSAPublicKey, elem(rsa_priv, 2), elem(rsa_priv, 3)}
+  end
+
+  defp set_direct_idp do
+    set_config("sso_saml_idp_sso_url", "https://idp.example.com/sso")
+
+    set_config(
+      "sso_saml_idp_cert",
+      "-----BEGIN CERTIFICATE-----\n#{Base.encode64("fake-idp-cert")}\n-----END CERTIFICATE-----"
+    )
+  end
+
   describe "generate_sp_metadata/0" do
     test "uses metadata URL as default entity ID when none configured" do
       set_app_basics()
@@ -218,6 +236,64 @@ defmodule Lynx.Service.SAMLServiceTest do
       assert {:error, msg} = SAMLService.build_authn_request()
       # The error is either "metadata fetch failed" (Finch) or a parse error
       assert is_binary(msg)
+    end
+  end
+
+  describe "build_authn_request/0 signed HTTP-Redirect binding" do
+    test "appends a detached SigAlg + Signature that verifies against the SP key" do
+      case System.find_executable("openssl") do
+        nil ->
+          # CI without openssl — skip (signing needs a real SP keypair)
+          :ok
+
+        _ ->
+          set_app_basics()
+          set_direct_idp()
+
+          {:ok, %{cert_pem: cert_pem, key_pem: key_pem}} = SAMLService.generate_sp_certificate()
+          Settings.upsert_config("sso_saml_sp_cert", cert_pem)
+          Settings.upsert_config("sso_saml_sp_key", key_pem)
+          set_config("sso_saml_sign_requests", "true")
+
+          assert {:ok, url} = SAMLService.build_authn_request()
+          %URI{query: query} = URI.parse(url)
+
+          # The signature is detached: it covers exactly the query string up to
+          # (but excluding) "&Signature=" — per SAML 2.0 redirect binding §3.4.4.1.
+          assert [signing_input, sig_b64] = String.split(query, "&Signature=", parts: 2)
+          assert signing_input =~ "SAMLRequest="
+
+          assert signing_input =~
+                   "&SigAlg=" <>
+                     URI.encode_www_form("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+
+          signature = sig_b64 |> URI.decode_www_form() |> Base.decode64!()
+          assert :public_key.verify(signing_input, :sha256, signature, sp_pubkey(key_pem))
+      end
+    end
+
+    test "does not append a signature when sign_requests is false" do
+      set_app_basics()
+      set_direct_idp()
+      set_config("sso_saml_sign_requests", "false")
+
+      assert {:ok, url} = SAMLService.build_authn_request()
+      assert url =~ "SAMLRequest="
+      refute url =~ "SigAlg="
+      refute url =~ "Signature="
+    end
+
+    test "an encrypted SP private key persists and reads back intact" do
+      # A SecretBox envelope around an RSA-2048 PEM is ~2.3 KB, which exceeds the
+      # old 2000-char config value cap and silently failed to save (so signing
+      # could never load a key). Guard the round-trip at a realistic size.
+      key_pem =
+        "-----BEGIN RSA PRIVATE KEY-----\n" <>
+          String.duplicate("A", 1800) <> "\n-----END RSA PRIVATE KEY-----"
+
+      assert byte_size(Lynx.Service.SecretBox.encrypt(key_pem)) > 2000
+      Settings.upsert_config("sso_saml_sp_key", key_pem)
+      assert Settings.get_sso_config("sso_saml_sp_key", "") == key_pem
     end
   end
 end
