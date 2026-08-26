@@ -208,6 +208,13 @@ defmodule LynxWeb.Router do
     # Task Endpoints
     get "/task/:uuid", TaskController, :index
 
+    # Workspace Endpoints
+    get "/workspace", WorkspaceController, :list
+    post "/workspace", WorkspaceController, :create
+    get "/workspace/:uuid", WorkspaceController, :index
+    put "/workspace/:uuid", WorkspaceController, :update
+    delete "/workspace/:uuid", WorkspaceController, :delete
+
     # Project Endpoints
     get "/project", ProjectController, :list
     post "/project", ProjectController, :create

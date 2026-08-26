@@ -174,6 +174,58 @@ defmodule LynxWeb.Schemas.TeamCreate do
   })
 end
 
+# -- Workspace --
+
+defmodule LynxWeb.Schemas.Workspace do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "Workspace",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, description: "UUID"},
+      name: %Schema{type: :string},
+      slug: %Schema{type: :string},
+      description: %Schema{type: :string},
+      projectsCount: %Schema{type: :integer},
+      createdAt: %Schema{type: :string, format: :"date-time"},
+      updatedAt: %Schema{type: :string, format: :"date-time"}
+    }
+  })
+end
+
+defmodule LynxWeb.Schemas.WorkspaceList do
+  alias OpenApiSpex.Schema
+  alias LynxWeb.Schemas.{ListMetadata, Workspace}
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "WorkspaceList",
+    type: :object,
+    properties: %{
+      workspaces: %Schema{type: :array, items: Workspace},
+      _metadata: ListMetadata
+    }
+  })
+end
+
+defmodule LynxWeb.Schemas.WorkspaceCreate do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "WorkspaceCreate",
+    type: :object,
+    required: [:name, :slug, :description],
+    properties: %{
+      name: %Schema{type: :string},
+      slug: %Schema{type: :string, description: "Unique across all workspaces"},
+      description: %Schema{type: :string}
+    }
+  })
+end
+
 # -- Project --
 
 defmodule LynxWeb.Schemas.ProjectTeamRef do
