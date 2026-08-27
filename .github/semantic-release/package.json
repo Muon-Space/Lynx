@@ -1,0 +1,16 @@
+{
+  "name": "lynx-release-toolchain",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "description": "Pinned semantic-release toolchain for the release workflow. Installed with `pnpm install --frozen-lockfile` so every release run resolves the exact same tree. conventional-changelog-conventionalcommits is held at 10.3.0 deliberately: 10.4.0 requires conventional-changelog-writer 9, while semantic-release 25 still resolves writer 8, and the mismatch fails note generation.",
+  "dependencies": {
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/git": "10.0.1",
+    "conventional-changelog-conventionalcommits": "10.3.0",
+    "semantic-release": "25.0.9"
+  },
+  "engines": {
+    "pnpm": ">=11",
+    "node": ">=22"
+  }
+}
