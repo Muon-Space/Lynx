@@ -10,6 +10,7 @@ defmodule Lynx.Service.ValidatorService do
   alias Lynx.Context.TeamContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.WorkspaceContext
   alias Lynx.Exception.InvalidRequest
 
   @doc """
@@ -186,6 +187,28 @@ defmodule Lynx.Service.ValidatorService do
 
       team ->
         case {team_uuid, team.uuid == team_uuid} do
+          {nil, _} ->
+            {:error, err}
+
+          {_, false} ->
+            {:error, err}
+
+          {_, true} ->
+            {:ok, slug}
+        end
+    end
+  end
+
+  @doc """
+  Validates if workspace slug is used
+  """
+  def is_workspace_slug_used?(slug, workspace_uuid, err) do
+    case WorkspaceContext.get_workspace_by_slug(slug) do
+      nil ->
+        {:ok, slug}
+
+      workspace ->
+        case {workspace_uuid, workspace.uuid == workspace_uuid} do
           {nil, _} ->
             {:error, err}
 

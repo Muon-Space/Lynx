@@ -52,6 +52,20 @@ PUT    /api/v1/team/:uuid
 DELETE /api/v1/team/:uuid
 ```
 
+#### Workspaces
+
+```
+GET    /api/v1/workspace
+POST   /api/v1/workspace
+GET    /api/v1/workspace/:uuid
+PUT    /api/v1/workspace/:uuid
+DELETE /api/v1/workspace/:uuid
+```
+
+Listing is open to any authenticated user; regular users only see workspaces holding at least one project owned by one of their teams. Everything else is super only.
+
+Deleting a workspace is refused with `400` while it still holds projects — move or delete those projects first.
+
 #### Projects
 
 ```

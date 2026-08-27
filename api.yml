@@ -129,6 +129,16 @@ components:
           type: string
       title: SamlCertResponse
       type: object
+    WorkspaceList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        workspaces:
+          items:
+            $ref: '#/components/schemas/Workspace'
+          type: array
+      title: WorkspaceList
+      type: object
     OIDCRule:
       properties:
         claimRules:
@@ -246,6 +256,21 @@ components:
         - discovery_url
         - audience
       title: OIDCProviderCreate
+      type: object
+    WorkspaceCreate:
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        slug:
+          description: Unique across all workspaces
+          type: string
+      required:
+        - name
+        - slug
+        - description
+      title: WorkspaceCreate
       type: object
     SnapshotCreate:
       properties:
@@ -378,6 +403,27 @@ components:
         - provider_id
         - environment_id
       title: OIDCRuleCreate
+      type: object
+    Workspace:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        id:
+          description: UUID
+          type: string
+        name:
+          type: string
+        projectsCount:
+          type: integer
+        slug:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      title: Workspace
       type: object
     EnvironmentProjectRef:
       properties:
@@ -2241,6 +2287,196 @@ paths:
       summary: Update a user (super only)
       tags:
         - Users
+  /api/v1/workspace:
+    get:
+      callbacks: {}
+      description: Super users see every workspace. Regular users only see workspaces containing at least one project owned by one of their teams.
+      operationId: LynxWeb.WorkspaceController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceList'
+          description: Workspaces
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List workspaces
+      tags:
+        - Workspaces
+    post:
+      callbacks: {}
+      operationId: LynxWeb.WorkspaceController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+        description: Workspace
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Create a workspace (super only)
+      tags:
+        - Workspaces
+  /api/v1/workspace/{uuid}:
+    delete:
+      callbacks: {}
+      description: Refuses with 400 while the workspace still holds projects. Reassign or delete those projects first — deleting the workspace also deletes every policy scoped to it.
+      operationId: LynxWeb.WorkspaceController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Workspace deleted
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Workspace is not empty
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a workspace (super only)
+      tags:
+        - Workspaces
+    get:
+      callbacks: {}
+      operationId: LynxWeb.WorkspaceController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a workspace by UUID (super only)
+      tags:
+        - Workspaces
+    put:
+      callbacks: {}
+      operationId: LynxWeb.WorkspaceController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+        description: Workspace
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Update a workspace (super only)
+      tags:
+        - Workspaces
 security:
   - api_key: []
 servers:
