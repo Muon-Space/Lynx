@@ -1,0 +1,9 @@
+# pnpm 11 reads its settings from here, not from a "pnpm" key in package.json.
+#
+# allowBuilds is the allowlist of dependencies permitted to run install/build
+# lifecycle scripts. pnpm blocks all of them by default, which is the vector
+# supply-chain worms in the npm ecosystem rely on. Nothing in this toolchain
+# needs to compile at install time, so the list is deliberately empty — every
+# addition is a package trusted to run arbitrary code during a release, and
+# should be justified in review.
+allowBuilds: []
