@@ -5,7 +5,7 @@
 defmodule Lynx.MixProject do
   use Mix.Project
 
-  @version "1.26.1"
+  @version "1.27.0"
 
   def get_version, do: @version
 
