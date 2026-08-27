@@ -210,6 +210,36 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       assert is_list(r["claimRules"])
     end
 
+    test "exposes provider and environment UUIDs, not just internal keys", %{
+      conn: conn,
+      api_key: api_key
+    } do
+      # Without these, a caller holding a rule cannot tell which provider it
+      # matches: providerId is an internal key with no exposed mapping back to
+      # the UUID the create endpoint expects.
+      env = create_test_env()
+      provider = create_test_provider()
+
+      {:ok, _rule} =
+        OIDCBackend.create_rule(%{
+          name: "ci-deploy",
+          claim_rules: ~s([{"claim":"repo","operator":"eq","value":"org/x"}]),
+          provider_id: provider.id,
+          environment_id: env.id
+        })
+
+      [r] =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_rule/#{env.uuid}")
+        |> json_response(200)
+        |> Map.get("rules")
+
+      assert r["providerUuid"] == provider.uuid
+      assert r["environmentUuid"] == env.uuid
+      assert r["providerId"] == provider.id
+    end
+
     test "returns 404 for unknown environment uuid", %{conn: conn, api_key: api_key} do
       conn =
         conn

@@ -591,8 +591,18 @@ defmodule LynxWeb.Schemas.OIDCRule do
       id: %Schema{type: :string, description: "UUID"},
       name: %Schema{type: :string},
       claimRules: %Schema{type: :object, additionalProperties: %Schema{type: :string}},
-      providerId: %Schema{type: :integer},
-      environmentId: %Schema{type: :integer},
+      providerId: %Schema{type: :integer, description: "Internal key. Prefer providerUuid."},
+      providerUuid: %Schema{
+        type: :string,
+        nullable: true,
+        description: "UUID of the provider this rule matches against."
+      },
+      environmentId: %Schema{type: :integer, description: "Internal key. Prefer environmentUuid."},
+      environmentUuid: %Schema{
+        type: :string,
+        nullable: true,
+        description: "UUID of the environment this rule belongs to."
+      },
       role: %Schema{
         type: :string,
         nullable: true,

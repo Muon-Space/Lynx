@@ -223,6 +223,13 @@ defmodule LynxWeb.OIDCProviderController do
       environment_id ->
         rules = OIDCBackend.list_rules_by_environment(environment_id)
 
+        # providerId and environmentId are internal integer keys, which callers
+        # cannot resolve back to the UUIDs every other endpoint speaks in. Emit
+        # the UUIDs alongside them so a rule is round-trippable on its own.
+        provider_uuids =
+          Lynx.Context.OIDCProviderContext.list_providers()
+          |> Map.new(&{&1.id, &1.uuid})
+
         conn
         |> json(%{
           rules:
@@ -232,7 +239,9 @@ defmodule LynxWeb.OIDCProviderController do
                 name: r.name,
                 claimRules: Jason.decode!(r.claim_rules),
                 providerId: r.provider_id,
+                providerUuid: Map.get(provider_uuids, r.provider_id),
                 environmentId: r.environment_id,
+                environmentUuid: env_id,
                 role: role_name_for(r.role_id),
                 isActive: r.is_active,
                 createdAt: r.inserted_at

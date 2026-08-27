@@ -149,7 +149,12 @@ components:
           format: date-time
           type: string
         environmentId:
+          description: Internal key. Prefer environmentUuid.
           type: integer
+        environmentUuid:
+          description: UUID of the environment this rule belongs to.
+          nullable: true
+          type: string
         id:
           description: UUID
           type: string
@@ -158,7 +163,12 @@ components:
         name:
           type: string
         providerId:
+          description: Internal key. Prefer providerUuid.
           type: integer
+        providerUuid:
+          description: UUID of the provider this rule matches against.
+          nullable: true
+          type: string
         role:
           description: Role name granted on match ("planner" / "applier" / "admin").
           nullable: true
