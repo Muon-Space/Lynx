@@ -106,6 +106,80 @@ defmodule LynxWeb.OIDCProviderControllerTest do
     end
   end
 
+  describe "list_providers filtered by name" do
+    test "returns only the matching provider", %{conn: conn, api_key: api_key} do
+      wanted = create_test_provider()
+      other = create_test_provider()
+
+      body =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_provider", %{name: wanted.name})
+        |> json_response(200)
+
+      assert length(body["providers"]) == 1
+      assert hd(body["providers"])["id"] == wanted.uuid
+      refute Enum.any?(body["providers"], &(&1["id"] == other.uuid))
+    end
+
+    test "returns an empty list when nothing matches", %{conn: conn, api_key: api_key} do
+      create_test_provider()
+
+      body =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_provider", %{name: "no-such-provider"})
+        |> json_response(200)
+
+      assert body["providers"] == []
+    end
+
+    test "an absent name leaves the unfiltered listing alone", %{conn: conn, api_key: api_key} do
+      one = create_test_provider()
+      two = create_test_provider()
+
+      body =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_provider")
+        |> json_response(200)
+
+      ids = Enum.map(body["providers"], & &1["id"])
+      assert one.uuid in ids
+      assert two.uuid in ids
+    end
+
+    test "finds a provider that is not active", %{conn: conn, api_key: api_key} do
+      # The unfiltered listing reports disabled providers with isActive false,
+      # so filtering by name has to find them too.
+      provider = create_test_provider()
+
+      {:ok, disabled} =
+        Lynx.Context.OIDCProviderContext.update_provider(provider, %{is_active: false})
+
+      body =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_provider", %{name: disabled.name})
+        |> json_response(200)
+
+      assert length(body["providers"]) == 1
+      assert hd(body["providers"])["id"] == disabled.uuid
+      assert hd(body["providers"])["isActive"] == false
+    end
+
+    test "a non-super user is still refused when filtering", %{conn: conn} do
+      provider = create_test_provider()
+
+      conn =
+        conn
+        |> with_api_key(regular_user_api_key())
+        |> get("/api/v1/oidc_provider", %{name: provider.name})
+
+      assert response(conn, 403)
+    end
+  end
+
   describe "create_provider" do
     test "creates a provider with valid params", %{conn: conn, api_key: api_key} do
       conn =

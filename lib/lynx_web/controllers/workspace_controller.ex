@@ -39,10 +39,18 @@ defmodule LynxWeb.WorkspaceController do
     summary: "List workspaces",
     description:
       "Super users see every workspace. Regular users only see workspaces " <>
-        "containing at least one project owned by one of their teams.",
+        "containing at least one project owned by one of their teams. " <>
+        "Pass `slug` to look a single workspace up without paging the whole " <>
+        "collection; the response envelope is unchanged and holds zero or one " <>
+        "workspace, subject to the same visibility rules.",
     parameters: [
       limit: [in: :query, type: :integer, description: "Default 10"],
-      offset: [in: :query, type: :integer, description: "Default 0"]
+      offset: [in: :query, type: :integer, description: "Default 0"],
+      slug: [
+        in: :query,
+        type: :string,
+        description: "Return only the workspace with this exact slug"
+      ]
     ],
     responses: [
       ok: {"Workspaces", "application/json", Schemas.WorkspaceList},
@@ -141,10 +149,16 @@ defmodule LynxWeb.WorkspaceController do
     offset = parse_int(params["offset"], @default_list_offset)
 
     {workspaces, count} =
-      if conn.assigns[:is_super] do
-        {WorkspaceContext.get_workspaces(offset, limit), WorkspaceContext.count_workspaces()}
-      else
-        visible_workspaces(conn.assigns[:user_id], offset, limit)
+      case params["slug"] do
+        slug when is_binary(slug) and slug != "" ->
+          workspaces_by_slug(conn, slug, offset, limit)
+
+        _ ->
+          if conn.assigns[:is_super] do
+            {WorkspaceContext.get_workspaces(offset, limit), WorkspaceContext.count_workspaces()}
+          else
+            visible_workspaces(conn.assigns[:user_id], offset, limit)
+          end
       end
 
     render(conn, "list.json", %{
@@ -308,10 +322,7 @@ defmodule LynxWeb.WorkspaceController do
   # small top-level collection, so the visible set is built with one bounded
   # read and paginated in memory to keep `totalCount` accurate.
   defp visible_workspaces(user_id, offset, limit) do
-    team_ids =
-      user_id
-      |> TeamContext.get_user_teams()
-      |> Enum.map(& &1.id)
+    team_ids = user_team_ids(user_id)
 
     visible =
       WorkspaceContext.get_workspaces(0, LynxWeb.Limits.child_collection_max())
@@ -320,6 +331,38 @@ defmodule LynxWeb.WorkspaceController do
       end)
 
     {Enum.slice(visible, offset, limit), length(visible)}
+  end
+
+  # Exact-slug lookup. This is a shortcut for "page the list and filter
+  # client-side", so it has to be exactly as visible-restricted as the list it
+  # replaces: the match is run through the same predicate as the unfiltered
+  # regular-user branch, and a workspace the caller could not have listed is
+  # dropped before it ever reaches the view. Limit/offset keep their normal
+  # meaning — `totalCount` is the number of matches (0 or 1) and the returned
+  # page is the requested window over it — so one decoder works either way.
+  defp workspaces_by_slug(conn, slug, offset, limit) do
+    matches =
+      case WorkspaceContext.get_workspace_by_slug(slug) do
+        nil -> []
+        workspace -> if workspace_visible?(conn, workspace), do: [workspace], else: []
+      end
+
+    {Enum.slice(matches, offset, limit), length(matches)}
+  end
+
+  defp workspace_visible?(conn, workspace) do
+    if conn.assigns[:is_super] do
+      true
+    else
+      team_ids = user_team_ids(conn.assigns[:user_id])
+      ProjectContext.count_projects_by_workspace_and_teams(workspace.id, team_ids) > 0
+    end
+  end
+
+  defp user_team_ids(user_id) do
+    user_id
+    |> TeamContext.get_user_teams()
+    |> Enum.map(& &1.id)
   end
 
   defp changeset_error(changeset) do
@@ -404,15 +447,19 @@ defmodule LynxWeb.WorkspaceController do
   end
 
   # Query params are strings; internal callers pass integers. Mirrors the
-  # helper in AuditController.
-  defp parse_int(nil, default), do: default
+  # helper in AuditController. Negative values are clamped to zero because both
+  # in-memory branches feed these to `Enum.slice/3`, which raises on a negative
+  # amount.
+  defp parse_int(nil, default), do: max(default, 0)
 
   defp parse_int(val, default) when is_binary(val) do
     case Integer.parse(val) do
-      {n, _} -> n
-      :error -> default
+      {n, _} -> max(n, 0)
+      :error -> max(default, 0)
     end
   end
 
-  defp parse_int(val, _) when is_integer(val), do: val
+  defp parse_int(val, _) when is_integer(val), do: max(val, 0)
+
+  defp parse_int(_, default), do: max(default, 0)
 end

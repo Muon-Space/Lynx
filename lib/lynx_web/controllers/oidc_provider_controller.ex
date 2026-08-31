@@ -36,6 +36,17 @@ defmodule LynxWeb.OIDCProviderController do
 
   operation(:list_providers,
     summary: "List OIDC providers (super only)",
+    description:
+      "Pass `name` to look a single provider up without paging the whole " <>
+        "collection; the response envelope is unchanged and holds zero or one " <>
+        "provider.",
+    parameters: [
+      name: [
+        in: :query,
+        type: :string,
+        description: "Return only the provider with this exact name"
+      ]
+    ],
     responses: [
       ok: {"Providers", "application/json", Schemas.OIDCProviderList},
       forbidden: {"Forbidden", "application/json", Schemas.Error}
@@ -123,8 +134,8 @@ defmodule LynxWeb.OIDCProviderController do
 
   # -- Providers --
 
-  def list_providers(conn, _params) do
-    providers = OIDCBackend.list_providers()
+  def list_providers(conn, params) do
+    providers = providers_for(params["name"])
 
     conn
     |> json(%{
@@ -141,6 +152,21 @@ defmodule LynxWeb.OIDCProviderController do
         end)
     })
   end
+
+  # Exact-name lookup, a shortcut for "list everything and filter client-side".
+  # The endpoint is already super-only, so there is no per-caller visibility to
+  # preserve here. This endpoint has never paginated, so there is no
+  # limit/offset to reconcile — the filtered response is the complete result.
+  # Filtered from the same list the unfiltered branch returns, rather than via
+  # OIDCProviderContext.get_provider_by_name/1: that function is on the OIDC
+  # auth path and matches only active providers, which would hide a disabled
+  # provider here while the unfiltered list still reports it with isActive false.
+  defp providers_for(name) when is_binary(name) and name != "" do
+    OIDCBackend.list_providers()
+    |> Enum.filter(&(&1.name == name))
+  end
+
+  defp providers_for(_), do: OIDCBackend.list_providers()
 
   def create_provider(conn, params) do
     case OIDCBackend.create_provider(%{

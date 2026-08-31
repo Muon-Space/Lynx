@@ -35,9 +35,19 @@ defmodule LynxWeb.TeamController do
 
   operation(:list,
     summary: "List teams",
+    description:
+      "Super users see every team. Regular users only see the teams they " <>
+        "belong to. Pass `slug` to look a single team up without paging the " <>
+        "whole collection; the response envelope is unchanged and holds zero " <>
+        "or one team, subject to the same visibility rules.",
     parameters: [
       limit: [in: :query, type: :integer, description: "Default 10"],
-      offset: [in: :query, type: :integer, description: "Default 0"]
+      offset: [in: :query, type: :integer, description: "Default 0"],
+      slug: [
+        in: :query,
+        type: :string,
+        description: "Return only the team with this exact slug"
+      ]
     ],
     responses: [
       ok: {"Teams", "application/json", Schemas.TeamList},
@@ -123,15 +133,23 @@ defmodule LynxWeb.TeamController do
   List Action Endpoint
   """
   def list(conn, params) do
-    limit = params["limit"] || @default_list_limit
-    offset = params["offset"] || @default_list_offset
+    # Query params arrive as strings. The slug branch slices in memory, and
+    # `Enum.slice/3` raises on a binary or negative bound, so coerce before use.
+    limit = parse_int(params["limit"], @default_list_limit)
+    offset = parse_int(params["offset"], @default_list_offset)
 
     {teams, count} =
-      if conn.assigns[:is_super] do
-        {TeamContext.get_teams(offset, limit), TeamContext.count_teams()}
-      else
-        {TeamContext.get_user_teams_paged(conn.assigns[:user_id], offset, limit),
-         TeamContext.count_user_teams(conn.assigns[:user_id])}
+      case params["slug"] do
+        slug when is_binary(slug) and slug != "" ->
+          teams_by_slug(conn, slug, offset, limit)
+
+        _ ->
+          if conn.assigns[:is_super] do
+            {TeamContext.get_teams(offset, limit), TeamContext.count_teams()}
+          else
+            {TeamContext.get_user_teams_paged(conn.assigns[:user_id], offset, limit),
+             TeamContext.count_user_teams(conn.assigns[:user_id])}
+          end
       end
 
     render(conn, "list.json", %{
@@ -143,6 +161,47 @@ defmodule LynxWeb.TeamController do
       }
     })
   end
+
+  # Exact-slug lookup. This is a shortcut for "page the list and filter
+  # client-side", so it has to be exactly as visible-restricted as the list it
+  # replaces: a regular user's unfiltered list is scoped to their own teams, so
+  # the match is dropped unless they are a member. Limit/offset keep their
+  # normal meaning — `totalCount` is the number of matches (0 or 1) and the
+  # returned page is the requested window over it.
+  defp teams_by_slug(conn, slug, offset, limit) do
+    matches =
+      case TeamContext.get_team_by_slug(slug) do
+        nil -> []
+        team -> if team_visible?(conn, team), do: [team], else: []
+      end
+
+    {Enum.slice(matches, offset, limit), length(matches)}
+  end
+
+  defp team_visible?(conn, team) do
+    if conn.assigns[:is_super] do
+      true
+    else
+      conn.assigns[:user_id]
+      |> TeamContext.get_user_teams()
+      |> Enum.any?(&(&1.id == team.id))
+    end
+  end
+
+  # Query params are strings; internal callers pass integers. Mirrors the
+  # helper in WorkspaceController.
+  defp parse_int(nil, default), do: max(default, 0)
+
+  defp parse_int(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, _} -> max(n, 0)
+      :error -> max(default, 0)
+    end
+  end
+
+  defp parse_int(val, _) when is_integer(val), do: max(val, 0)
+
+  defp parse_int(_, default), do: max(default, 0)
 
   @doc """
   Create Action Endpoint
