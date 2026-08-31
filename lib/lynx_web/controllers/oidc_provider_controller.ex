@@ -158,11 +158,13 @@ defmodule LynxWeb.OIDCProviderController do
   # The endpoint is already super-only, so there is no per-caller visibility to
   # preserve here. This endpoint has never paginated, so there is no
   # limit/offset to reconcile — the filtered response is the complete result.
+  # Filtered from the same list the unfiltered branch returns, rather than via
+  # OIDCProviderContext.get_provider_by_name/1: that function is on the OIDC
+  # auth path and matches only active providers, which would hide a disabled
+  # provider here while the unfiltered list still reports it with isActive false.
   defp providers_for(name) when is_binary(name) and name != "" do
-    case Lynx.Context.OIDCProviderContext.get_provider_by_name(name) do
-      nil -> []
-      provider -> [provider]
-    end
+    OIDCBackend.list_providers()
+    |> Enum.filter(&(&1.name == name))
   end
 
   defp providers_for(_), do: OIDCBackend.list_providers()

@@ -149,6 +149,25 @@ defmodule LynxWeb.OIDCProviderControllerTest do
       assert two.uuid in ids
     end
 
+    test "finds a provider that is not active", %{conn: conn, api_key: api_key} do
+      # The unfiltered listing reports disabled providers with isActive false,
+      # so filtering by name has to find them too.
+      provider = create_test_provider()
+
+      {:ok, disabled} =
+        Lynx.Context.OIDCProviderContext.update_provider(provider, %{is_active: false})
+
+      body =
+        conn
+        |> with_api_key(api_key)
+        |> get("/api/v1/oidc_provider", %{name: disabled.name})
+        |> json_response(200)
+
+      assert length(body["providers"]) == 1
+      assert hd(body["providers"])["id"] == disabled.uuid
+      assert hd(body["providers"])["isActive"] == false
+    end
+
     test "a non-super user is still refused when filtering", %{conn: conn} do
       provider = create_test_provider()
 
