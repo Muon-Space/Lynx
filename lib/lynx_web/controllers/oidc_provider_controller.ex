@@ -39,13 +39,12 @@ defmodule LynxWeb.OIDCProviderController do
     description:
       "Pass `name` to look a single provider up without paging the whole " <>
         "collection; the response envelope is unchanged and holds zero or one " <>
-        "provider. Note the name filter only matches active providers, so an " <>
-        "inactive provider that appears in the unfiltered list will not match.",
+        "provider.",
     parameters: [
       name: [
         in: :query,
         type: :string,
-        description: "Return only the active provider with this exact name"
+        description: "Return only the provider with this exact name"
       ]
     ],
     responses: [
