@@ -222,6 +222,13 @@ defmodule LynxWeb.Router do
     put "/project/:uuid", ProjectController, :update
     delete "/project/:uuid", ProjectController, :delete
 
+    # Policy Endpoints
+    get "/policy", PolicyController, :list
+    post "/policy", PolicyController, :create
+    get "/policy/:uuid", PolicyController, :index
+    put "/policy/:uuid", PolicyController, :update
+    delete "/policy/:uuid", PolicyController, :delete
+
     # Snapshot Endpoints
     get "/snapshot", SnapshotController, :list
     post "/snapshot", SnapshotController, :create

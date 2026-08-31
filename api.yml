@@ -149,7 +149,12 @@ components:
           format: date-time
           type: string
         environmentId:
+          description: Internal key. Prefer environmentUuid.
           type: integer
+        environmentUuid:
+          description: UUID of the environment this rule belongs to.
+          nullable: true
+          type: string
         id:
           description: UUID
           type: string
@@ -158,7 +163,12 @@ components:
         name:
           type: string
         providerId:
+          description: Internal key. Prefer providerUuid.
           type: integer
+        providerUuid:
+          description: UUID of the provider this rule matches against.
+          nullable: true
+          type: string
         role:
           description: Role name granted on match ("planner" / "applier" / "admin").
           nullable: true
@@ -365,6 +375,33 @@ components:
           type: string
       title: ApiKey
       type: object
+    PolicyCreate:
+      description: At most one of workspace_uuid / project_uuid / environment_uuid may be set. Setting none creates a global policy that applies to every environment.
+      properties:
+        description:
+          type: string
+        enabled:
+          description: Defaults to true
+          type: boolean
+        environment_uuid:
+          description: Attach at the environment scope
+          type: string
+        name:
+          type: string
+        project_uuid:
+          description: Attach at the project scope
+          type: string
+        rego_source:
+          description: Rego module source. Compile-checked by OPA before it is stored.
+          type: string
+        workspace_uuid:
+          description: Attach at the workspace scope
+          type: string
+      required:
+        - name
+        - rego_source
+      title: PolicyCreate
+      type: object
     ProjectList:
       properties:
         _metadata:
@@ -424,6 +461,31 @@ components:
           format: date-time
           type: string
       title: Workspace
+      type: object
+    PolicyUpdate:
+      description: Scope is immutable. A scope UUID may be repeated to confirm the existing scope, but any value that would move the policy to a different scope is rejected with 400.
+      properties:
+        description:
+          type: string
+        enabled:
+          type: boolean
+        environment_uuid:
+          description: Must match the current scope
+          type: string
+        name:
+          type: string
+        project_uuid:
+          description: Must match the current scope
+          type: string
+        rego_source:
+          type: string
+        workspace_uuid:
+          description: Must match the current scope
+          type: string
+      required:
+        - name
+        - rego_source
+      title: PolicyUpdate
       type: object
     EnvironmentProjectRef:
       properties:
@@ -595,6 +657,53 @@ components:
           type: integer
       title: ListMetadata
       type: object
+    Policy:
+      description: An OPA Rego policy attached at exactly one scope. Scope is expressed with UUIDs only; the internal integer keys are never exposed.
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        description:
+          type: string
+        enabled:
+          description: Disabled policies stay stored but are left out of the OPA bundle
+          type: boolean
+        environmentId:
+          description: Environment UUID, set only for environment-scoped policies
+          oneOf:
+            - type: string
+            - type: 'null'
+        id:
+          description: UUID
+          type: string
+        name:
+          type: string
+        projectId:
+          description: Project UUID, set only for project-scoped policies
+          oneOf:
+            - type: string
+            - type: 'null'
+        regoSource:
+          description: Rego module source
+          type: string
+        scope:
+          description: Derived from whichever scope UUID is set
+          enum:
+            - global
+            - workspace
+            - project
+            - environment
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        workspaceId:
+          description: Workspace UUID, set only for workspace-scoped policies
+          oneOf:
+            - type: string
+            - type: 'null'
+      title: Policy
+      type: object
     Snapshot:
       properties:
         createdAt:
@@ -635,6 +744,16 @@ components:
             $ref: '#/components/schemas/OIDCRule'
           type: array
       title: OIDCRuleList
+      type: object
+    PolicyList:
+      properties:
+        _metadata:
+          $ref: '#/components/schemas/ListMetadata'
+        policies:
+          items:
+            $ref: '#/components/schemas/Policy'
+          type: array
+      title: PolicyList
       type: object
     TeamList:
       properties:
@@ -709,63 +828,6 @@ info:
   version: 1.27.0
 openapi: 3.0.0
 paths:
-  /api/v1/action/fetch_api_key:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.ProfileController.fetch_api_key
-      parameters: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKey'
-          description: API key
-      security:
-        - api_key: []
-      summary: Fetch the current user's API key
-      tags:
-        - Profile
-  /api/v1/action/rotate_api_key:
-    post:
-      callbacks: {}
-      operationId: LynxWeb.ProfileController.rotate_api_key
-      parameters: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiKey'
-          description: New API key
-      security:
-        - api_key: []
-      summary: Rotate the current user's API key
-      tags:
-        - Profile
-  /api/v1/action/saml_cert:
-    post:
-      callbacks: {}
-      operationId: LynxWeb.SettingsController.generate_saml_cert
-      parameters: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SamlCertResponse'
-          description: Generated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Generate a SAML SP certificate (super only)
-      tags:
-        - Settings
   /api/v1/action/scim_token:
     post:
       callbacks: {}
@@ -800,10 +862,47 @@ paths:
       summary: Mint a new SCIM bearer token (super only)
       tags:
         - Settings
-  /api/v1/action/scim_token/{uuid}:
+  /api/v1/workspace/{uuid}:
     delete:
       callbacks: {}
-      operationId: LynxWeb.SettingsController.revoke_scim_token
+      description: Refuses with 400 while the workspace still holds projects. Reassign or delete those projects first — deleting the workspace also deletes every policy scoped to it.
+      operationId: LynxWeb.WorkspaceController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Workspace deleted
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Workspace is not empty
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a workspace (super only)
+      tags:
+        - Workspaces
+    get:
+      callbacks: {}
+      operationId: LynxWeb.WorkspaceController.index
       parameters:
         - description: ''
           in: path
@@ -816,8 +915,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
-          description: Revoked
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace
         '403':
           content:
             application/json:
@@ -832,153 +931,162 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Revoke a SCIM token (super only)
+      summary: Get a workspace by UUID (super only)
       tags:
-        - Settings
-  /api/v1/action/scim_tokens:
-    get:
+        - Workspaces
+    put:
       callbacks: {}
-      operationId: LynxWeb.SettingsController.list_scim_tokens
-      parameters: []
+      operationId: LynxWeb.WorkspaceController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+        description: Workspace
+        required: false
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ScimTokenList'
-          description: Tokens
+                $ref: '#/components/schemas/Workspace'
+          description: Workspace
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
         '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
       security:
         - api_key: []
-      summary: List SCIM tokens (super only) — values masked
+      summary: Update a workspace (super only)
       tags:
-        - Settings
-  /api/v1/action/update_profile:
+        - Workspaces
+  /api/v1/action/rotate_api_key:
     post:
       callbacks: {}
-      operationId: LynxWeb.ProfileController.update
+      operationId: LynxWeb.ProfileController.rotate_api_key
       parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProfileUpdate'
-        description: Profile fields
-        required: false
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
-          description: Updated
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
+                $ref: '#/components/schemas/ApiKey'
+          description: New API key
       security:
         - api_key: []
-      summary: Update the current user's profile
+      summary: Rotate the current user's API key
       tags:
         - Profile
-  /api/v1/action/update_settings:
-    put:
-      callbacks: {}
-      operationId: LynxWeb.SettingsController.update
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SettingsUpdate'
-        description: Settings
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-          description: Updated
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Update general app settings (super only)
-      tags:
-        - Settings
-  /api/v1/action/update_sso_settings:
-    put:
-      callbacks: {}
-      operationId: LynxWeb.SettingsController.update_sso
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SsoSettingsUpdate'
-        description: SSO settings
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-          description: Updated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Update SSO + auth settings (super only)
-      tags:
-        - Settings
-  /api/v1/audit:
+  /api/v1/action/fetch_api_key:
     get:
       callbacks: {}
-      description: All filter params are optional and AND-combined.
-      operationId: LynxWeb.AuditController.list
+      operationId: LynxWeb.ProfileController.fetch_api_key
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+          description: API key
+      security:
+        - api_key: []
+      summary: Fetch the current user's API key
+      tags:
+        - Profile
+  /api/v1/task/{uuid}:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.TaskController.index
       parameters:
-        - description: Exact action match
-          in: query
-          name: action
-          required: false
+        - description: ''
+          in: path
+          name: uuid
+          required: true
           schema:
             type: string
-        - description: Exact resource type match
-          in: query
-          name: resource_type
-          required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+          description: Task
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a task by UUID
+      tags:
+        - Tasks
+  /api/v1/oidc_rule/{environment_id}:
+    get:
+      callbacks: {}
+      description: Requires `oidc_rule:manage` (admin) on the env's project.
+      operationId: LynxWeb.OIDCProviderController.list_rules
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: environment_id
+          required: true
           schema:
             type: string
-        - description: Exact actor PK
-          in: query
-          name: actor_id
-          required: false
-          schema:
-            type: integer
-        - description: Default 50
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCRuleList'
+          description: Rules
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: List OIDC access rules for an environment
+      tags:
+        - OIDC
+  /api/v1/policy:
+    get:
+      callbacks: {}
+      description: Super users see every policy. Regular users only see policies attached to a project — or to an environment of a project — on which they hold the `policy:manage` permission; global and workspace scopes are super-only and are omitted. Pass at most one scope filter.
+      operationId: LynxWeb.PolicyController.list
+      parameters:
+        - description: Default 10
           in: query
           name: limit
           required: false
@@ -990,34 +1098,30 @@ paths:
           required: false
           schema:
             type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditEventList'
-          description: Events
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: List audit events (super only)
-      tags:
-        - Audit
-  /api/v1/environment/{e_uuid}/lock:
-    post:
-      callbacks: {}
-      description: Requires `state:lock` on the env's project.
-      operationId: LynxWeb.EnvironmentController.force_lock
-      parameters:
-        - description: Environment UUID
-          in: path
-          name: e_uuid
-          required: true
+        - description: Set to `global` to list only unscoped policies (super only)
+          in: query
+          name: scope
+          required: false
+          schema:
+            enum:
+              - global
+            type: string
+        - description: Workspace-scoped only
+          in: query
+          name: workspace_uuid
+          required: false
+          schema:
+            type: string
+        - description: Project-scoped only
+          in: query
+          name: project_uuid
+          required: false
+          schema:
+            type: string
+        - description: Environment-scoped only
+          in: query
+          name: environment_uuid
+          required: false
           schema:
             type: string
       responses:
@@ -1025,14 +1129,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Success'
-          description: Locked
+                $ref: '#/components/schemas/PolicyList'
+          description: Policies
         '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Bad request
+          description: Validation error
         '403':
           content:
             application/json:
@@ -1044,98 +1148,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Not found
+          description: Scope not found
       security:
         - api_key: []
-      summary: Force-lock an environment
+      summary: List policies
       tags:
-        - Environments
-  /api/v1/environment/{e_uuid}/unlock:
+        - Policies
     post:
       callbacks: {}
-      description: |
-        Clears the active lock — the destructive variant. Requires
-        `state:force_unlock` (admin only). Note that the routine post-apply
-        unlock that Terraform calls automatically uses `/tf/.../unlock` and
-        only requires `state:unlock`.
-      operationId: LynxWeb.EnvironmentController.force_unlock
-      parameters:
-        - description: Environment UUID
-          in: path
-          name: e_uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-          description: Unlocked
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Force-unlock an environment (admin only)
-      tags:
-        - Environments
-  /api/v1/oidc_provider:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.OIDCProviderController.list_providers
-      parameters: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OIDCProviderList'
-          description: Providers
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: List OIDC providers (super only)
-      tags:
-        - OIDC
-    post:
-      callbacks: {}
-      operationId: LynxWeb.OIDCProviderController.create_provider
+      description: Global and workspace scopes are super-only. Project and environment scopes also accept a user holding `policy:manage` on the owning project. The rego source is compile-checked by OPA before it is stored, so a syntax error — or an unreachable OPA — returns 400.
+      operationId: LynxWeb.PolicyController.create
       parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OIDCProviderCreate'
-        description: Provider
+              $ref: '#/components/schemas/PolicyCreate'
+        description: Policy
         required: false
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OIDCProvider'
+                $ref: '#/components/schemas/Policy'
           description: Created
         '400':
           content:
@@ -1149,15 +1185,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Scope not found
       security:
         - api_key: []
-      summary: Create an OIDC provider (super only)
+      summary: Create a policy
       tags:
-        - OIDC
-  /api/v1/oidc_provider/{uuid}:
+        - Policies
+  /api/v1/oidc_rule/{uuid}:
     delete:
       callbacks: {}
-      operationId: LynxWeb.OIDCProviderController.delete_provider
+      description: Requires `oidc_rule:manage` (admin) on the env's project.
+      operationId: LynxWeb.OIDCProviderController.delete_rule
       parameters:
         - description: ''
           in: path
@@ -1186,33 +1229,108 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Delete an OIDC provider (super only)
+      summary: Delete an OIDC access rule
       tags:
         - OIDC
-    put:
+  /api/v1/action/scim_tokens:
+    get:
       callbacks: {}
-      operationId: LynxWeb.OIDCProviderController.update_provider
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OIDCProviderCreate'
-        description: Provider
-        required: false
+      operationId: LynxWeb.SettingsController.list_scim_tokens
+      parameters: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OIDCProvider'
-          description: Provider
+                $ref: '#/components/schemas/ScimTokenList'
+          description: Tokens
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List SCIM tokens (super only) — values masked
+      tags:
+        - Settings
+  /api/v1/action/saml_cert:
+    post:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.generate_saml_cert
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlCertResponse'
+          description: Generated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Generate a SAML SP certificate (super only)
+      tags:
+        - Settings
+  /api/v1/team:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamList'
+          description: Teams
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List teams
+      tags:
+        - Teams
+    post:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreate'
+        description: Team
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+          description: Created
         '400':
           content:
             application/json:
@@ -1225,6 +1343,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Forbidden
+      security:
+        - api_key: []
+      summary: Create a team (super only)
+      tags:
+        - Teams
+  /api/v1/snapshot/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
         '404':
           content:
             application/json:
@@ -1233,9 +1370,72 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Update an OIDC provider (super only)
+      summary: Delete a snapshot
       tags:
-        - OIDC
+        - Snapshots
+    get:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+          description: Snapshot
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a snapshot by UUID
+      tags:
+        - Snapshots
+    put:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotUpdate'
+        description: Snapshot
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+          description: Snapshot
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      security:
+        - api_key: []
+      summary: Update a snapshot
+      tags:
+        - Snapshots
   /api/v1/oidc_rule:
     post:
       callbacks: {}
@@ -1279,143 +1479,6 @@ paths:
       summary: Create an OIDC access rule
       tags:
         - OIDC
-  /api/v1/oidc_rule/{environment_id}:
-    get:
-      callbacks: {}
-      description: Requires `oidc_rule:manage` (admin) on the env's project.
-      operationId: LynxWeb.OIDCProviderController.list_rules
-      parameters:
-        - description: Environment UUID
-          in: path
-          name: environment_id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OIDCRuleList'
-          description: Rules
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: List OIDC access rules for an environment
-      tags:
-        - OIDC
-  /api/v1/oidc_rule/{uuid}:
-    delete:
-      callbacks: {}
-      description: Requires `oidc_rule:manage` (admin) on the env's project.
-      operationId: LynxWeb.OIDCProviderController.delete_rule
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Success'
-          description: Deleted
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Delete an OIDC access rule
-      tags:
-        - OIDC
-  /api/v1/project:
-    get:
-      callbacks: {}
-      description: Returns projects the requesting user has any access to (super sees all).
-      operationId: LynxWeb.ProjectController.list
-      parameters:
-        - description: Default 10
-          in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-        - description: Default 0
-          in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectList'
-          description: Projects
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: List projects
-      tags:
-        - Projects
-    post:
-      callbacks: {}
-      operationId: LynxWeb.ProjectController.create
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProjectCreate'
-        description: Project
-        required: false
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: Created
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-      security:
-        - api_key: []
-      summary: Create a project
-      tags:
-        - Projects
   /api/v1/project/{p_uuid}/environment:
     get:
       callbacks: {}
@@ -1499,6 +1562,688 @@ paths:
       summary: Create an environment
       tags:
         - Environments
+  /api/v1/snapshot:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotList'
+          description: Snapshots
+      security:
+        - api_key: []
+      summary: List snapshots
+      tags:
+        - Snapshots
+    post:
+      callbacks: {}
+      operationId: LynxWeb.SnapshotController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotCreate'
+        description: Snapshot
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      security:
+        - api_key: []
+      summary: Create a snapshot
+      tags:
+        - Snapshots
+  /api/v1/project:
+    get:
+      callbacks: {}
+      description: Returns projects the requesting user has any access to (super sees all).
+      operationId: LynxWeb.ProjectController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectList'
+          description: Projects
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List projects
+      tags:
+        - Projects
+    post:
+      callbacks: {}
+      operationId: LynxWeb.ProjectController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+        description: Project
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      security:
+        - api_key: []
+      summary: Create a project
+      tags:
+        - Projects
+  /api/v1/action/update_profile:
+    post:
+      callbacks: {}
+      operationId: LynxWeb.ProfileController.update
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+        description: Profile fields
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+      security:
+        - api_key: []
+      summary: Update the current user's profile
+      tags:
+        - Profile
+  /api/v1/environment/{e_uuid}/lock:
+    post:
+      callbacks: {}
+      description: Requires `state:lock` on the env's project.
+      operationId: LynxWeb.EnvironmentController.force_lock
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Locked
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Force-lock an environment
+      tags:
+        - Environments
+  /api/v1/action/update_settings:
+    put:
+      callbacks: {}
+      operationId: LynxWeb.SettingsController.update
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+        description: Settings
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update general app settings (super only)
+      tags:
+        - Settings
+  /api/v1/policy/{uuid}:
+    delete:
+      callbacks: {}
+      description: Nothing holds a foreign key to a policy, so the delete is unconditional. Historic `plan_checks` rows and `apply_blocked` audit events keep the policy UUID they recorded at the time and simply stop resolving to a live policy.
+      operationId: LynxWeb.PolicyController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Policy deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a policy
+      tags:
+        - Policies
+    get:
+      callbacks: {}
+      operationId: LynxWeb.PolicyController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+          description: Policy
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a policy by UUID
+      tags:
+        - Policies
+    put:
+      callbacks: {}
+      description: Scope is immutable — moving a policy between scopes would change who is allowed to manage it, so a scope UUID that does not match the policy's current scope returns 400.
+      operationId: LynxWeb.PolicyController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyUpdate'
+        description: Policy
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+          description: Policy
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Update a policy
+      tags:
+        - Policies
+  /api/v1/environment/{e_uuid}/unlock:
+    post:
+      callbacks: {}
+      description: |
+        Clears the active lock — the destructive variant. Requires
+        `state:force_unlock` (admin only). Note that the routine post-apply
+        unlock that Terraform calls automatically uses `/tf/.../unlock` and
+        only requires `state:unlock`.
+      operationId: LynxWeb.EnvironmentController.force_unlock
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Unlocked
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Force-unlock an environment (admin only)
+      tags:
+        - Environments
+  /api/v1/workspace:
+    get:
+      callbacks: {}
+      description: Super users see every workspace. Regular users only see workspaces containing at least one project owned by one of their teams.
+      operationId: LynxWeb.WorkspaceController.list
+      parameters:
+        - description: Default 10
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceList'
+          description: Workspaces
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List workspaces
+      tags:
+        - Workspaces
+    post:
+      callbacks: {}
+      operationId: LynxWeb.WorkspaceController.create
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+        description: Workspace
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Create a workspace (super only)
+      tags:
+        - Workspaces
+  /api/v1/oidc_provider:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.list_providers
+      parameters: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCProviderList'
+          description: Providers
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List OIDC providers (super only)
+      tags:
+        - OIDC
+    post:
+      callbacks: {}
+      operationId: LynxWeb.OIDCProviderController.create_provider
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OIDCProviderCreate'
+        description: Provider
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OIDCProvider'
+          description: Created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Create an OIDC provider (super only)
+      tags:
+        - OIDC
+  /api/v1/audit:
+    get:
+      callbacks: {}
+      description: All filter params are optional and AND-combined.
+      operationId: LynxWeb.AuditController.list
+      parameters:
+        - description: Exact action match
+          in: query
+          name: action
+          required: false
+          schema:
+            type: string
+        - description: Exact resource type match
+          in: query
+          name: resource_type
+          required: false
+          schema:
+            type: string
+        - description: Exact actor PK
+          in: query
+          name: actor_id
+          required: false
+          schema:
+            type: integer
+        - description: Default 50
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+        - description: Default 0
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventList'
+          description: Events
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: List audit events (super only)
+      tags:
+        - Audit
+  /api/v1/project/{uuid}:
+    delete:
+      callbacks: {}
+      description: Requires `project:manage` (admin role) on the project.
+      operationId: LynxWeb.ProjectController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Delete a project
+      tags:
+        - Projects
+    get:
+      callbacks: {}
+      operationId: LynxWeb.ProjectController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: Project
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a project by UUID
+      tags:
+        - Projects
+    put:
+      callbacks: {}
+      description: Requires `project:manage` (admin role) on the project.
+      operationId: LynxWeb.ProjectController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+        description: Project
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: Project
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update a project
+      tags:
+        - Projects
   /api/v1/project/{p_uuid}/environment/{e_uuid}:
     delete:
       callbacks: {}
@@ -1619,180 +2364,40 @@ paths:
       summary: Update an environment
       tags:
         - Environments
-  /api/v1/project/{uuid}:
-    delete:
-      callbacks: {}
-      description: Requires `project:manage` (admin role) on the project.
-      operationId: LynxWeb.ProjectController.delete
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Deleted
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Delete a project
-      tags:
-        - Projects
-    get:
-      callbacks: {}
-      operationId: LynxWeb.ProjectController.index
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: Project
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Get a project by UUID
-      tags:
-        - Projects
+  /api/v1/action/update_sso_settings:
     put:
       callbacks: {}
-      description: Requires `project:manage` (admin role) on the project.
-      operationId: LynxWeb.ProjectController.update
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProjectCreate'
-        description: Project
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Project'
-          description: Project
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Update a project
-      tags:
-        - Projects
-  /api/v1/snapshot:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.SnapshotController.list
-      parameters:
-        - description: Default 10
-          in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-        - description: Default 0
-          in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SnapshotList'
-          description: Snapshots
-      security:
-        - api_key: []
-      summary: List snapshots
-      tags:
-        - Snapshots
-    post:
-      callbacks: {}
-      operationId: LynxWeb.SnapshotController.create
+      operationId: LynxWeb.SettingsController.update_sso
       parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SnapshotCreate'
-        description: Snapshot
+              $ref: '#/components/schemas/SsoSettingsUpdate'
+        description: SSO settings
         required: false
       responses:
-        '201':
+        '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Snapshot'
-          description: Created
-        '400':
+                $ref: '#/components/schemas/Success'
+          description: Updated
+        '403':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Validation error
+          description: Forbidden
       security:
         - api_key: []
-      summary: Create a snapshot
+      summary: Update SSO + auth settings (super only)
       tags:
-        - Snapshots
-  /api/v1/snapshot/restore/{uuid}:
-    post:
+        - Settings
+  /api/v1/action/scim_token/{uuid}:
+    delete:
       callbacks: {}
-      description: |
-        Re-creates environments and replays state versions from the snapshot.
-        Requires the `snapshot:restore` permission (admin role) on the
-        snapshot's owning project.
-      operationId: LynxWeb.SnapshotController.restore
+      operationId: LynxWeb.SettingsController.revoke_scim_token
       parameters:
         - description: ''
           in: path
@@ -1806,13 +2411,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Success'
-          description: Restored
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Bad request
+          description: Revoked
         '403':
           content:
             application/json:
@@ -1827,13 +2426,13 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Restore a snapshot (admin only)
+      summary: Revoke a SCIM token (super only)
       tags:
-        - Snapshots
-  /api/v1/snapshot/{uuid}:
+        - Settings
+  /api/v1/oidc_provider/{uuid}:
     delete:
       callbacks: {}
-      operationId: LynxWeb.SnapshotController.delete
+      operationId: LynxWeb.OIDCProviderController.delete_provider
       parameters:
         - description: ''
           in: path
@@ -1842,8 +2441,18 @@ paths:
           schema:
             type: string
       responses:
-        '204':
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
           description: Deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
         '404':
           content:
             application/json:
@@ -1852,40 +2461,12 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Delete a snapshot
+      summary: Delete an OIDC provider (super only)
       tags:
-        - Snapshots
-    get:
-      callbacks: {}
-      operationId: LynxWeb.SnapshotController.index
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Snapshot'
-          description: Snapshot
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Get a snapshot by UUID
-      tags:
-        - Snapshots
+        - OIDC
     put:
       callbacks: {}
-      operationId: LynxWeb.SnapshotController.update
+      operationId: LynxWeb.OIDCProviderController.update_provider
       parameters:
         - description: ''
           in: path
@@ -1897,168 +2478,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SnapshotUpdate'
-        description: Snapshot
+              $ref: '#/components/schemas/OIDCProviderCreate'
+        description: Provider
         required: false
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Snapshot'
-          description: Snapshot
+                $ref: '#/components/schemas/OIDCProvider'
+          description: Provider
         '400':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Validation error
-      security:
-        - api_key: []
-      summary: Update a snapshot
-      tags:
-        - Snapshots
-  /api/v1/task/{uuid}:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.TaskController.index
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Task'
-          description: Task
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Get a task by UUID
-      tags:
-        - Tasks
-  /api/v1/team:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.TeamController.list
-      parameters:
-        - description: Default 10
-          in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-        - description: Default 0
-          in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TeamList'
-          description: Teams
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: List teams
-      tags:
-        - Teams
-    post:
-      callbacks: {}
-      operationId: LynxWeb.TeamController.create
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TeamCreate'
-        description: Team
-        required: false
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Team'
-          description: Created
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Create a team (super only)
-      tags:
-        - Teams
-  /api/v1/team/{uuid}:
-    delete:
-      callbacks: {}
-      operationId: LynxWeb.TeamController.delete
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Team deleted
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Delete a team (super only)
-      tags:
-        - Teams
-    get:
-      callbacks: {}
-      operationId: LynxWeb.TeamController.index
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Team'
-          description: Team
         '403':
           content:
             application/json:
@@ -2073,120 +2508,9 @@ paths:
           description: Not found
       security:
         - api_key: []
-      summary: Get a team by UUID (super only)
+      summary: Update an OIDC provider (super only)
       tags:
-        - Teams
-    put:
-      callbacks: {}
-      operationId: LynxWeb.TeamController.update
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TeamCreate'
-        description: Team
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Team'
-          description: Team
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Update a team (super only)
-      tags:
-        - Teams
-  /api/v1/user:
-    get:
-      callbacks: {}
-      operationId: LynxWeb.UserController.list
-      parameters:
-        - description: Default 10
-          in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-        - description: Default 0
-          in: query
-          name: offset
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserList'
-          description: Users
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: List users (super only)
-      tags:
-        - Users
-    post:
-      callbacks: {}
-      operationId: LynxWeb.UserController.create
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserCreate'
-        description: User
-        required: false
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-          description: Created
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-      security:
-        - api_key: []
-      summary: Create a user (super only)
-      tags:
-        - Users
+        - OIDC
   /api/v1/user/{uuid}:
     delete:
       callbacks: {}
@@ -2287,11 +2611,155 @@ paths:
       summary: Update a user (super only)
       tags:
         - Users
-  /api/v1/workspace:
+  /api/v1/team/{uuid}:
+    delete:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.delete
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Team deleted
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Delete a team (super only)
+      tags:
+        - Teams
     get:
       callbacks: {}
-      description: Super users see every workspace. Regular users only see workspaces containing at least one project owned by one of their teams.
-      operationId: LynxWeb.WorkspaceController.list
+      operationId: LynxWeb.TeamController.index
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+          description: Team
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Get a team by UUID (super only)
+      tags:
+        - Teams
+    put:
+      callbacks: {}
+      operationId: LynxWeb.TeamController.update
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreate'
+        description: Team
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+          description: Team
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation error
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      security:
+        - api_key: []
+      summary: Update a team (super only)
+      tags:
+        - Teams
+  /api/v1/snapshot/restore/{uuid}:
+    post:
+      callbacks: {}
+      description: |
+        Re-creates environments and replays state versions from the snapshot.
+        Requires the `snapshot:restore` permission (admin role) on the
+        snapshot's owning project.
+      operationId: LynxWeb.SnapshotController.restore
+      parameters:
+        - description: ''
+          in: path
+          name: uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Success'
+          description: Restored
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+      security:
+        - api_key: []
+      summary: Restore a snapshot (admin only)
+      tags:
+        - Snapshots
+  /api/v1/user:
+    get:
+      callbacks: {}
+      operationId: LynxWeb.UserController.list
       parameters:
         - description: Default 10
           in: query
@@ -2310,8 +2778,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkspaceList'
-          description: Workspaces
+                $ref: '#/components/schemas/UserList'
+          description: Users
         '403':
           content:
             application/json:
@@ -2320,26 +2788,26 @@ paths:
           description: Forbidden
       security:
         - api_key: []
-      summary: List workspaces
+      summary: List users (super only)
       tags:
-        - Workspaces
+        - Users
     post:
       callbacks: {}
-      operationId: LynxWeb.WorkspaceController.create
+      operationId: LynxWeb.UserController.create
       parameters: []
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WorkspaceCreate'
-        description: Workspace
+              $ref: '#/components/schemas/UserCreate'
+        description: User
         required: false
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Workspace'
+                $ref: '#/components/schemas/User'
           description: Created
         '400':
           content:
@@ -2355,128 +2823,9 @@ paths:
           description: Forbidden
       security:
         - api_key: []
-      summary: Create a workspace (super only)
+      summary: Create a user (super only)
       tags:
-        - Workspaces
-  /api/v1/workspace/{uuid}:
-    delete:
-      callbacks: {}
-      description: Refuses with 400 while the workspace still holds projects. Reassign or delete those projects first — deleting the workspace also deletes every policy scoped to it.
-      operationId: LynxWeb.WorkspaceController.delete
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Workspace deleted
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Workspace is not empty
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Delete a workspace (super only)
-      tags:
-        - Workspaces
-    get:
-      callbacks: {}
-      operationId: LynxWeb.WorkspaceController.index
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Workspace'
-          description: Workspace
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Get a workspace by UUID (super only)
-      tags:
-        - Workspaces
-    put:
-      callbacks: {}
-      operationId: LynxWeb.WorkspaceController.update
-      parameters:
-        - description: ''
-          in: path
-          name: uuid
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkspaceCreate'
-        description: Workspace
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Workspace'
-          description: Workspace
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Validation error
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Forbidden
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not found
-      security:
-        - api_key: []
-      summary: Update a workspace (super only)
-      tags:
-        - Workspaces
+        - Users
 security:
   - api_key: []
 servers:

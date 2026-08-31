@@ -384,6 +384,116 @@ defmodule LynxWeb.Schemas.EnvironmentCreate do
   })
 end
 
+# -- Policy --
+
+defmodule LynxWeb.Schemas.Policy do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "Policy",
+    description:
+      "An OPA Rego policy attached at exactly one scope. Scope is expressed " <>
+        "with UUIDs only; the internal integer keys are never exposed.",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, description: "UUID"},
+      name: %Schema{type: :string},
+      description: %Schema{type: :string},
+      regoSource: %Schema{type: :string, description: "Rego module source"},
+      enabled: %Schema{
+        type: :boolean,
+        description: "Disabled policies stay stored but are left out of the OPA bundle"
+      },
+      scope: %Schema{
+        type: :string,
+        enum: ["global", "workspace", "project", "environment"],
+        description: "Derived from whichever scope UUID is set"
+      },
+      workspaceId: %Schema{
+        oneOf: [%Schema{type: :string}, %Schema{type: :null}],
+        description: "Workspace UUID, set only for workspace-scoped policies"
+      },
+      projectId: %Schema{
+        oneOf: [%Schema{type: :string}, %Schema{type: :null}],
+        description: "Project UUID, set only for project-scoped policies"
+      },
+      environmentId: %Schema{
+        oneOf: [%Schema{type: :string}, %Schema{type: :null}],
+        description: "Environment UUID, set only for environment-scoped policies"
+      },
+      createdAt: %Schema{type: :string, format: :"date-time"},
+      updatedAt: %Schema{type: :string, format: :"date-time"}
+    }
+  })
+end
+
+defmodule LynxWeb.Schemas.PolicyList do
+  alias OpenApiSpex.Schema
+  alias LynxWeb.Schemas.{ListMetadata, Policy}
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "PolicyList",
+    type: :object,
+    properties: %{
+      policies: %Schema{type: :array, items: Policy},
+      _metadata: ListMetadata
+    }
+  })
+end
+
+defmodule LynxWeb.Schemas.PolicyCreate do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "PolicyCreate",
+    description:
+      "At most one of workspace_uuid / project_uuid / environment_uuid may " <>
+        "be set. Setting none creates a global policy that applies to every " <>
+        "environment.",
+    type: :object,
+    required: [:name, :rego_source],
+    properties: %{
+      name: %Schema{type: :string},
+      description: %Schema{type: :string},
+      rego_source: %Schema{
+        type: :string,
+        description: "Rego module source. Compile-checked by OPA before it is stored."
+      },
+      enabled: %Schema{type: :boolean, description: "Defaults to true"},
+      workspace_uuid: %Schema{type: :string, description: "Attach at the workspace scope"},
+      project_uuid: %Schema{type: :string, description: "Attach at the project scope"},
+      environment_uuid: %Schema{type: :string, description: "Attach at the environment scope"}
+    }
+  })
+end
+
+defmodule LynxWeb.Schemas.PolicyUpdate do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "PolicyUpdate",
+    description:
+      "Scope is immutable. A scope UUID may be repeated to confirm the " <>
+        "existing scope, but any value that would move the policy to a " <>
+        "different scope is rejected with 400.",
+    type: :object,
+    required: [:name, :rego_source],
+    properties: %{
+      name: %Schema{type: :string},
+      description: %Schema{type: :string},
+      rego_source: %Schema{type: :string},
+      enabled: %Schema{type: :boolean},
+      workspace_uuid: %Schema{type: :string, description: "Must match the current scope"},
+      project_uuid: %Schema{type: :string, description: "Must match the current scope"},
+      environment_uuid: %Schema{type: :string, description: "Must match the current scope"}
+    }
+  })
+end
+
 # -- Snapshot --
 
 defmodule LynxWeb.Schemas.SnapshotTeamRef do
@@ -591,8 +701,18 @@ defmodule LynxWeb.Schemas.OIDCRule do
       id: %Schema{type: :string, description: "UUID"},
       name: %Schema{type: :string},
       claimRules: %Schema{type: :object, additionalProperties: %Schema{type: :string}},
-      providerId: %Schema{type: :integer},
-      environmentId: %Schema{type: :integer},
+      providerId: %Schema{type: :integer, description: "Internal key. Prefer providerUuid."},
+      providerUuid: %Schema{
+        type: :string,
+        nullable: true,
+        description: "UUID of the provider this rule matches against."
+      },
+      environmentId: %Schema{type: :integer, description: "Internal key. Prefer environmentUuid."},
+      environmentUuid: %Schema{
+        type: :string,
+        nullable: true,
+        description: "UUID of the environment this rule belongs to."
+      },
       role: %Schema{
         type: :string,
         nullable: true,

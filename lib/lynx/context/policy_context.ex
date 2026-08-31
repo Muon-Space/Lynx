@@ -170,6 +170,72 @@ defmodule Lynx.Context.PolicyContext do
     |> Repo.all()
   end
 
+  @doc """
+  Every policy across every scope, paginated in the database. Used by the
+  REST list endpoint for super users, who see all four scopes.
+  """
+  def list_policies(offset, limit) do
+    from(p in Policy,
+      order_by: [asc: p.name, asc: p.id],
+      limit: ^limit,
+      offset: ^offset
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Policies attached to any of `project_ids`, either directly (project
+  scope) or through one of their environments (environment scope).
+
+  This is the non-super visibility set for the REST list endpoint:
+  global and workspace scopes stay super-only, so they are excluded by
+  construction. Returns the whole set in one query — the caller
+  paginates — so `totalCount` stays accurate.
+  """
+  def list_policies_for_projects([]), do: []
+
+  def list_policies_for_projects(project_ids) when is_list(project_ids) do
+    env_ids_query = from(e in Environment, where: e.project_id in ^project_ids, select: e.id)
+
+    from(p in Policy,
+      where: p.project_id in ^project_ids or p.environment_id in subquery(env_ids_query),
+      order_by: [asc: p.name, asc: p.id]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Resolve each policy's integer scope FK to the matching UUID so renderers
+  never have to leak internal primary keys.
+
+  Returns `%{policy_id => %{workspace_uuid: _, project_uuid: _,
+  environment_uuid: _}}` with `nil` for the scopes a policy does not use
+  (all three are `nil` for a global policy). Three batched queries
+  regardless of how many policies or scopes are in the list.
+  """
+  def scope_uuids_for(policies) when is_list(policies) do
+    workspaces = uuid_map(Workspace, Enum.flat_map(policies, &maybe_id(&1.workspace_id)))
+    projects = uuid_map(Project, Enum.flat_map(policies, &maybe_id(&1.project_id)))
+    envs = uuid_map(Environment, Enum.flat_map(policies, &maybe_id(&1.environment_id)))
+
+    Map.new(policies, fn p ->
+      {p.id,
+       %{
+         workspace_uuid: Map.get(workspaces, p.workspace_id),
+         project_uuid: Map.get(projects, p.project_id),
+         environment_uuid: Map.get(envs, p.environment_id)
+       }}
+    end)
+  end
+
+  defp uuid_map(_schema, []), do: %{}
+
+  defp uuid_map(schema, ids) do
+    from(r in schema, where: r.id in ^ids, select: {r.id, r.uuid})
+    |> Repo.all()
+    |> Map.new()
+  end
+
   def count_policies do
     from(p in Policy, select: count(p.id)) |> Repo.one()
   end

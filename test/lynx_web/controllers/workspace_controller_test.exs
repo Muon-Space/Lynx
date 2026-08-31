@@ -98,6 +98,23 @@ defmodule LynxWeb.WorkspaceControllerTest do
       assert body["workspaces"] == []
       assert body["_metadata"]["totalCount"] == 0
     end
+
+    test "regular user can paginate", %{conn: _conn} do
+      # The regular-user branch slices in memory rather than in the database,
+      # and query params arrive as strings, so this combination used to raise.
+      # The super-user branch goes through Ecto, which tolerates the strings —
+      # which is why the list tests below did not catch it.
+      {_user, regular_key} = create_regular_user_with_api_key()
+
+      body =
+        build_conn()
+        |> with_api_key(regular_key)
+        |> get("/api/v1/workspace", %{limit: 1, offset: 0})
+        |> json_response(200)
+
+      assert body["_metadata"]["limit"] == 1
+      assert body["_metadata"]["offset"] == 0
+    end
   end
 
   describe "list" do
@@ -134,8 +151,8 @@ defmodule LynxWeb.WorkspaceControllerTest do
         |> json_response(200)
 
       assert length(body["workspaces"]) == 2
-      assert body["_metadata"]["limit"] == "2"
-      assert body["_metadata"]["offset"] == "0"
+      assert body["_metadata"]["limit"] == 2
+      assert body["_metadata"]["offset"] == 0
       assert body["_metadata"]["totalCount"] == total
 
       page_two =

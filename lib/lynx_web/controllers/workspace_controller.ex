@@ -135,8 +135,10 @@ defmodule LynxWeb.WorkspaceController do
   List Action Endpoint
   """
   def list(conn, params) do
-    limit = params["limit"] || @default_list_limit
-    offset = params["offset"] || @default_list_offset
+    # Query params arrive as strings. The non-super branch slices in memory, and
+    # Enum.slice/3 raises on a binary offset or limit, so coerce before use.
+    limit = parse_int(params["limit"], @default_list_limit)
+    offset = parse_int(params["offset"], @default_list_offset)
 
     {workspaces, count} =
       if conn.assigns[:is_super] do
@@ -400,4 +402,17 @@ defmodule LynxWeb.WorkspaceController do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  # Query params are strings; internal callers pass integers. Mirrors the
+  # helper in AuditController.
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(val, default) when is_binary(val) do
+    case Integer.parse(val) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+
+  defp parse_int(val, _) when is_integer(val), do: val
 end
