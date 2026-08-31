@@ -825,7 +825,7 @@ info:
     name: MIT
     url: https://github.com/Muon-Space/Lynx/blob/main/LICENSE
   title: Lynx
-  version: 1.27.0
+  version: 1.28.0
 openapi: 3.0.0
 paths:
   /api/v1/action/scim_token:
