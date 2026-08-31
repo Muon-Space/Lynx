@@ -1281,6 +1281,7 @@ paths:
   /api/v1/team:
     get:
       callbacks: {}
+      description: Super users see every team. Regular users only see the teams they belong to. Pass `slug` to look a single team up without paging the whole collection; the response envelope is unchanged and holds zero or one team, subject to the same visibility rules.
       operationId: LynxWeb.TeamController.list
       parameters:
         - description: Default 10
@@ -1295,6 +1296,12 @@ paths:
           required: false
           schema:
             type: integer
+        - description: Return only the team with this exact slug
+          in: query
+          name: slug
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           content:
@@ -1956,7 +1963,7 @@ paths:
   /api/v1/workspace:
     get:
       callbacks: {}
-      description: Super users see every workspace. Regular users only see workspaces containing at least one project owned by one of their teams.
+      description: Super users see every workspace. Regular users only see workspaces containing at least one project owned by one of their teams. Pass `slug` to look a single workspace up without paging the whole collection; the response envelope is unchanged and holds zero or one workspace, subject to the same visibility rules.
       operationId: LynxWeb.WorkspaceController.list
       parameters:
         - description: Default 10
@@ -1971,6 +1978,12 @@ paths:
           required: false
           schema:
             type: integer
+        - description: Return only the workspace with this exact slug
+          in: query
+          name: slug
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           content:
@@ -2027,8 +2040,15 @@ paths:
   /api/v1/oidc_provider:
     get:
       callbacks: {}
+      description: Pass `name` to look a single provider up without paging the whole collection; the response envelope is unchanged and holds zero or one provider. Note the name filter only matches active providers, so an inactive provider that appears in the unfiltered list will not match.
       operationId: LynxWeb.OIDCProviderController.list_providers
-      parameters: []
+      parameters:
+        - description: Return only the active provider with this exact name
+          in: query
+          name: name
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           content:

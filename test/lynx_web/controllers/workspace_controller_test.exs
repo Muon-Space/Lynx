@@ -169,6 +169,134 @@ defmodule LynxWeb.WorkspaceControllerTest do
     end
   end
 
+  describe "list filtered by slug" do
+    test "returns only the matching workspace", %{conn: conn, api_key: api_key} do
+      create_workspace(conn, api_key, %{
+        name: "Platform",
+        slug: "platform",
+        description: "platform workspace"
+      })
+
+      create_workspace(conn, api_key, %{
+        name: "Other",
+        slug: "other",
+        description: "other workspace"
+      })
+
+      body =
+        build_conn()
+        |> with_api_key(api_key)
+        |> get("/api/v1/workspace", %{slug: "platform"})
+        |> json_response(200)
+
+      assert length(body["workspaces"]) == 1
+      assert hd(body["workspaces"])["slug"] == "platform"
+      assert body["_metadata"]["totalCount"] == 1
+    end
+
+    test "returns an empty list when nothing matches", %{conn: conn, api_key: api_key} do
+      create_workspace(conn, api_key, %{
+        name: "Platform",
+        slug: "platform",
+        description: "platform workspace"
+      })
+
+      body =
+        build_conn()
+        |> with_api_key(api_key)
+        |> get("/api/v1/workspace", %{slug: "does-not-exist"})
+        |> json_response(200)
+
+      assert body["workspaces"] == []
+      assert body["_metadata"]["totalCount"] == 0
+    end
+
+    test "an absent slug leaves the unfiltered listing alone", %{conn: conn, api_key: api_key} do
+      create_workspace(conn, api_key, %{
+        name: "Platform",
+        slug: "platform",
+        description: "platform workspace"
+      })
+
+      total = WorkspaceContext.count_workspaces()
+
+      body =
+        build_conn()
+        |> with_api_key(api_key)
+        |> get("/api/v1/workspace")
+        |> json_response(200)
+
+      assert body["_metadata"]["totalCount"] == total
+      assert Enum.any?(body["workspaces"], &(&1["slug"] == "platform"))
+    end
+
+    test "a regular user cannot see a workspace they could not list", %{
+      conn: conn,
+      api_key: api_key
+    } do
+      create_workspace(conn, api_key, %{
+        name: "Hidden",
+        slug: "hidden",
+        description: "holds no projects of theirs"
+      })
+
+      {_user, regular_key} = create_regular_user_with_api_key()
+
+      body =
+        build_conn()
+        |> with_api_key(regular_key)
+        |> get("/api/v1/workspace", %{slug: "hidden"})
+        |> json_response(200)
+
+      assert body["workspaces"] == []
+      assert body["_metadata"]["totalCount"] == 0
+    end
+
+    test "a regular user can look up a workspace they can list", %{conn: conn, api_key: api_key} do
+      {_conn, ws_uuid} =
+        create_workspace(conn, api_key, %{
+          name: "Shared",
+          slug: "shared",
+          description: "holds one of their team's projects"
+        })
+
+      {user, regular_key} = create_regular_user_with_api_key()
+
+      team_uuid =
+        build_conn()
+        |> with_api_key(api_key)
+        |> post("/api/v1/team", %{
+          name: "Owners",
+          slug: "owners",
+          description: "owning team",
+          members: [user.uuid]
+        })
+        |> json_response(201)
+        |> Map.get("id")
+
+      build_conn()
+      |> with_api_key(api_key)
+      |> post("/api/v1/project", %{
+        name: "Backend",
+        slug: "backend",
+        description: "API server",
+        workspace_id: ws_uuid,
+        team_ids: [team_uuid]
+      })
+      |> json_response(201)
+
+      body =
+        build_conn()
+        |> with_api_key(regular_key)
+        |> get("/api/v1/workspace", %{slug: "shared"})
+        |> json_response(200)
+
+      assert length(body["workspaces"]) == 1
+      assert hd(body["workspaces"])["id"] == ws_uuid
+      assert body["_metadata"]["totalCount"] == 1
+    end
+  end
+
   describe "create" do
     test "creates a workspace", %{conn: conn, api_key: api_key} do
       conn =
