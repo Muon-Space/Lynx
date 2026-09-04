@@ -85,6 +85,29 @@ defmodule LynxWeb.EnvironmentLiveTest do
       assert html =~ "No units yet"
     end
 
+    test "unit link for a nested sub_path navigates to the state explorer", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      _ = create_state(env, %{sub_path: "network/dns", value: ~s({"only":"nested"})})
+
+      {:ok, _view, html} = live(conn, env_path(project, env))
+
+      expected =
+        "/admin/projects/#{project.uuid}/environments/#{env.uuid}/state/network/dns"
+
+      # The View link href must be a routable path...
+      assert [_ | _] =
+               html
+               |> Floki.parse_document!()
+               |> Floki.find(~s(a[href="#{expected}"]))
+
+      # ...and following it mounts the explorer for that unit.
+      {:ok, _view, html} = live(conn, expected)
+      assert html =~ "network/dns"
+    end
+
     test "?oidc=1 deep-link opens the OIDC rules modal on mount", %{
       conn: conn,
       project: project,

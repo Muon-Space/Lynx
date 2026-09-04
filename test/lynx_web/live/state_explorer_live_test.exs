@@ -503,5 +503,40 @@ defmodule LynxWeb.StateExplorerLiveTest do
       {:ok, view, _} = live(conn, explorer_path(project, env, "dns"))
       assert viewer_state(view, 1) == %{"only" => "dns"}
     end
+
+    test "nested sub_path with slashes mounts and filters correctly", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      create_state(env, %{sub_path: "network/dns/zone", value: ~s({"only":"nested"})})
+
+      {:ok, view, html} = live(conn, explorer_path(project, env, "network/dns/zone"))
+
+      assert html =~ "network/dns/zone"
+      assert viewer_state(view, 1) == %{"only" => "nested"}
+
+      # Root explorer must not pick up the nested unit's state
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      assert viewer_state(view, 3) == %{"v" => 3}
+    end
+
+    test "lock badge and lock/unlock target the nested sub_path", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      create_state(env, %{sub_path: "network/dns", value: "{}"})
+
+      {:ok, view, html} = live(conn, explorer_path(project, env, "network/dns"))
+      assert html =~ "Unit Unlocked"
+
+      render_click(view, "lock_unit", %{})
+
+      assert render(view) =~ "Unit Locked"
+      assert LockContext.get_active_lock_by_environment_and_path(env.id, "network/dns") != nil
+      # The root unit stays unlocked
+      assert LockContext.get_active_lock_by_environment_and_path(env.id, "") == nil
+    end
   end
 end
