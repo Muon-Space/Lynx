@@ -65,7 +65,9 @@ defmodule LynxWeb.Router do
       live "/admin/projects/:project_uuid/environments/:env_uuid/state",
            StateExplorerLive
 
-      live "/admin/projects/:project_uuid/environments/:env_uuid/state/:sub_path",
+      # Glob, not `:sub_path` — unit names from nested submodules contain
+      # slashes (e.g. terragrunt `path_relative_to_include()` → "networking/vpc").
+      live "/admin/projects/:project_uuid/environments/:env_uuid/state/*sub_path",
            StateExplorerLive
 
       live "/admin/projects/:project_uuid/policies", PolicyLive

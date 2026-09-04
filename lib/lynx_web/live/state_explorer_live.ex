@@ -8,7 +8,13 @@ defmodule LynxWeb.StateExplorerLive do
 
   @impl true
   def mount(%{"project_uuid" => project_uuid, "env_uuid" => env_uuid} = params, _session, socket) do
-    sub_path = params["sub_path"] || ""
+    # The route uses a glob (`*sub_path`) so unit names with slashes work;
+    # the param is a list of segments (or nil on the bare /state route).
+    sub_path =
+      case params["sub_path"] do
+        nil -> ""
+        parts -> Enum.join(parts, "/")
+      end
 
     case ProjectContext.fetch_project_by_uuid(project_uuid) do
       {:not_found, _} ->
