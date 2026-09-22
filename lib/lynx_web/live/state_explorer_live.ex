@@ -44,8 +44,10 @@ defmodule LynxWeb.StateExplorerLive do
             selected = max_version
 
             is_locked =
-              Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) !=
-                nil
+              Lynx.Context.LockContext.get_active_exclusive_lock(env.id, sub_path) != nil
+
+            planning_count =
+              length(Lynx.Context.LockContext.list_active_shared_locks(env.id, sub_path))
 
             # Env-aware: per-env overrides apply for state lock/unlock buttons.
             viewer_perms =
@@ -66,6 +68,7 @@ defmodule LynxWeb.StateExplorerLive do
               # render (single-pane view), same as the previous nil default.
               |> assign(:compare_version, selected)
               |> assign(:is_locked, is_locked)
+              |> assign(:planning_count, planning_count)
               |> assign(:confirm, nil)
               |> assign(:snapshot_version, nil)
               |> assign(:viewer_perms, viewer_perms)
@@ -139,6 +142,9 @@ defmodule LynxWeb.StateExplorerLive do
             {if @is_locked, do: "Unit Locked", else: "Unit Unlocked"}
           </.badge>
         </span>
+        <.badge :if={@planning_count > 0} color="blue" class="ml-1" title="In-flight terraform plans holding shared locks on this unit">
+          {@planning_count} planning
+        </.badge>
       </div>
 
       <.card class="mb-6">
@@ -349,10 +355,9 @@ defmodule LynxWeb.StateExplorerLive do
       env = socket.assigns.env
       sub_path = socket.assigns.sub_path
 
-      case Lynx.Context.LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
-        nil -> :ok
-        lock -> Lynx.Context.LockContext.update_lock(lock, %{is_active: false})
-      end
+      # Admin button: clear every active lock on the unit, exclusive and
+      # shared alike.
+      Lynx.Context.LockContext.force_unlock_unit(env.id, sub_path)
 
       label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
 
@@ -364,7 +369,11 @@ defmodule LynxWeb.StateExplorerLive do
         label
       )
 
-      {:noreply, socket |> assign(:is_locked, false) |> put_flash(:info, "Unit unlocked")}
+      {:noreply,
+       socket
+       |> assign(:is_locked, false)
+       |> assign(:planning_count, 0)
+       |> put_flash(:info, "Unit unlocked")}
     end)
   end
 

@@ -5,10 +5,19 @@
 defmodule Lynx.Model.Lock do
   @moduledoc """
   Lock Model
+
+  `mode` is `"shared"` for read-only operations (`terraform plan`) and
+  `"exclusive"` for everything that may write state. Any number of shared
+  locks can be active on one path; at most one exclusive lock can be, which
+  the `locks_unique_active_exclusive_per_path` partial index enforces.
   """
 
   use Ecto.Schema
   import Ecto.Changeset
+
+  @modes ~w(shared exclusive)
+
+  def modes, do: @modes
 
   schema "locks" do
     field :uuid, Ecto.UUID
@@ -19,6 +28,7 @@ defmodule Lynx.Model.Lock do
     field :version, :string
     field :path, :string
     field :sub_path, :string, default: ""
+    field :mode, :string, default: "exclusive"
     field :is_active, :boolean
 
     timestamps()
@@ -36,12 +46,17 @@ defmodule Lynx.Model.Lock do
       :version,
       :path,
       :sub_path,
+      :mode,
       :is_active
     ])
     |> validate_required([
       :uuid,
-      :environment_id
+      :environment_id,
+      :mode
     ])
-    |> unique_constraint([:environment_id, :sub_path], name: :locks_unique_active_per_path)
+    |> validate_inclusion(:mode, @modes)
+    |> unique_constraint([:environment_id, :sub_path],
+      name: :locks_unique_active_exclusive_per_path
+    )
   end
 end

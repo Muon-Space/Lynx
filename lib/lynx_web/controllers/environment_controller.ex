@@ -118,7 +118,8 @@ defmodule LynxWeb.EnvironmentController do
 
   operation(:force_lock,
     summary: "Force-lock an environment",
-    description: "Requires `state:lock` on the env's project.",
+    description:
+      "Takes an exclusive env-wide lock, which blocks every Terraform operation including plans. Refused if any exclusive lock is already active in the environment; in-flight plans (shared locks) do not prevent it. Requires `state:lock` on the env's project.",
     parameters: [
       e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"]
     ],
@@ -133,10 +134,11 @@ defmodule LynxWeb.EnvironmentController do
   operation(:force_unlock,
     summary: "Force-unlock an environment (admin only)",
     description: """
-    Clears the active lock — the destructive variant. Requires
-    `state:force_unlock` (admin only). Note that the routine post-apply
-    unlock that Terraform calls automatically uses `/tf/.../unlock` and
-    only requires `state:unlock`.
+    Clears every active lock on the environment (the env-wide lock, each
+    unit's exclusive lock and any shared plan locks) — the destructive
+    variant. Requires `state:force_unlock` (admin only). Note that the
+    routine post-apply unlock that Terraform calls automatically uses
+    `/tf/.../unlock` and only requires `state:unlock`.
     """,
     parameters: [
       e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"]

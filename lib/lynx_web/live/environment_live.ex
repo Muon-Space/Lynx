@@ -80,6 +80,7 @@ defmodule LynxWeb.EnvironmentLive do
               |> assign(:env, env)
               |> assign(:app_url, app_url)
               |> assign(:env_locked, LockContext.is_environment_locked(env.id))
+              |> assign(:planning_count, LockContext.count_active_shared_locks(env.id))
               |> assign(:confirm, nil)
               |> assign(:config_tab, "terraform")
               |> assign(:viewer_perms, viewer_perms)
@@ -147,6 +148,9 @@ defmodule LynxWeb.EnvironmentLive do
               {if @env_locked, do: "Environment Locked", else: "Environment Unlocked"}
             </.badge>
           </span>
+          <.badge :if={@planning_count > 0} color="blue" class="ml-1" title="Shared locks held by in-flight terraform plans. They never block anything; an apply proceeds without waiting for them.">
+            {@planning_count} {if @planning_count == 1, do: "plan", else: "plans"} in flight
+          </.badge>
         </div>
       </div>
 
@@ -230,6 +234,9 @@ defmodule LynxWeb.EnvironmentLive do
                 {if unit.is_locked, do: "Locked", else: "Not Locked"}
               </.badge>
             </span>
+            <.badge :if={unit.planning_count > 0} color="blue" class="ml-1" title="In-flight terraform plans holding shared locks on this unit">
+              {unit.planning_count} planning
+            </.badge>
           </:col>
           <:col :let={unit} label="State">v{unit.count}</:col>
           <:col :let={unit} label="Last Updated">
@@ -503,9 +510,8 @@ defmodule LynxWeb.EnvironmentLive do
 
       {:noreply,
        socket
-       |> assign(:env_locked, true)
        |> put_flash(:info, "Environment locked")
-       |> load_units()}
+       |> refresh_lock_state()}
     end)
   end
 
@@ -524,9 +530,8 @@ defmodule LynxWeb.EnvironmentLive do
 
       {:noreply,
        socket
-       |> assign(:env_locked, false)
        |> put_flash(:info, "Environment unlocked")
-       |> load_units()}
+       |> refresh_lock_state()}
     end)
   end
 
@@ -550,7 +555,7 @@ defmodule LynxWeb.EnvironmentLive do
       LockContext.create_lock(lock)
       label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
       AuditContext.log_user(socket.assigns.current_user, "locked", "unit", env.uuid, label)
-      {:noreply, socket |> put_flash(:info, "Unit locked") |> load_units()}
+      {:noreply, socket |> put_flash(:info, "Unit locked") |> refresh_lock_state()}
     end)
   end
 
@@ -660,14 +665,13 @@ defmodule LynxWeb.EnvironmentLive do
     with_perm(socket, "state:force_unlock", fn socket ->
       env = socket.assigns.env
 
-      case LockContext.get_active_lock_by_environment_and_path(env.id, sub_path) do
-        nil -> :ok
-        lock -> LockContext.update_lock(lock, %{is_active: false})
-      end
+      # Admin button: clear every active lock on the unit, exclusive and
+      # shared alike, so the row can never stay "locked" behind a leftover.
+      LockContext.force_unlock_unit(env.id, sub_path)
 
       label = if sub_path == "", do: env.name, else: "#{env.name}/#{sub_path}"
       AuditContext.log_user(socket.assigns.current_user, "unlocked", "unit", env.uuid, label)
-      {:noreply, socket |> put_flash(:info, "Unit unlocked") |> load_units()}
+      {:noreply, socket |> put_flash(:info, "Unit unlocked") |> refresh_lock_state()}
     end)
   end
 
@@ -732,20 +736,33 @@ defmodule LynxWeb.EnvironmentLive do
     end
   end
 
+  # Re-read every lock-derived assign after a lock event. The env badge, the
+  # in-flight plan count and the per-unit rows all come from the same table,
+  # so recompute them together rather than patching one and drifting.
+  defp refresh_lock_state(socket) do
+    env = socket.assigns.env
+
+    socket
+    |> assign(:env_locked, LockContext.is_environment_locked(env.id))
+    |> assign(:planning_count, LockContext.count_active_shared_locks(env.id))
+    |> load_units()
+  end
+
   defp load_units(socket) do
     env = socket.assigns.env
     sub_paths = StateContext.list_sub_paths(env.id)
 
     units =
       Enum.map(sub_paths, fn sp ->
-        is_locked =
-          LockContext.get_active_lock_by_environment_and_path(env.id, sp.sub_path) != nil
+        is_locked = LockContext.get_active_exclusive_lock(env.id, sp.sub_path) != nil
+        planning_count = length(LockContext.list_active_shared_locks(env.id, sp.sub_path))
 
         %{
           sub_path: sp.sub_path,
           count: sp.count,
           latest: sp.latest,
-          is_locked: is_locked
+          is_locked: is_locked,
+          planning_count: planning_count
         }
       end)
 

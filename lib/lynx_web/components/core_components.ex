@@ -209,15 +209,19 @@ defmodule LynxWeb.CoreComponents do
 
   attr :color, :string, default: "gray"
   attr :class, :string, default: ""
+  attr :rest, :global
   slot :inner_block, required: true
 
   def badge(assigns) do
     ~H"""
-    <span class={[
-      "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-      badge_color(@color),
-      @class
-    ]}>
+    <span
+      class={[
+        "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+        badge_color(@color),
+        @class
+      ]}
+      {@rest}
+    >
       {render_slot(@inner_block)}
     </span>
     """

@@ -97,7 +97,7 @@ defmodule LynxWeb.TfController do
       "unlock" ->
         Tracer.with_span "tf.state.unlock", attributes: attrs do
           require_permission(conn, "state:unlock", fn conn ->
-            unlock(conn, w_slug, p_slug, e_slug, sub_path)
+            unlock(conn, w_slug, p_slug, e_slug, sub_path, params)
           end)
         end
 
@@ -191,7 +191,10 @@ defmodule LynxWeb.TfController do
         # write that follows a successful lock. Allow the holder of the active
         # lock to push state — otherwise the canonical lock → push → unlock
         # cycle (used by `terraform apply` and `terraform import`) is impossible.
-        # Anyone else (no ID, mismatched ID) is correctly rejected.
+        # Anyone else (no ID, mismatched ID) is correctly rejected. `lock` here
+        # is always the exclusive holder: a shared (plan) lock's ID never
+        # matches it, so a client that lied about its Operation to slip past
+        # a running apply gains nothing.
         if lock_holder?(conn, params, lock) do
           with_apply_gate(conn, w_slug, p_slug, e_slug, sub_path, params, fn conn ->
             do_push_state(conn, w_slug, p_slug, e_slug, sub_path, params)
@@ -430,7 +433,15 @@ defmodule LynxWeb.TfController do
     end
   end
 
+  # Readers-writer lock keyed on Terraform's `Operation` field (see
+  # `LockContext`). A plan takes a shared lock and is refused only while an
+  # exclusive lock is active; anything else takes an exclusive lock and is
+  # refused only by another exclusive lock. Either refusal is a 423 with the
+  # blocking lock's LockInfo, which Terraform retries under `-lock-timeout`.
   defp lock(conn, w_slug, p_slug, e_slug, sub_path, params) do
+    operation = params["Operation"] || ""
+    mode = LockContext.mode_for_operation(operation)
+
     case LockContext.is_locked(%{
            w_slug: w_slug,
            p_slug: p_slug,
@@ -457,7 +468,7 @@ defmodule LynxWeb.TfController do
             e_slug: e_slug,
             sub_path: sub_path,
             uuid: params["ID"] || "",
-            operation: params["Operation"] || "",
+            operation: operation,
             info: params["Info"] || "",
             who: params["Who"] || "",
             version: params["Version"] || "",
@@ -466,8 +477,20 @@ defmodule LynxWeb.TfController do
 
         case action do
           {:success, _} ->
-            log_tf_event(conn, "locked", w_slug, p_slug, e_slug, sub_path)
+            log_tf_event(conn, "locked", w_slug, p_slug, e_slug, sub_path, %{
+              "mode" => mode,
+              "operation" => operation
+            })
+
             conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:lock, %{})
+
+          {:locked, lock} ->
+            # Lost the race on the exclusive unique index between the check
+            # above and the insert. Same answer as if the check had seen it.
+            conn
+            |> put_status(:locked)
+            |> put_view(LynxWeb.LockJSON)
+            |> render(:lock_data, %{lock: lock})
 
           {:not_found, msg} ->
             conn
@@ -484,12 +507,16 @@ defmodule LynxWeb.TfController do
     end
   end
 
-  defp unlock(conn, w_slug, p_slug, e_slug, sub_path) do
+  # Terraform posts the LockInfo it acquired with, so `ID` identifies the
+  # exact row to release. With many shared locks active on one path that is
+  # the only way to release just the caller's own.
+  defp unlock(conn, w_slug, p_slug, e_slug, sub_path, params) do
     case LockContext.unlock_action(%{
            w_slug: w_slug,
            p_slug: p_slug,
            e_slug: e_slug,
-           sub_path: sub_path
+           sub_path: sub_path,
+           uuid: params["ID"]
          }) do
       {:success, _} ->
         log_tf_event(conn, "unlocked", w_slug, p_slug, e_slug, sub_path)
@@ -689,7 +716,7 @@ defmodule LynxWeb.TfController do
   # `actor_type` is determined at auth time (oidc / user / env_secret) so OIDC
   # pipeline activity is fully traceable in `/admin/audit`. Resource is the
   # workspace/project/env path so it groups naturally in the audit timeline.
-  defp log_tf_event(conn, action, w_slug, p_slug, e_slug, sub_path) do
+  defp log_tf_event(conn, action, w_slug, p_slug, e_slug, sub_path, metadata \\ nil) do
     actor_name = conn.assigns[:tf_username] || "system"
     actor_type = conn.assigns[:tf_actor_type] || "system"
 
@@ -706,7 +733,7 @@ defmodule LynxWeb.TfController do
       resource_type: "environment",
       resource_id: path_label,
       resource_name: nil,
-      metadata: nil
+      metadata: metadata && Jason.encode!(metadata)
     })
   end
 end

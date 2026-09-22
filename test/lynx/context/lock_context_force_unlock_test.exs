@@ -28,9 +28,9 @@ defmodule Lynx.Context.LockContextForceUnlockTest do
     assert msg =~ "3 locks cleared"
 
     refute LockContext.is_environment_locked(env.id)
-    assert LockContext.get_active_lock_by_environment_and_path(env.id, "") == nil
-    assert LockContext.get_active_lock_by_environment_and_path(env.id, "groups") == nil
-    assert LockContext.get_active_lock_by_environment_and_path(env.id, "dns") == nil
+    assert LockContext.get_active_exclusive_lock(env.id, "") == nil
+    assert LockContext.get_active_exclusive_lock(env.id, "groups") == nil
+    assert LockContext.get_active_exclusive_lock(env.id, "dns") == nil
   end
 
   test "single env-wide lock returns the legacy message (no count suffix)" do

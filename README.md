@@ -98,7 +98,7 @@ terraform apply
 Terragrunt picks up the same env vars since it shells out to Terraform.
 
 > [!TIP]
-> Lynx automatically locks the state during `plan`, `apply`, and `import`. If a lock gets stuck (e.g. a CI job was killed mid-apply), force-unlock from the env page in the admin UI.
+> Lynx records a lock for every Terraform operation, but `terraform plan` takes a **shared** lock: any number of plans can run against the same unit at once, and an apply never waits for them. `apply`, `import` and every other operation take an **exclusive** lock, which blocks other exclusive locks and new plans until it is released. If an exclusive lock gets stuck (e.g. a CI job was killed mid-apply), force-unlock from the env page in the admin UI. A leftover shared lock blocks nothing, so it never needs clearing.
 
 ## Authentication options
 
@@ -132,7 +132,7 @@ Lynx ships three system roles, made up of atomic permissions:
 | **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
 
 > [!IMPORTANT]
-> `terraform plan` always acquires a state lock by default (`-lock=false` is opt-in), so Planner needs `state:lock`/`state:unlock` to be functional. Applier is what differentiates "can mutate state" from "read-only." `state:force_unlock` is the destructive admin-button variant — clears another user's lock — and lives on Admin only.
+> `terraform plan` always acquires a state lock by default (`-lock=false` is opt-in), so Planner needs `state:lock`/`state:unlock` to be functional. A plan's lock is shared and never blocks anyone, so granting it is safe. Applier is what differentiates "can mutate state" from "read-only." `state:force_unlock` is the destructive admin-button variant — clears another user's lock — and lives on Admin only.
 
 **Custom roles** can be created at `/admin/roles` (super only). System roles are protected and can't be edited or deleted.
 
