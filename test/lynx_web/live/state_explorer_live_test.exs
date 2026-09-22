@@ -448,7 +448,7 @@ defmodule LynxWeb.StateExplorerLiveTest do
       render_click(view, "lock_unit", %{})
 
       assert render(view) =~ "Unit Locked"
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "") != nil
+      assert LockContext.get_active_exclusive_lock(env.id, "") != nil
     end
 
     test "unlock_unit deactivates lock and updates badge", %{
@@ -462,7 +462,7 @@ defmodule LynxWeb.StateExplorerLiveTest do
       render_click(view, "unlock_unit", %{})
 
       assert render(view) =~ "Unit Unlocked"
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "") == nil
+      assert LockContext.get_active_exclusive_lock(env.id, "") == nil
     end
   end
 
@@ -534,9 +534,31 @@ defmodule LynxWeb.StateExplorerLiveTest do
       render_click(view, "lock_unit", %{})
 
       assert render(view) =~ "Unit Locked"
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "network/dns") != nil
+      assert LockContext.get_active_exclusive_lock(env.id, "network/dns") != nil
       # The root unit stays unlocked
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "") == nil
+      assert LockContext.get_active_exclusive_lock(env.id, "") == nil
+    end
+  end
+
+  describe "in-flight plans (shared locks)" do
+    test "a shared lock shows as planning, not locked", %{conn: conn, project: project, env: env} do
+      create_lock(env, %{sub_path: "", operation: "OperationTypePlan"})
+
+      {:ok, _view, html} = live(conn, explorer_path(project, env))
+      assert html =~ "Unit Unlocked"
+      assert html =~ "1 planning"
+    end
+
+    test "unlock_unit clears shared locks too", %{conn: conn, project: project, env: env} do
+      create_lock(env, %{sub_path: ""})
+      create_lock(env, %{sub_path: "", operation: "OperationTypePlan"})
+
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      render_click(view, "unlock_unit", %{})
+
+      assert render(view) =~ "Unit Unlocked"
+      refute render(view) =~ "planning"
+      assert LockContext.list_active_shared_locks(env.id, "") == []
     end
   end
 end

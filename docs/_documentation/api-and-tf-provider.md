@@ -186,6 +186,8 @@ Auth is HTTP Basic (`TF_HTTP_USERNAME` / `TF_HTTP_PASSWORD`). Each operation map
 | `POST /lock` | `state:lock` |
 | `POST /unlock` | `state:unlock` |
 
+`POST /lock` reads the `Operation` field of Terraform's LockInfo body. `OperationTypePlan` takes a shared lock (many may coexist on a path); any other value takes an exclusive lock (one per path). Either request answers `423 Locked` with the blocking lock's LockInfo when refused. `POST /unlock` releases the row whose `ID` matches the body; with no `ID` it releases the path's exclusive lock. See [Usage]({{ site.baseurl }}/documentation/usage/#locking-and-force-unlock) for the full semantics.
+
 A legacy `/client/*` route exists for backward compatibility with old clients that don't include the workspace segment — Lynx resolves the workspace from the project slug. New integrations should use `/tf/`.
 
 ## SCIM 2.0 — `/scim/v2/*`

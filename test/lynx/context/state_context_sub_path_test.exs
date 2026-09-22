@@ -157,9 +157,9 @@ defmodule Lynx.Context.StateContextSubPathTest do
         })
       )
 
-      dns_lock = LockContext.get_active_lock_by_environment_and_path(env.id, "dns")
-      vpc_lock = LockContext.get_active_lock_by_environment_and_path(env.id, "vpc")
-      root_lock = LockContext.get_active_lock_by_environment_and_path(env.id, "")
+      dns_lock = LockContext.get_active_exclusive_lock(env.id, "dns")
+      vpc_lock = LockContext.get_active_exclusive_lock(env.id, "vpc")
+      root_lock = LockContext.get_active_exclusive_lock(env.id, "")
 
       assert dns_lock != nil
       assert vpc_lock == nil
@@ -197,8 +197,8 @@ defmodule Lynx.Context.StateContextSubPathTest do
 
       LockContext.update_lock(dns_lock, %{is_active: false})
 
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "dns") == nil
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "vpc") != nil
+      assert LockContext.get_active_exclusive_lock(env.id, "dns") == nil
+      assert LockContext.get_active_exclusive_lock(env.id, "vpc") != nil
     end
   end
 

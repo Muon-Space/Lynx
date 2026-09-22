@@ -117,11 +117,20 @@ The env's auto-generated `username` + `secret` work as a Basic-auth bypass. They
 
 ## Locking and force-unlock
 
-Terraform automatically locks the state during `plan`, `apply`, `import`, and a few other operations. Lynx records the lock with the caller's identity ("who"), the operation type, and a UUID. Subsequent state writes from the same caller (presenting the same `?ID=<uuid>` query param) are allowed; everyone else gets 423 Locked.
+Terraform automatically locks the state during `plan`, `apply`, `import`, and a few other operations. Lynx records the lock with the caller's identity ("who"), the operation type, and a UUID, and uses the operation type to pick one of two modes:
 
-If a lock gets stuck (CI killed mid-apply, network blip during state push), force-unlock from the env page in the admin UI: click the red **Locked** badge on the env row. Force-unlocking requires the `state:unlock` permission.
+| Terraform operation | Lock mode | Blocked by | Blocks |
+|---|---|---|---|
+| `plan` (`OperationTypePlan`) | **shared** | an active exclusive lock on the unit or the environment | nothing |
+| everything else (`apply`, `import`, `refresh`, `state mv`, the UI force-lock) | **exclusive** | another active exclusive lock | new exclusive locks and new plans |
 
-You can also lock an environment preemptively from the same UI to block all Terraform operations during a maintenance window.
+Any number of shared locks can be active on one unit at the same time, which is what lets dozens of pull-request plans run against the same state without queueing. An apply does not wait for in-flight plans: a plan reads state once at the start, so a concurrent apply cannot tear that read, and Terraform's own "saved plan is stale" check rejects the plan if someone later tries to apply it. A plan that arrives while an apply holds the unit gets 423 Locked; run plans with `-lock-timeout` (for example `TF_CLI_ARGS_plan="-lock-timeout=10m"`) so Terraform retries until the apply finishes instead of failing immediately.
+
+Subsequent state writes are allowed for the caller presenting the exclusive lock's `?ID=<uuid>` query param; a shared lock's ID does not authorise a write past a running apply. Unlock releases exactly the row whose ID matches, so one plan finishing never releases another's lock.
+
+If an exclusive lock gets stuck (CI killed mid-apply, network blip during state push), force-unlock from the env page in the admin UI: click the red **Locked** badge on the env row. Force-unlocking requires the `state:force_unlock` permission and clears every active lock on the environment, shared ones included. A leftover shared lock on its own blocks nothing and can be ignored; the env page shows how many are in flight.
+
+You can also lock an environment preemptively from the same UI. That takes an exclusive env-wide lock, which blocks every Terraform operation, plans included, for the duration of a maintenance window.
 
 ## Plan policy gates
 

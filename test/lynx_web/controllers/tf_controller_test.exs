@@ -225,6 +225,7 @@ defmodule LynxWeb.TfControllerTest do
         |> post("/tf/aws-govcloud/platform/production/unlock", %{})
 
       assert unlock_conn.status == 200
+      assert Lynx.Context.LockContext.get_active_exclusive_lock(env.id, "") == nil
     end
 
     test "lock and unlock emit audit events with env_secret actor_type", %{conn: conn, env: env} do

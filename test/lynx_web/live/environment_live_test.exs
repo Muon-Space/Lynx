@@ -201,7 +201,7 @@ defmodule LynxWeb.EnvironmentLiveTest do
       render_click(view, "lock_unit", %{"uuid" => "api"})
 
       assert render(view) =~ "Unit locked"
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "api") != nil
+      assert LockContext.get_active_exclusive_lock(env.id, "api") != nil
     end
 
     test "unlock_unit deactivates the lock", %{conn: conn, project: project, env: env} do
@@ -213,7 +213,7 @@ defmodule LynxWeb.EnvironmentLiveTest do
       render_click(view, "unlock_unit", %{"uuid" => "api"})
 
       assert render(view) =~ "Unit unlocked"
-      assert LockContext.get_active_lock_by_environment_and_path(env.id, "api") == nil
+      assert LockContext.get_active_exclusive_lock(env.id, "api") == nil
     end
   end
 
@@ -298,6 +298,48 @@ defmodule LynxWeb.EnvironmentLiveTest do
       # title attribute.
       assert html =~ "cursor-not-allowed"
       assert html =~ "Requires the admin role to force-unlock"
+    end
+  end
+
+  describe "in-flight plans (shared locks)" do
+    test "shared locks do not show the env as locked but are counted", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      _ = create_state(env, %{sub_path: "api", value: "{}"})
+      create_lock(env, %{sub_path: "api", operation: "OperationTypePlan"})
+      create_lock(env, %{sub_path: "api", operation: "OperationTypePlan"})
+
+      {:ok, view, html} = live(conn, env_path(project, env))
+
+      assert html =~ "Environment Unlocked"
+      assert html =~ "2 plans in flight"
+      assert html =~ "2 planning"
+      assert has_element?(view, "[phx-value-event=\"env_force_lock\"]")
+    end
+
+    test "unlock_unit clears shared locks as well", %{conn: conn, project: project, env: env} do
+      _ = create_state(env, %{sub_path: "api", value: "{}"})
+      create_lock(env, %{sub_path: "api"})
+      create_lock(env, %{sub_path: "api", operation: "OperationTypePlan"})
+
+      {:ok, view, _} = live(conn, env_path(project, env))
+      render_click(view, "unlock_unit", %{"uuid" => "api"})
+
+      assert LockContext.get_active_exclusive_lock(env.id, "api") == nil
+      assert LockContext.list_active_shared_locks(env.id, "api") == []
+      refute render(view) =~ "planning"
+    end
+
+    test "env_force_unlock clears the in-flight count", %{conn: conn, project: project, env: env} do
+      create_lock(env, %{sub_path: "", operation: "OperationTypePlan"})
+
+      {:ok, view, html} = live(conn, env_path(project, env))
+      assert html =~ "1 plan in flight"
+
+      render_click(view, "env_force_unlock", %{"uuid" => env.uuid})
+      refute render(view) =~ "in flight"
     end
   end
 end

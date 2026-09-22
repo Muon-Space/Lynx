@@ -1725,7 +1725,7 @@ paths:
   /api/v1/environment/{e_uuid}/lock:
     post:
       callbacks: {}
-      description: Requires `state:lock` on the env's project.
+      description: Takes an exclusive env-wide lock, which blocks every Terraform operation including plans. Refused if any exclusive lock is already active in the environment; in-flight plans (shared locks) do not prevent it. Requires `state:lock` on the env's project.
       operationId: LynxWeb.EnvironmentController.force_lock
       parameters:
         - description: Environment UUID
@@ -1918,10 +1918,11 @@ paths:
     post:
       callbacks: {}
       description: |
-        Clears the active lock — the destructive variant. Requires
-        `state:force_unlock` (admin only). Note that the routine post-apply
-        unlock that Terraform calls automatically uses `/tf/.../unlock` and
-        only requires `state:unlock`.
+        Clears every active lock on the environment (the env-wide lock, each
+        unit's exclusive lock and any shared plan locks) — the destructive
+        variant. Requires `state:force_unlock` (admin only). Note that the
+        routine post-apply unlock that Terraform calls automatically uses
+        `/tf/.../unlock` and only requires `state:unlock`.
       operationId: LynxWeb.EnvironmentController.force_unlock
       parameters:
         - description: Environment UUID
