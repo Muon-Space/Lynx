@@ -27,13 +27,6 @@ defmodule Lynx.Application do
       {Phoenix.PubSub, name: Lynx.PubSub},
       # HTTP client for OIDC discovery/token exchange
       {Finch, name: Lynx.Finch},
-      # Single-slot named lock used by LockModule to serialize lock
-      # acquisition across concurrent TF requests. Owned by the supervisor
-      # so it's created once at boot rather than re-initialized per call.
-      %{
-        id: :lynx_lock,
-        start: {:sleeplocks, :start_link, [1, [name: :lynx_lock]]}
-      },
       # Periodic sweeper for expired role grants (`expires_at`) — keeps
       # `project_teams` + `user_projects` clean and emits audit events.
       # Disabled in test (tests start it explicitly when they need it).

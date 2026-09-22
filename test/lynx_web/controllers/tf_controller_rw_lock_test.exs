@@ -246,4 +246,57 @@ defmodule LynxWeb.TfControllerRwLockTest do
       assert push.status == 200
     end
   end
+
+  describe "LockInfo body terraform can decode" do
+    # terraform's http client decodes a 423 body into statemgr.LockInfo,
+    # whose Created is a Go time.Time and only parses RFC 3339. A naive
+    # timestamp makes terraform treat the LockError as malformed and skip
+    # the -lock-timeout retry loop entirely.
+    test "Created is RFC 3339 with an offset and string fields are never null", %{env: env} do
+      apply_id = Ecto.UUID.generate()
+      assert lock(env, "/vpc", lock_info("OperationTypeApply", apply_id)).status == 200
+
+      refused = plan(env, "/vpc")
+      assert refused.status == 423
+      body = Jason.decode!(refused.resp_body)
+
+      assert {:ok, %DateTime{}, 0} = DateTime.from_iso8601(body["Created"])
+      assert String.ends_with?(body["Created"], "Z")
+
+      for key <- ~w(ID Path Operation Who Version Info) do
+        assert is_binary(body[key]), "#{key} should be a string, got #{inspect(body[key])}"
+      end
+    end
+  end
+
+  describe "concurrent lock requests on one node" do
+    # The old single-slot :sleeplocks guard answered 500 whenever two lock
+    # inserts overlapped on one node. Shared locks overlap by design.
+    test "16 simultaneous plan locks all succeed", %{env: env} do
+      codes =
+        1..16
+        |> Task.async_stream(fn _ -> plan(env, "/vpc").status end,
+          max_concurrency: 16,
+          timeout: 30_000
+        )
+        |> Enum.map(fn {:ok, code} -> code end)
+
+      assert Enum.uniq(codes) == [200]
+      assert length(LockContext.list_active_shared_locks(env.id, "vpc")) == 16
+    end
+
+    test "16 simultaneous applies: one winner, the rest 423, never 5xx", %{env: env} do
+      codes =
+        1..16
+        |> Task.async_stream(fn _ -> tf_apply(env, "/vpc").status end,
+          max_concurrency: 16,
+          timeout: 30_000
+        )
+        |> Enum.map(fn {:ok, code} -> code end)
+
+      assert Enum.count(codes, &(&1 == 200)) == 1
+      assert Enum.count(codes, &(&1 == 423)) == 15
+      refute Enum.any?(codes, &(&1 >= 500))
+    end
+  end
 end

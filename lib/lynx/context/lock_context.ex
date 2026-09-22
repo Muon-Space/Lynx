@@ -265,21 +265,18 @@ defmodule Lynx.Context.LockContext do
             is_active: true
           })
 
-        case :sleeplocks.attempt(:lynx_lock) do
-          :ok ->
-            result = create_lock(lock)
-            :sleeplocks.release(:lynx_lock)
+        # No in-process mutex here. Exclusivity is enforced by the partial
+        # unique index (see `lock_insert_error/3` for the lost-race path),
+        # and shared rows have nothing to serialise. The old single-slot
+        # `:sleeplocks.attempt` returned 500 whenever two lock requests
+        # landed on one node at the same time, which concurrent plans do
+        # constantly, and it never covered a multi-node deployment anyway.
+        case create_lock(lock) do
+          {:ok, _} ->
+            {:success, ""}
 
-            case result do
-              {:ok, _} ->
-                {:success, ""}
-
-              {:error, changeset} ->
-                lock_insert_error(changeset, env.id, sub_path)
-            end
-
-          {:error, :unavailable} ->
-            {:error, "Unable to hold a lock on environment"}
+          {:error, changeset} ->
+            lock_insert_error(changeset, env.id, sub_path)
         end
     end
   end
@@ -438,18 +435,16 @@ defmodule Lynx.Context.LockContext do
           is_active: true
         })
 
-      case :sleeplocks.attempt(:lynx_lock) do
-        :ok ->
-          result = create_lock(lock)
-          :sleeplocks.release(:lynx_lock)
+      case create_lock(lock) do
+        {:ok, _} ->
+          {:success, "Environment locked"}
 
-          case result do
-            {:ok, _} -> {:success, "Environment locked"}
-            {:error, _} -> {:error, "Failed to lock environment"}
+        {:error, changeset} ->
+          # Lost the race on the exclusive index to a concurrent locker.
+          case lock_insert_error(changeset, environment_id, "") do
+            {:locked, _} -> {:already_locked, "Environment is already locked"}
+            _ -> {:error, "Failed to lock environment"}
           end
-
-        {:error, :unavailable} ->
-          {:error, "Unable to acquire lock"}
       end
     end
   end
