@@ -92,7 +92,6 @@ defmodule Lynx.MixProject do
       {:plug_cowboy, "~> 2.8"},
       {:bandit, "~> 1.10"},
       {:bcrypt_elixir, "~> 3.3"},
-      {:sleeplocks, "~> 1.1"},
       {:openid_connect, "~> 1.0"},
       {:samly, "~> 1.4"},
       {:req, "~> 0.5"},
