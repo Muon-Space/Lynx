@@ -2,9 +2,11 @@ defmodule LynxWeb.TfControllerMetricsTest do
   use LynxWeb.ConnCase, async: false
 
   alias Lynx.Context.EnvironmentContext
+  alias Lynx.Context.PolicyContext
   alias Lynx.Context.ProjectContext
   alias Lynx.Context.TeamContext
   alias Lynx.Context.WorkspaceContext
+  alias Lynx.Service.PolicyEngine.Stub
 
   @base "/tf/acme/network/production"
   @events [:lock, :unlock, :state_write, :apply_blocked, :plan_check]
@@ -69,7 +71,9 @@ defmodule LynxWeb.TfControllerMetricsTest do
 
     on_exit(fn -> :telemetry.detach(handler) end)
 
-    {:ok, env: env}
+    Stub.reset()
+
+    {:ok, env: env, project: project}
   end
 
   defp tf_conn(env) do
@@ -139,6 +143,43 @@ defmodule LynxWeb.TfControllerMetricsTest do
     refute_received {:tf_event, :unlock, _, _}
   end
 
+  test "plan check emits its outcome for the unit", %{env: env} do
+    assert post_tf(env, "/vpc/plan", %{"resource_changes" => []}).status == 200
+
+    assert_received {:tf_event, :plan_check, _, metadata}
+    assert metadata == Map.put(@vpc, :outcome, "passed")
+  end
+
+  test "state write without a passing plan check is blocked by the plan gate", %{env: env} do
+    {:ok, env} = EnvironmentContext.update_env(env, %{require_passing_plan: true})
+
+    assert post_tf(env, "/vpc/state", %{"version" => 4}).status == 423
+
+    assert_received {:tf_event, :apply_blocked, _, metadata}
+    assert metadata == Map.put(@vpc, :gate, "plan_gate")
+    refute_received {:tf_event, :state_write, _, _}
+  end
+
+  test "state write violating a policy is blocked", %{env: env, project: project} do
+    {:ok, env} = EnvironmentContext.update_env(env, %{block_violating_apply: true})
+
+    {:ok, policy} =
+      PolicyContext.create_policy(
+        PolicyContext.new_policy(%{
+          name: "deny-all",
+          project_id: project.id,
+          rego_source: "package x"
+        })
+      )
+
+    Stub.register(policy.uuid, fn _input -> ["denied"] end)
+
+    assert post_tf(env, "/vpc/state", %{"version" => 4}).status == 423
+
+    assert_received {:tf_event, :apply_blocked, _, metadata}
+    assert metadata == Map.put(@vpc, :gate, "policy_violation")
+  end
+
   test "reporter exposes the series in Prometheus format", %{env: env} do
     start_supervised!(
       {TelemetryMetricsPrometheus.Core, name: Lynx.Metrics, metrics: Lynx.Metrics.metrics()}
@@ -155,6 +196,19 @@ defmodule LynxWeb.TfControllerMetricsTest do
 
     assert scrape =~
              ~s(lynx_tf_lock_held_seconds_count{operation="apply",project="network",workspace="acme"} 1)
+
+    {:ok, env} = EnvironmentContext.update_env(env, %{require_passing_plan: true})
+    assert post_tf(env, "/vpc/plan", %{"resource_changes" => []}).status == 200
+    assert post_tf(env, "/vpc/state", %{"version" => 4}).status == 200
+    assert post_tf(env, "/vpc/state", %{"version" => 4}).status == 423
+
+    scrape = Lynx.Metrics.scrape()
+
+    assert scrape =~
+             ~s(lynx_tf_plan_checks_total{environment="production",outcome="passed",project="network",unit="vpc",workspace="acme"} 1)
+
+    assert scrape =~
+             ~s(lynx_tf_apply_blocked_total{environment="production",gate="plan_gate",project="network",unit="vpc",workspace="acme"} 1)
 
     conn = Lynx.Metrics.Plug.call(Plug.Test.conn(:get, "/metrics"), [])
     assert conn.status == 200

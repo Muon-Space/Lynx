@@ -129,8 +129,8 @@ When `METRICS_PORT` is set, Lynx serves `GET /metrics` on that port. Keep the po
 | `lynx_tf_locks_total` | `workspace`, `project`, `environment`, `unit`, `operation` (`plan`/`apply`/`refresh`/`other`), `result` (`acquired`/`conflict`) |
 | `lynx_tf_lock_held_seconds` (histogram) | `workspace`, `project`, `operation` |
 | `lynx_tf_state_writes_total` | `workspace`, `project`, `environment`, `unit` |
-| `lynx_tf_apply_blocked_total` | `workspace`, `project`, `environment`, `gate` (`plan_gate`/`policy_violation`) |
-| `lynx_tf_plan_checks_total` | `workspace`, `project`, `environment`, `outcome` |
+| `lynx_tf_apply_blocked_total` | `workspace`, `project`, `environment`, `unit`, `gate` (`plan_gate`/`policy_violation`) |
+| `lynx_tf_plan_checks_total` | `workspace`, `project`, `environment`, `unit`, `outcome` |
 
 `operation` comes from the lock's Terraform `Operation`, so lock counts are the number of plans/applies run; `-lock=false` runs are not counted. Lock hold time is the duration of the run.
 

@@ -65,12 +65,12 @@ defmodule Lynx.Metrics do
       ),
       counter("lynx.tf.apply_blocked.total",
         event_name: [:lynx, :tf, :apply_blocked],
-        tags: [:workspace, :project, :environment, :gate],
+        tags: @path_tags ++ [:gate],
         description: "State writes refused by the plan gate or a policy violation"
       ),
       counter("lynx.tf.plan_checks.total",
         event_name: [:lynx, :tf, :plan_check],
-        tags: [:workspace, :project, :environment, :outcome],
+        tags: @path_tags ++ [:outcome],
         description: "Plan checks evaluated, by outcome"
       )
     ]

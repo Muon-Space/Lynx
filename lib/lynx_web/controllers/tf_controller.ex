@@ -238,7 +238,7 @@ defmodule LynxWeb.TfController do
               )
 
               log_apply_blocked(conn, env, sub_path, "plan_gate", reason, [])
-              emit_apply_blocked(w_slug, p_slug, e_slug, "plan_gate")
+              emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, "plan_gate")
 
               # 423 + LockJSON body so terraform's lock-error path surfaces
               # the message instead of the generic "HTTP error: 403".
@@ -312,7 +312,7 @@ defmodule LynxWeb.TfController do
         )
 
         log_apply_blocked(conn, env, sub_path, "policy_violation", msg, policy_names)
-        emit_apply_blocked(w_slug, p_slug, e_slug, "policy_violation")
+        emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, "policy_violation")
 
         policy_gate_lock_response(conn, "policy_violation", "Policy violation: #{msg}")
 
@@ -596,12 +596,12 @@ defmodule LynxWeb.TfController do
           {:ok, record} ->
             log_plan_check_event(conn, env, sub_path, outcome, length(policies))
 
-            Metrics.emit(:plan_check, %{
-              workspace: w_slug,
-              project: p_slug,
-              environment: e_slug,
-              outcome: outcome
-            })
+            Metrics.emit(
+              :plan_check,
+              w_slug
+              |> Metrics.path_metadata(p_slug, e_slug, sub_path)
+              |> Map.put(:outcome, outcome)
+            )
 
             conn
             |> put_status(:ok)
@@ -743,13 +743,13 @@ defmodule LynxWeb.TfController do
     })
   end
 
-  defp emit_apply_blocked(w_slug, p_slug, e_slug, gate) do
-    Metrics.emit(:apply_blocked, %{
-      workspace: w_slug,
-      project: p_slug,
-      environment: e_slug,
-      gate: gate
-    })
+  defp emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, gate) do
+    metadata =
+      w_slug
+      |> Metrics.path_metadata(p_slug, e_slug, sub_path)
+      |> Map.put(:gate, gate)
+
+    Metrics.emit(:apply_blocked, metadata)
   end
 
   # Common OTel span attributes for `/tf/` actions. The path tuple is the
