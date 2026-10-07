@@ -6,7 +6,7 @@ defmodule LynxWeb.TfControllerMetricsTest do
   alias Lynx.Context.TeamContext
   alias Lynx.Context.WorkspaceContext
 
-  @base "/tf/aws-govcloud/platform/production"
+  @base "/tf/acme/network/production"
   @events [:lock, :unlock, :state_write, :apply_blocked, :plan_check]
 
   setup %{conn: conn} do
@@ -22,9 +22,9 @@ defmodule LynxWeb.TfControllerMetricsTest do
     {:ok, workspace} =
       WorkspaceContext.create_workspace(
         WorkspaceContext.new_workspace(%{
-          name: "AWS GovCloud",
-          slug: "aws-govcloud",
-          description: "GovCloud infra"
+          name: "Acme",
+          slug: "acme",
+          description: "Example workspace"
         })
       )
 
@@ -36,9 +36,9 @@ defmodule LynxWeb.TfControllerMetricsTest do
     {:ok, project} =
       ProjectContext.create_project(
         ProjectContext.new_project(%{
-          name: "Platform",
-          slug: "platform",
-          description: "Platform project",
+          name: "Network",
+          slug: "network",
+          description: "Network project",
           team_id: team.id,
           workspace_id: workspace.id
         })
@@ -93,7 +93,7 @@ defmodule LynxWeb.TfControllerMetricsTest do
 
   defp post_tf(env, path, body), do: tf_conn(env) |> post("#{@base}#{path}", body)
 
-  @vpc %{workspace: "aws-govcloud", project: "platform", environment: "production", unit: "vpc"}
+  @vpc %{workspace: "acme", project: "network", environment: "production", unit: "vpc"}
 
   test "plan lock and unlock emit plan events", %{env: env} do
     body = lock_info("OperationTypePlan")
@@ -105,7 +105,7 @@ defmodule LynxWeb.TfControllerMetricsTest do
 
     assert_received {:tf_event, :unlock, %{held_seconds: held}, metadata}
     assert held >= 0
-    assert metadata == %{workspace: "aws-govcloud", project: "platform", operation: "plan"}
+    assert metadata == %{workspace: "acme", project: "network", operation: "plan"}
   end
 
   test "apply emits lock, state write and unlock", %{env: env} do
@@ -151,10 +151,10 @@ defmodule LynxWeb.TfControllerMetricsTest do
     scrape = Lynx.Metrics.scrape()
 
     assert scrape =~
-             ~s(lynx_tf_locks_total{environment="production",operation="apply",project="platform",result="acquired",unit="vpc",workspace="aws-govcloud"} 1)
+             ~s(lynx_tf_locks_total{environment="production",operation="apply",project="network",result="acquired",unit="vpc",workspace="acme"} 1)
 
     assert scrape =~
-             ~s(lynx_tf_lock_held_seconds_count{operation="apply",project="platform",workspace="aws-govcloud"} 1)
+             ~s(lynx_tf_lock_held_seconds_count{operation="apply",project="network",workspace="acme"} 1)
 
     conn = Lynx.Metrics.Plug.call(Plug.Test.conn(:get, "/metrics"), [])
     assert conn.status == 200
