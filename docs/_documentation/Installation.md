@@ -93,6 +93,7 @@ When deploying via Helm or any production Docker setup, the app reads these env 
 | `OTEL_SERVICE_NAME` | optional | Service name in trace data. Defaults to `lynx`. |
 | `OTEL_RESOURCE_ATTRIBUTES` | optional | Additional resource attrs, e.g. `deployment.environment=prod`. |
 | `OTEL_SDK_DISABLED` | optional | Set to `true` to force the SDK off even if `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+| `METRICS_PORT` | optional | Port for a Prometheus `/metrics` listener, separate from the HTTP port. When **unset**, no metrics are collected or served. |
 | `OPA_URL` | optional | Base URL Lynx uses to query OPA for plan evaluation. Defaults to `http://localhost:8181`. |
 | `OPA_TIMEOUT_MS` | optional | HTTP timeout (in ms) for the OPA evaluation call. Defaults to `5000`. |
 | `OPA_BUNDLE_TOKEN` | optional | Bearer token OPA must present when polling `/api/v1/opa/bundle.tar.gz`. If unset, only DB-managed tokens minted from **Settings → OPA** are accepted. |
@@ -118,6 +119,20 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http_protobuf \
   make run
 # Drive some /tf traffic, then open http://localhost:16686 → Service "lynx".
 ```
+
+### Prometheus metrics
+
+When `METRICS_PORT` is set, Lynx serves `GET /metrics` on that port. Keep the port off your load balancer; scrape it from inside the task/pod. Counters are per replica, so `sum` across instances.
+
+| Metric | Labels |
+|---|---|
+| `lynx_tf_locks_total` | `workspace`, `project`, `environment`, `unit`, `operation` (`plan`/`apply`/`refresh`/`other`), `result` (`acquired`/`conflict`) |
+| `lynx_tf_lock_held_seconds` (histogram) | `workspace`, `project`, `operation` |
+| `lynx_tf_state_writes_total` | `workspace`, `project`, `environment`, `unit` |
+| `lynx_tf_apply_blocked_total` | `workspace`, `project`, `environment`, `gate` (`plan_gate`/`policy_violation`) |
+| `lynx_tf_plan_checks_total` | `workspace`, `project`, `environment`, `outcome` |
+
+`operation` comes from the lock's Terraform `Operation`, so lock counts are the number of plans/applies run; `-lock=false` runs are not counted. Lock hold time is the duration of the run.
 
 
 ## OPA (plan policy gates)

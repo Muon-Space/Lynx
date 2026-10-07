@@ -332,7 +332,8 @@ defmodule Lynx.Context.LockContext do
   Release a lock. Terraform sends the LockInfo it acquired with, so the
   normal path releases exactly the row whose `uuid` matches, whatever its
   mode, and never touches anyone else's. A missing or already-released row
-  is a no-op success, matching the old idempotent behaviour.
+  is a no-op success, matching the old idempotent behaviour. Returns
+  `{:success, lock}` with the released row, or `{:success, nil}` for a no-op.
 
   When no `uuid` is presented (legacy clients, tests) fall back to
   releasing the path's active exclusive lock, which is what unlock always
@@ -376,12 +377,12 @@ defmodule Lynx.Context.LockContext do
     end
   end
 
-  defp release(nil), do: {:success, ""}
+  defp release(nil), do: {:success, nil}
 
   defp release(lock) do
     case update_lock(lock, %{is_active: false}) do
       {:ok, _} ->
-        {:success, ""}
+        {:success, lock}
 
       {:error, changeset} ->
         messages =
