@@ -33,7 +33,7 @@ defmodule Lynx.Application do
       sweeper_child()
     ]
 
-    children = Enum.reject(base, &is_nil/1) ++ [LynxWeb.Endpoint]
+    children = Enum.reject(base, &is_nil/1) ++ Lynx.Metrics.children() ++ [LynxWeb.Endpoint]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options

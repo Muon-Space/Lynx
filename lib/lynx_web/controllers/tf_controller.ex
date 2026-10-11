@@ -10,6 +10,7 @@ defmodule LynxWeb.TfController do
   alias Lynx.Context.PlanCheckContext
   alias Lynx.Context.PolicyContext
   alias Lynx.Context.RoleContext
+  alias Lynx.Metrics
   alias Lynx.Service.{PolicyEngine, PolicyGate}
 
   require OpenTelemetry.Tracer, as: Tracer
@@ -237,6 +238,7 @@ defmodule LynxWeb.TfController do
               )
 
               log_apply_blocked(conn, env, sub_path, "plan_gate", reason, [])
+              emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, "plan_gate")
 
               # 423 + LockJSON body so terraform's lock-error path surfaces
               # the message instead of the generic "HTTP error: 403".
@@ -310,6 +312,7 @@ defmodule LynxWeb.TfController do
         )
 
         log_apply_blocked(conn, env, sub_path, "policy_violation", msg, policy_names)
+        emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, "policy_violation")
 
         policy_gate_lock_response(conn, "policy_violation", "Policy violation: #{msg}")
 
@@ -423,6 +426,7 @@ defmodule LynxWeb.TfController do
 
       {:success, _} ->
         log_tf_event(conn, "state_pushed", w_slug, p_slug, e_slug, sub_path)
+        Metrics.emit(:state_write, Metrics.path_metadata(w_slug, p_slug, e_slug, sub_path))
         conn |> put_resp_content_type("application/json") |> send_resp(200, body)
 
       {:error, msg} ->
@@ -441,6 +445,7 @@ defmodule LynxWeb.TfController do
   defp lock(conn, w_slug, p_slug, e_slug, sub_path, params) do
     operation = params["Operation"] || ""
     mode = LockContext.mode_for_operation(operation)
+    record_lock = &emit_lock(w_slug, p_slug, e_slug, sub_path, operation, &1)
 
     case LockContext.is_locked(%{
            w_slug: w_slug,
@@ -449,6 +454,8 @@ defmodule LynxWeb.TfController do
            sub_path: sub_path
          }) do
       {:locked, lock} ->
+        record_lock.("conflict")
+
         conn
         |> put_status(:locked)
         |> put_view(LynxWeb.LockJSON)
@@ -482,11 +489,15 @@ defmodule LynxWeb.TfController do
               "operation" => operation
             })
 
+            record_lock.("acquired")
+
             conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:lock, %{})
 
           {:locked, lock} ->
             # Lost the race on the exclusive unique index between the check
             # above and the insert. Same answer as if the check had seen it.
+            record_lock.("conflict")
+
             conn
             |> put_status(:locked)
             |> put_view(LynxWeb.LockJSON)
@@ -518,8 +529,9 @@ defmodule LynxWeb.TfController do
            sub_path: sub_path,
            uuid: params["ID"]
          }) do
-      {:success, _} ->
+      {:success, released} ->
         log_tf_event(conn, "unlocked", w_slug, p_slug, e_slug, sub_path)
+        emit_unlock(released, w_slug, p_slug)
         conn |> put_status(:ok) |> put_view(LynxWeb.LockJSON) |> render(:unlock, %{})
 
       {:not_found, msg} ->
@@ -547,7 +559,7 @@ defmodule LynxWeb.TfController do
   # every effective policy for the env, persists a plan_check row, and
   # returns the verdict. Persists regardless of outcome so failed checks
   # are auditable + the env page's history card has something to render.
-  defp check_plan(conn, _w_slug, _p_slug, e_slug, sub_path, params) do
+  defp check_plan(conn, w_slug, p_slug, e_slug, sub_path, params) do
     case resolve_env_for_plan(conn) do
       {:error, msg, status} ->
         conn
@@ -583,6 +595,13 @@ defmodule LynxWeb.TfController do
         case PlanCheckContext.create_plan_check(attrs) do
           {:ok, record} ->
             log_plan_check_event(conn, env, sub_path, outcome, length(policies))
+
+            Metrics.emit(
+              :plan_check,
+              w_slug
+              |> Metrics.path_metadata(p_slug, e_slug, sub_path)
+              |> Map.put(:outcome, outcome)
+            )
 
             conn
             |> put_status(:ok)
@@ -699,6 +718,38 @@ defmodule LynxWeb.TfController do
           "sub_path" => sub_path
         })
     })
+  end
+
+  defp emit_lock(w_slug, p_slug, e_slug, sub_path, operation, result) do
+    metadata =
+      w_slug
+      |> Metrics.path_metadata(p_slug, e_slug, sub_path)
+      |> Map.merge(%{operation: Metrics.operation_label(operation), result: result})
+
+    Metrics.emit(:lock, metadata)
+  end
+
+  # Hold time of the released row is the duration of the terraform run that
+  # took it. Legacy unlocks of an already-released path have nothing to time.
+  defp emit_unlock(nil, _w_slug, _p_slug), do: :ok
+
+  defp emit_unlock(lock, w_slug, p_slug) do
+    held = DateTime.diff(DateTime.utc_now(), to_datetime(lock.inserted_at), :second)
+
+    Metrics.emit(:unlock, %{held_seconds: held}, %{
+      workspace: w_slug,
+      project: p_slug,
+      operation: Metrics.operation_label(lock.operation)
+    })
+  end
+
+  defp emit_apply_blocked(w_slug, p_slug, e_slug, sub_path, gate) do
+    metadata =
+      w_slug
+      |> Metrics.path_metadata(p_slug, e_slug, sub_path)
+      |> Map.put(:gate, gate)
+
+    Metrics.emit(:apply_blocked, metadata)
   end
 
   # Common OTel span attributes for `/tf/` actions. The path tuple is the

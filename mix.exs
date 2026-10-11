@@ -84,6 +84,7 @@ defmodule Lynx.MixProject do
       {:swoosh, "~> 1.25"},
       {:telemetry_metrics, "~> 1.1"},
       {:telemetry_poller, "~> 1.3"},
+      {:telemetry_metrics_prometheus_core, "~> 1.2"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.4"},
       {:nimble_csv, "~> 1.2"},

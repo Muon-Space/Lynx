@@ -51,6 +51,11 @@ else
   config :opentelemetry, traces_exporter: :none
 end
 
+# Prometheus metrics (see `Lynx.Metrics`): opt-in, served on their own port.
+if port = System.get_env("METRICS_PORT") do
+  config :lynx, metrics_port: String.to_integer(port)
+end
+
 # Auth configuration
 config :lynx,
   auth_password_enabled: (System.get_env("AUTH_PASSWORD_ENABLED") || "true") == "true",
