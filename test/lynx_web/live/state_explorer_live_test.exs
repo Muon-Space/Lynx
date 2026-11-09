@@ -561,4 +561,103 @@ defmodule LynxWeb.StateExplorerLiveTest do
       assert LockContext.list_active_shared_locks(env.id, "") == []
     end
   end
+
+  describe "rollback" do
+    defp select_version(view, v) do
+      view |> element("form[phx-change=version_change]") |> render_change(%{"version" => "#{v}"})
+    end
+
+    test "restore bar is hidden on the current version and shown on older ones", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      {:ok, view, html} = live(conn, explorer_path(project, env))
+      refute html =~ "rollback-bar"
+
+      html = select_version(view, 1)
+      assert html =~ "rollback-bar"
+      assert html =~ "Restore v1"
+      refute has_element?(view, "#rollback-button[disabled]")
+      assert html =~ "as the newest version"
+    end
+
+    test "confirm dialog summarises the resource diff and the infra caveat", %{
+      conn: conn,
+      project: project,
+      env: env
+    } do
+      bucket = %{
+        "mode" => "managed",
+        "type" => "aws_s3_bucket",
+        "name" => "logs",
+        "instances" => [%{"attributes" => %{"id" => "logs"}}]
+      }
+
+      create_state(env, %{value: Jason.encode!(%{"serial" => 4, "resources" => [bucket]})})
+      create_state(env, %{value: Jason.encode!(%{"serial" => 5, "resources" => []})})
+
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      select_version(view, 4)
+
+      html = render_click(view, "confirm_rollback", %{"version" => "4"})
+      assert html =~ "Restore v4 as the current state?"
+      assert html =~ "add 1 resource"
+      assert html =~ "Infrastructure is not changed"
+    end
+
+    test "rollback_version appends a copy, selects it and writes an audit event", %{
+      conn: conn,
+      project: project,
+      env: env,
+      states: [s1 | _]
+    } do
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+      select_version(view, 1)
+      render_click(view, "confirm_rollback", %{"version" => "1"})
+
+      html = render_click(view, "rollback_version", %{"uuid" => s1.uuid})
+
+      assert html =~ "Restored v1 as v4"
+      assert html =~ "v4 (Current)"
+      refute html =~ "rollback-bar"
+      assert viewer_state(view, 4) == %{"v" => 1, "serial" => 1}
+
+      {[event], 1} = Lynx.Context.AuditContext.list_events(%{action: "state_rolled_back"})
+      assert event.resource_id == env.uuid
+    end
+
+    test "a locked unit disables the button and the event is refused", %{
+      conn: conn,
+      project: project,
+      env: env,
+      states: [s1 | _]
+    } do
+      create_lock(env, %{sub_path: "", who: "ci@runner"})
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+
+      select_version(view, 1)
+      assert has_element?(view, "#rollback-button[disabled]")
+
+      html = render_click(view, "rollback_version", %{"uuid" => s1.uuid})
+      assert html =~ "ci@runner"
+      assert length(Lynx.Context.StateContext.get_states_by_environment_id(env.id)) == 3
+    end
+
+    test "planner can view but not roll back", %{project: project, env: env, states: [s1 | _]} do
+      planner = Lynx.Context.RoleContext.get_role_by_name("planner")
+      user = create_user()
+      {:ok, _} = Lynx.Context.UserProjectContext.assign_role(user.id, project.id, planner.id)
+
+      conn = log_in_user(build_conn() |> Plug.Test.init_test_session(%{}), user)
+      {:ok, view, _} = live(conn, explorer_path(project, env))
+
+      select_version(view, 1)
+      assert has_element?(view, "#rollback-button[disabled]")
+
+      html = render_click(view, "rollback_version", %{"uuid" => s1.uuid})
+      assert html =~ "You do not have permission for state:rollback"
+      assert length(Lynx.Context.StateContext.get_states_by_environment_id(env.id)) == 3
+    end
+  end
 end

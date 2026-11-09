@@ -581,6 +581,27 @@ defmodule LynxWeb.Schemas.SnapshotUpdate do
   })
 end
 
+defmodule LynxWeb.Schemas.StateRollback do
+  alias OpenApiSpex.Schema
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "StateRollback",
+    description: "The state version created by a rollback",
+    type: :object,
+    properties: %{
+      id: %Schema{type: :string, description: "UUID of the new state version"},
+      subPath: %Schema{type: :string, description: "Unit path; empty for the environment root"},
+      version: %Schema{type: :integer, description: "Version number of the new state (vN)"},
+      serial: %Schema{type: :integer, description: "Terraform serial written to the new state"},
+      rolledBackFrom: %Schema{type: :string, description: "UUID of the copied version"},
+      rolledBackFromVersion: %Schema{type: :integer},
+      previousId: %Schema{type: :string, description: "UUID of the version that was current"},
+      createdAt: %Schema{type: :string, format: :"date-time"}
+    }
+  })
+end
+
 # -- Task --
 
 defmodule LynxWeb.Schemas.Task do

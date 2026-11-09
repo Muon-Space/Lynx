@@ -549,17 +549,8 @@ defmodule Lynx.Context.StateContext do
         {:not_found, msg}
 
       {:ok, env} ->
-        state =
-          new_state(%{
-            environment_id: env.id,
-            name: params[:name],
-            value: params[:value],
-            sub_path: params[:sub_path] || ""
-          })
-
-        case create_state(state) do
+        case append_state(env.id, params[:sub_path] || "", params[:name], params[:value]) do
           {:ok, _} ->
-            trim_if_configured(env.id, params[:sub_path] || "")
             {:success, ""}
 
           {:error, changeset} ->
@@ -569,6 +560,41 @@ defmodule Lynx.Context.StateContext do
 
             {:error, Enum.at(messages, 0)}
         end
+    end
+  end
+
+  @doc """
+  Insert a new version for `(environment_id, sub_path)` and apply the
+  configured `state_retention_count` trim. Every state write (Terraform
+  push, rollback) goes through here so retention behaves the same.
+  """
+  def append_state(environment_id, sub_path, name, value) do
+    state =
+      new_state(%{
+        environment_id: environment_id,
+        name: name,
+        value: value,
+        sub_path: sub_path
+      })
+
+    case create_state(state) do
+      {:ok, created} ->
+        trim_if_configured(environment_id, sub_path)
+        {:ok, created}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Configured `state_retention_count` as a positive integer, or nil when
+  retention is unlimited (unset, `""` or `"0"`).
+  """
+  def retention_count do
+    case Integer.parse(Settings.get_config("state_retention_count", "0") || "0") do
+      {count, _} when count > 0 -> count
+      _ -> nil
     end
   end
 
@@ -602,18 +628,9 @@ defmodule Lynx.Context.StateContext do
   end
 
   defp trim_if_configured(environment_id, sub_path) do
-    case Settings.get_config("state_retention_count", "0") do
-      "0" ->
-        :ok
-
-      "" ->
-        :ok
-
-      count_str ->
-        case Integer.parse(count_str) do
-          {count, _} when count > 0 -> trim_old_states(environment_id, sub_path, count)
-          _ -> :ok
-        end
+    case retention_count() do
+      nil -> :ok
+      count -> trim_old_states(environment_id, sub_path, count)
     end
   end
 end
