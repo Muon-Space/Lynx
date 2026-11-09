@@ -20,8 +20,9 @@ defmodule Lynx.Service.PolicyGate do
   are tagged `actions: ["update"]` since we only have the after-state.
   """
 
+  alias Lynx.Context.PolicyContext
   alias Lynx.Model.Environment
-  alias Lynx.Service.Settings
+  alias Lynx.Service.{PolicyEngine, Settings}
 
   @global_keys [:require_passing_plan, :block_violating_apply]
 
@@ -59,6 +60,53 @@ defmodule Lynx.Service.PolicyGate do
   @doc "Update a global default. `value` is a boolean."
   def set_global_default(key, value) when key in @global_keys and is_boolean(value) do
     Settings.upsert_config(config_key(key), to_string(value))
+  end
+
+  @doc """
+  Evaluate a state body against the env's effective policies when
+  `block_violating_apply` is on. Shared by the `/tf` state-write path and
+  state rollback, so a body can't land through either route unevaluated.
+
+  Returns `:ok` when the gate is off or nothing fires, otherwise
+  `{:blocked, message, policies}` where `policies` is the
+  `[%{"name", "uuid"}]` list the `apply_blocked` audit row renders as
+  chips. Engine errors count as violations (fail-closed), matching the
+  strict-validate semantics we ship for policy save.
+  """
+  def state_violations(%Environment{} = env, state_body) do
+    if block_violating_apply?(env) do
+      input = state_to_plan_input(state_body)
+      policies = PolicyContext.list_effective_policies_for_env(env.id)
+
+      violations =
+        Enum.flat_map(policies, fn policy ->
+          case PolicyEngine.eval_deny(policy.uuid, input) do
+            {:ok, []} ->
+              []
+
+            {:ok, msgs} when is_list(msgs) ->
+              Enum.map(msgs, &"#{policy.name}: #{&1}")
+
+            {:error, reason} ->
+              ["#{policy.name}: engine error (#{inspect(reason)})"]
+          end
+        end)
+
+      case violations do
+        [] ->
+          :ok
+
+        _ ->
+          policies_for_audit =
+            policies
+            |> Enum.map(fn p -> %{"name" => p.name, "uuid" => p.uuid} end)
+            |> Enum.uniq()
+
+          {:blocked, Enum.join(violations, "; "), policies_for_audit}
+      end
+    else
+      :ok
+    end
   end
 
   @doc """

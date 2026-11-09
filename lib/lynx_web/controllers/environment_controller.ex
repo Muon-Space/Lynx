@@ -45,6 +45,10 @@ defmodule LynxWeb.EnvironmentController do
        [permission: "state:force_unlock", from: :env_uuid]
        when action == :force_unlock
 
+  plug LynxWeb.Plug.RequirePerm,
+       [permission: "state:rollback", from: :env_uuid]
+       when action == :rollback_state
+
   tags(["Environments"])
   security([%{"api_key" => []}])
 
@@ -128,6 +132,38 @@ defmodule LynxWeb.EnvironmentController do
       forbidden: {"Forbidden", "application/json", Schemas.Error},
       not_found: {"Not found", "application/json", Schemas.Error},
       bad_request: {"Bad request", "application/json", Schemas.Error}
+    ]
+  )
+
+  operation(:rollback_state,
+    summary: "Roll a state back to an earlier version",
+    description: """
+    Appends a new state version whose body is a copy of `state_uuid` (an
+    earlier version of the environment root or of one unit). History is
+    kept, and the rollback is itself a version you can diff or roll back.
+    The new body gets `serial = current + 1` and the current `lineage`.
+
+    Refused with `423` while an exclusive lock blocks the path, and with
+    `422` when `block_violating_apply` is on and the restored body violates
+    a policy. Requires `state:rollback` (applier and admin by default).
+    Rolling back state does not change infrastructure.
+    """,
+    parameters: [
+      e_uuid: [in: :path, required: true, type: :string, description: "Environment UUID"],
+      state_uuid: [
+        in: :path,
+        required: true,
+        type: :string,
+        description: "UUID of the state version to restore"
+      ]
+    ],
+    responses: [
+      created: {"Rolled back", "application/json", Schemas.StateRollback},
+      bad_request: {"Already current or invalid state", "application/json", Schemas.Error},
+      forbidden: {"Forbidden", "application/json", Schemas.Error},
+      not_found: {"Not found", "application/json", Schemas.Error},
+      locked: {"Locked", "application/json", Schemas.Error},
+      unprocessable_entity: {"Policy violation", "application/json", Schemas.Error}
     ]
   )
 
@@ -370,6 +406,69 @@ defmodule LynxWeb.EnvironmentController do
         AuditContext.log(conn, "unlocked", "environment", e_uuid)
 
         conn |> put_status(:ok) |> json(%{successMessage: msg})
+    end
+  end
+
+  @doc """
+  Roll Back State Endpoint
+  """
+  def rollback_state(conn, %{"e_uuid" => e_uuid, "state_uuid" => state_uuid}) do
+    alias Lynx.Service.StateRollback
+
+    case EnvironmentContext.get_env_by_uuid(e_uuid) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> render(:error, %{message: "Environment not found"})
+
+      env ->
+        case StateRollback.rollback(env, state_uuid, conn.assigns[:user_name] || "api") do
+          {:ok, result} ->
+            AuditContext.log(
+              conn,
+              "state_rolled_back",
+              "environment",
+              env.uuid,
+              env.name,
+              StateRollback.audit_metadata(result)
+            )
+
+            conn
+            |> put_status(:created)
+            |> json(%{
+              id: result.state.uuid,
+              subPath: result.state.sub_path,
+              version: result.version,
+              serial: result.serial,
+              rolledBackFrom: result.source.uuid,
+              rolledBackFromVersion: result.source_version,
+              previousId: result.previous.uuid,
+              createdAt: result.state.inserted_at
+            })
+
+          {:error, :not_found} ->
+            conn
+            |> put_status(:not_found)
+            |> render(:error, %{message: "State version not found"})
+
+          {:error, :already_current} ->
+            conn
+            |> put_status(:bad_request)
+            |> render(:error, %{message: "State version is already current"})
+
+          {:error, {:invalid_state, msg}} ->
+            conn |> put_status(:bad_request) |> render(:error, %{message: msg})
+
+          {:error, {:locked, lock}} ->
+            conn
+            |> put_status(:locked)
+            |> render(:error, %{message: StateRollback.lock_message(lock)})
+
+          {:error, {:policy_violation, msg, _policies}} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> render(:error, %{message: "Policy violation: #{msg}"})
+        end
     end
   end
 

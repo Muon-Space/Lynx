@@ -30,16 +30,7 @@ defmodule LynxWeb.StateExplorerLive do
               if project.workspace_id,
                 do: Lynx.Context.WorkspaceContext.get_workspace_by_id(project.workspace_id)
 
-            states =
-              StateContext.get_states_by_environment_id(env.id)
-              |> Enum.filter(&(Map.get(&1, :sub_path, "") == sub_path))
-              |> Enum.sort_by(& &1.id)
-
-            versions =
-              Enum.with_index(states, 1)
-              |> Enum.reverse()
-
-            max_version = if versions != [], do: elem(hd(versions), 1), else: 0
+            {versions, max_version} = load_versions(env, sub_path)
 
             selected = max_version
 
@@ -70,6 +61,7 @@ defmodule LynxWeb.StateExplorerLive do
               |> assign(:is_locked, is_locked)
               |> assign(:planning_count, planning_count)
               |> assign(:confirm, nil)
+              |> assign(:retention_count, StateContext.retention_count())
               |> assign(:snapshot_version, nil)
               |> assign(:viewer_perms, viewer_perms)
               # Diff UI: semantic (resource cards) is default; user can flip
@@ -109,7 +101,7 @@ defmodule LynxWeb.StateExplorerLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.confirm_dialog :if={@confirm} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
+    <.confirm_dialog :if={@confirm} title={Map.get(@confirm, :title, "Are you sure?")} message={@confirm.message} confirm_event={@confirm.event} confirm_value={@confirm.value} />
     <.nav current_user={@current_user} active="workspaces" />
     <div class="max-w-7xl mx-auto px-6 pb-16">
       <.page_header
@@ -169,6 +161,26 @@ defmodule LynxWeb.StateExplorerLive do
             />
           </div>
         </form>
+
+        <div :if={@selected_version && @selected_version != @max_version} id="rollback-bar" class="flex items-center justify-between gap-4 mb-4 rounded-lg border border-border px-4 py-3">
+          <p class="text-xs text-secondary">
+            Viewing an older version. Restoring it appends a copy of v{@selected_version} as the newest version; nothing in the history is deleted.
+            <span :if={@retention_count}>State retention keeps the last {@retention_count} versions per unit.</span>
+          </p>
+          <% can_rollback = RoleContext.has?(@viewer_perms, "state:rollback") %>
+          <span title={rollback_hint(can_rollback, @is_locked)}>
+            <.button
+              id="rollback-button"
+              variant="secondary"
+              size="sm"
+              disabled={not can_rollback or @is_locked}
+              phx-click="confirm_rollback"
+              phx-value-version={@selected_version}
+            >
+              Restore v{@selected_version}
+            </.button>
+          </span>
+        </div>
 
         <%= if @compare_version && @compare_version != @selected_version do %>
           <% diff = compute_diff(@versions, @selected_version, @compare_version) %>
@@ -317,6 +329,68 @@ defmodule LynxWeb.StateExplorerLive do
 
   def handle_event("cancel_confirm", _, socket), do: {:noreply, assign(socket, :confirm, nil)}
 
+  # Rollback confirm text is built server-side so it can carry the
+  # resource-level diff between the current version and the target.
+  def handle_event("confirm_rollback", %{"version" => v}, socket) do
+    with {version, ""} <- Integer.parse(to_string(v)),
+         {target, _} <- Enum.find(socket.assigns.versions, fn {_s, idx} -> idx == version end) do
+      max = socket.assigns.max_version
+      diff = compute_diff(socket.assigns.versions, max, version)
+
+      message =
+        "This appends a copy of v#{version} as the newest version, with a new serial. " <>
+          "Compared with the current state it would #{diff_summary(diff)}. " <>
+          "Infrastructure is not changed: the next plan will propose whatever it takes to match v#{version}." <>
+          retention_note(socket.assigns.retention_count)
+
+      {:noreply,
+       assign(socket, :confirm, %{
+         title: "Restore v#{version} as the current state?",
+         message: message,
+         event: "rollback_version",
+         value: %{uuid: target.uuid}
+       })}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "Unknown version")}
+    end
+  end
+
+  def handle_event("rollback_version", %{"uuid" => uuid}, socket) do
+    with_perm(socket, "state:rollback", fn socket ->
+      env = socket.assigns.env
+      user = socket.assigns.current_user
+
+      case Lynx.Service.StateRollback.rollback(env, uuid, user.name) do
+        {:ok, result} ->
+          Lynx.Context.AuditContext.log_user(
+            user,
+            "state_rolled_back",
+            "environment",
+            env.uuid,
+            env.name,
+            Lynx.Service.StateRollback.audit_metadata(result)
+          )
+
+          {versions, max_version} = load_versions(env, socket.assigns.sub_path)
+
+          {:noreply,
+           socket
+           |> assign(:versions, versions)
+           |> assign(:max_version, max_version)
+           |> assign(:selected_version, max_version)
+           |> assign(:compare_version, max_version)
+           |> assign(:snapshot_version, nil)
+           |> put_flash(
+             :info,
+             "Restored v#{result.source_version} as v#{result.version} (serial #{result.serial})"
+           )}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, rollback_error(reason))}
+      end
+    end)
+  end
+
   def handle_event("lock_unit", _, socket) do
     with_perm(socket, "state:lock", fn socket ->
       env = socket.assigns.env
@@ -399,6 +473,49 @@ defmodule LynxWeb.StateExplorerLive do
 
     {:noreply, socket |> assign(:selected_version, version) |> assign(:compare_version, compare)}
   end
+
+  defp load_versions(env, sub_path) do
+    versions =
+      StateContext.get_states_by_environment_id(env.id)
+      |> Enum.filter(&(Map.get(&1, :sub_path, "") == sub_path))
+      |> Enum.sort_by(& &1.id)
+      |> Enum.with_index(1)
+      |> Enum.reverse()
+
+    max_version = if versions != [], do: elem(hd(versions), 1), else: 0
+    {versions, max_version}
+  end
+
+  defp rollback_hint(false, _), do: "Requires the state:rollback permission (applier or admin)"
+  defp rollback_hint(true, true), do: "Unlock the unit before rolling back"
+  defp rollback_hint(true, false), do: nil
+
+  defp diff_summary(%{added: [], changed: [], removed: []}),
+    do: "change no resources (only serial, lineage or outputs differ)"
+
+  defp diff_summary(diff) do
+    [
+      {length(diff.added), "add"},
+      {length(diff.changed), "change"},
+      {length(diff.removed), "remove"}
+    ]
+    |> Enum.reject(fn {n, _} -> n == 0 end)
+    |> Enum.map(fn {n, verb} ->
+      "#{verb} #{n} #{if n == 1, do: "resource", else: "resources"}"
+    end)
+    |> Enum.join(", ")
+  end
+
+  defp retention_note(nil), do: ""
+
+  defp retention_note(n),
+    do: " Retention keeps #{n} versions, so this write drops the oldest one."
+
+  defp rollback_error(:not_found), do: "That version no longer exists"
+  defp rollback_error(:already_current), do: "That version is already current"
+  defp rollback_error({:invalid_state, msg}), do: msg
+  defp rollback_error({:locked, lock}), do: Lynx.Service.StateRollback.lock_message(lock)
+  defp rollback_error({:policy_violation, msg, _}), do: "Rollback blocked by policy: #{msg}"
 
   defp with_perm(socket, perm, fun) do
     socket = assign(socket, :confirm, nil)

@@ -647,6 +647,34 @@ components:
           type: string
       title: SnapshotTeamRef
       type: object
+    StateRollback:
+      description: The state version created by a rollback
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          description: UUID of the new state version
+          type: string
+        previousId:
+          description: UUID of the version that was current
+          type: string
+        rolledBackFrom:
+          description: UUID of the copied version
+          type: string
+        rolledBackFromVersion:
+          type: integer
+        serial:
+          description: Terraform serial written to the new state
+          type: integer
+        subPath:
+          description: Unit path; empty for the environment root
+          type: string
+        version:
+          description: Version number of the new state (vN)
+          type: integer
+      title: StateRollback
+      type: object
     ListMetadata:
       properties:
         limit:
@@ -2383,6 +2411,75 @@ paths:
       security:
         - api_key: []
       summary: Update an environment
+      tags:
+        - Environments
+  /api/v1/environment/{e_uuid}/state/{state_uuid}/rollback:
+    post:
+      callbacks: {}
+      description: |
+        Appends a new state version whose body is a copy of `state_uuid` (an
+        earlier version of the environment root or of one unit). History is
+        kept, and the rollback is itself a version you can diff or roll back.
+        The new body gets `serial = current + 1` and the current `lineage`.
+
+        Refused with `423` while an exclusive lock blocks the path, and with
+        `422` when `block_violating_apply` is on and the restored body violates
+        a policy. Requires `state:rollback` (applier and admin by default).
+        Rolling back state does not change infrastructure.
+      operationId: LynxWeb.EnvironmentController.rollback_state
+      parameters:
+        - description: Environment UUID
+          in: path
+          name: e_uuid
+          required: true
+          schema:
+            type: string
+        - description: UUID of the state version to restore
+          in: path
+          name: state_uuid
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateRollback'
+          description: Rolled back
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Already current or invalid state
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Policy violation
+        '423':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Locked
+      security:
+        - api_key: []
+      summary: Roll a state back to an earlier version
       tags:
         - Environments
   /api/v1/action/update_sso_settings:

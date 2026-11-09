@@ -359,52 +359,17 @@ defmodule LynxWeb.TfController do
   # Run effective policies against the state body, gated by the env's
   # block_violating_apply flag (or the global default if the env inherits).
   # Returns :ok if not enabled or no violations; {:blocked, msg} otherwise.
+  # The evaluation itself lives in `PolicyGate.state_violations/2` so state
+  # rollback goes through the same gate.
   defp maybe_block_violating_apply(_conn, w_slug, p_slug, e_slug, _sub_path, state_map) do
     case resolve_env(w_slug, p_slug, e_slug) do
       nil ->
         :ok
 
       env ->
-        if PolicyGate.block_violating_apply?(env) do
-          input = PolicyGate.state_to_plan_input(state_map)
-          policies = PolicyContext.list_effective_policies_for_env(env.id)
-
-          violations =
-            Enum.flat_map(policies, fn policy ->
-              case PolicyEngine.eval_deny(policy.uuid, input) do
-                {:ok, []} ->
-                  []
-
-                {:ok, msgs} when is_list(msgs) ->
-                  Enum.map(msgs, &"#{policy.name}: #{&1}")
-
-                {:error, reason} ->
-                  # Fail-closed: if we can't evaluate, treat as a violation
-                  # so a misconfigured / down OPA can't accidentally permit
-                  # forbidden state. Matches the strict-validate semantics
-                  # we ship for policy save.
-                  ["#{policy.name}: engine error (#{inspect(reason)})"]
-              end
-            end)
-
-          case violations do
-            [] ->
-              :ok
-
-            _ ->
-              # Pass both name + uuid pairs so the audit row can render
-              # chips that link to the per-policy detail page (the new
-              # scheme) AND remain readable for older log readers (the
-              # old scheme stored just names).
-              policies_for_audit =
-                policies
-                |> Enum.map(fn p -> %{"name" => p.name, "uuid" => p.uuid} end)
-                |> Enum.uniq()
-
-              {:blocked, Enum.join(violations, "; "), env, policies_for_audit}
-          end
-        else
-          :ok
+        case PolicyGate.state_violations(env, state_map) do
+          :ok -> :ok
+          {:blocked, msg, policies_for_audit} -> {:blocked, msg, env, policies_for_audit}
         end
     end
   end

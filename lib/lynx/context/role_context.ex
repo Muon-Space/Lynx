@@ -11,7 +11,8 @@ defmodule Lynx.Context.RoleContext do
     * `planner` — `state:read`, `state:lock`, `state:unlock`. Lock + unlock
       are included because Terraform's `plan` always acquires a state lock
       by default; without them, planner can't actually run `terraform plan`.
-    * `applier` — planner's set + `state:write`, `snapshot:create`.
+    * `applier` — planner's set + `state:write`, `state:rollback`,
+      `snapshot:create`.
     * `admin`   — applier's set + `state:force_unlock`, `snapshot:restore`,
       `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage`.
 
@@ -38,6 +39,7 @@ defmodule Lynx.Context.RoleContext do
     state:lock
     state:unlock
     state:force_unlock
+    state:rollback
     snapshot:create
     snapshot:restore
     env:manage
@@ -65,6 +67,8 @@ defmodule Lynx.Context.RoleContext do
       "Release a state lock the caller themselves holds — what Terraform calls automatically at the end of plan/apply.",
     "state:force_unlock" =>
       "Clear ANY active lock, including one another user holds. Destructive — strands their in-flight apply. Admin-only.",
+    "state:rollback" =>
+      "Roll a state back to an earlier stored version. Appends a copy of that version as the new current state; history is kept.",
     "snapshot:create" =>
       "Take a point-in-time snapshot of state. Read-only at the source, writes to the snapshots table.",
     "snapshot:restore" =>

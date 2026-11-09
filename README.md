@@ -98,6 +98,9 @@ terraform apply
 Terragrunt picks up the same env vars since it shells out to Terraform.
 
 > [!TIP]
+> Every state write is kept as a version. To undo a bad apply's state, open the unit's state history, pick the version you want back and click **Restore**; Lynx appends a copy of it as the new current state (serial bumped, history kept). The same is available over the API at `POST /api/v1/environment/{env}/state/{state}/rollback`. See [docs/usage](docs/_documentation/usage.md#rolling-back-state).
+
+> [!TIP]
 > Lynx records a lock for every Terraform operation, but `terraform plan` takes a **shared** lock: any number of plans can run against the same unit at once, and an apply never waits for them. `apply`, `import` and every other operation take an **exclusive** lock, which blocks other exclusive locks and new plans until it is released. If an exclusive lock gets stuck (e.g. a CI job was killed mid-apply), force-unlock from the env page in the admin UI. A leftover shared lock blocks nothing, so it never needs clearing.
 
 ## Authentication options
@@ -128,7 +131,7 @@ Lynx ships three system roles, made up of atomic permissions:
 | Role | Permissions |
 |---|---|
 | **Planner** | `state:read`, `state:lock`, `state:unlock` — enough to run `terraform plan` |
-| **Applier** | Planner's set + `state:write`, `snapshot:create` — enough to run `terraform apply` |
+| **Applier** | Planner's set + `state:write`, `state:rollback`, `snapshot:create` — enough to run `terraform apply` and roll a state back to an earlier version |
 | **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
 
 > [!IMPORTANT]

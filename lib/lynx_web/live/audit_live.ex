@@ -77,7 +77,7 @@ defmodule LynxWeb.AuditLive do
         <form phx-change="filter" phx-submit="filter" class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <.input name="action" type="select" label="Action" value={@filters.action} prompt="All Actions" options={[
             {"Created", "created"}, {"Updated", "updated"}, {"Deleted", "deleted"},
-            {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"},
+            {"Locked", "locked"}, {"Unlocked", "unlocked"}, {"State Pushed", "state_pushed"}, {"State Rolled Back", "state_rolled_back"},
             {"Login", "login"}, {"SSO Login", "sso_login"}, {"Generated", "generated"}, {"Revoked", "revoked"}
           ]} />
           <.input name="resource_type" type="select" label="Resource type" value={@filters.resource_type} prompt="All Resources" options={[
@@ -294,6 +294,7 @@ defmodule LynxWeb.AuditLive do
   defp action_color("locked"), do: "yellow"
   defp action_color("unlocked"), do: "yellow"
   defp action_color("state_pushed"), do: "purple"
+  defp action_color("state_rolled_back"), do: "purple"
   defp action_color("login"), do: "blue"
   defp action_color("sso_login"), do: "blue"
   defp action_color(_), do: "gray"

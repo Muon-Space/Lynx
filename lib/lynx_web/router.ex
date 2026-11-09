@@ -247,6 +247,7 @@ defmodule LynxWeb.Router do
     delete "/project/:p_uuid/environment/:e_uuid", EnvironmentController, :delete
     post "/environment/:e_uuid/lock", EnvironmentController, :force_lock
     post "/environment/:e_uuid/unlock", EnvironmentController, :force_unlock
+    post "/environment/:e_uuid/state/:state_uuid/rollback", EnvironmentController, :rollback_state
 
     # Audit Log
     get "/audit", AuditController, :list

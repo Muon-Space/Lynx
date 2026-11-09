@@ -67,7 +67,7 @@ Three roles ship by default:
 | Role | Permissions |
 |---|---|
 | **Planner** | `state:read`, `state:lock`, `state:unlock`, `plan:check` |
-| **Applier** | Planner's set + `state:write`, `snapshot:create` |
+| **Applier** | Planner's set + `state:write`, `state:rollback`, `snapshot:create` |
 | **Admin** | Applier's set + `state:force_unlock`, `snapshot:restore`, `env:manage`, `project:manage`, `access:manage`, `oidc_rule:manage` |
 
 `plan:check` authorizes uploads to `POST /tf/<workspace>/<project>/<env>/<unit?>/plan` for OPA evaluation. It's seeded into all three default roles so any caller that can plan can also evaluate the plan; revoke it on a custom role to lock policy evaluation down further.

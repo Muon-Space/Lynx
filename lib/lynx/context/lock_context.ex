@@ -317,11 +317,15 @@ defmodule Lynx.Context.LockContext do
     end
   end
 
-  defp blocking_lock(env_id, "") do
+  @doc """
+  The exclusive lock that blocks writes to `sub_path`, or nil. Same rule
+  as `is_locked/1`, keyed on the environment id instead of slugs.
+  """
+  def blocking_lock(env_id, "") do
     get_active_exclusive_lock(env_id, "")
   end
 
-  defp blocking_lock(env_id, sub_path) do
+  def blocking_lock(env_id, sub_path) do
     case get_active_exclusive_lock(env_id, "") do
       nil -> get_active_exclusive_lock(env_id, sub_path)
       env_lock -> env_lock

@@ -132,6 +132,30 @@ If an exclusive lock gets stuck (CI killed mid-apply, network blip during state 
 
 You can also lock an environment preemptively from the same UI. That takes an exclusive env-wide lock, which blocks every Terraform operation, plans included, for the duration of a maintenance window.
 
+## Rolling back state
+
+Every state write is stored as a new version, and the state history page (env page, then a unit) lists them as `v1`, `v2`, and so on. To make an older version current again, select it and click **Restore vN**. The confirm dialog shows how many resources the rollback would add, change and remove compared with the current state.
+
+A rollback is a write, not a rewind (like `vault kv rollback`):
+
+- It appends a new version whose body is a copy of the one you picked. Nothing in the history is deleted, the rollback shows up as its own version you can diff, and rolling back a rollback is just another rollback.
+- The new body gets `serial` = current serial + 1 and keeps the current `lineage`, so Terraform treats it as a normal newer state (no `-force` needed).
+- It is refused while an exclusive lock blocks the unit or the environment (a running apply or a manual lock), and holds its own short exclusive lock while it writes.
+- If `block_violating_apply` is on for the environment, the restored body is evaluated against the effective policies first, exactly like a `terraform apply` state push, and a violating rollback is refused.
+- It counts as a write for `state_retention_count`, so with retention on each rollback drops the oldest version. You can only go back as far as retention keeps.
+- It needs the `state:rollback` permission (Applier and Admin by default; separate from `state:write` so a CI credential that can push state can't rewind it) and is recorded in the audit log as `state_rolled_back` with the source, previous and new versions.
+
+Rolling back state does **not** roll back infrastructure. After a rollback, the next `terraform plan` compares the restored state with what actually exists: resources created after the restored version show up as unmanaged or as new creates, and resources deleted since then show up as missing. Review that plan before applying.
+
+Over the API:
+
+```bash
+curl -X POST -H "x-api-key: $LYNX_API_KEY" \
+  "$LYNX_URL/api/v1/environment/$ENV_UUID/state/$STATE_UUID/rollback"
+```
+
+`STATE_UUID` is the version to restore (its unit is taken from the version). The response is `201` with the new version's `id`, `version`, `serial` and `rolledBackFrom`. Errors: `400` if that version is already current, `404` if it doesn't exist in the environment, `423` while locked, `422` on a policy violation.
+
 ## Plan policy gates
 
 Lynx evaluates Terraform plans against [Open Policy Agent](https://www.openpolicyagent.org/) policies before they're applied. Author a policy in **Admin → Policies**, attach it to a project or environment, and CI uploads the plan JSON for evaluation. Optionally, enable the **apply gate** on an environment so a state-write requires a recent passing plan-check from the same actor — single-use.
