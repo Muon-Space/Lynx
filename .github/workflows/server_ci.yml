@@ -30,7 +30,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
@@ -59,7 +59,8 @@ jobs:
   # the chromium install + asset build don't slow the unit suite. Skipped by
   # the `test` job (the :feature ExUnit tag is excluded by default).
   feature:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 can't install its dependencies on ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     name: Feature tests (Playwright)
     strategy:
       fail-fast: false
@@ -78,13 +79,13 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93 # v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 'lts/*'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'assets/package-lock.json'
 
@@ -142,7 +143,7 @@ jobs:
       OPA_URL: http://localhost:8181
     steps:
       - uses: actions/checkout@v6
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
