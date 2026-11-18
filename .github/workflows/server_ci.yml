@@ -59,7 +59,8 @@ jobs:
   # the chromium install + asset build don't slow the unit suite. Skipped by
   # the `test` job (the :feature ExUnit tag is excluded by default).
   feature:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 can't install its dependencies on ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     name: Feature tests (Playwright)
     strategy:
       fail-fast: false
