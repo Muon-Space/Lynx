@@ -384,18 +384,18 @@ defmodule Lynx.Context.ProjectContext do
   end
 
   @doc """
-  Get all team IDs for a project
+  Get the IDs of teams attached to the whole project (not env-scoped grants)
   """
   def get_project_team_ids(project_id) do
     from(pt in ProjectTeam,
-      where: pt.project_id == ^project_id,
+      where: pt.project_id == ^project_id and is_nil(pt.environment_id),
       select: pt.team_id
     )
     |> Repo.all()
   end
 
   @doc """
-  Get all teams for a project (returns team records)
+  Get the teams attached to the whole project (not env-scoped grants)
   """
   def get_project_teams(project_id) do
     alias Lynx.Model.Team
@@ -403,7 +403,7 @@ defmodule Lynx.Context.ProjectContext do
     from(t in Team,
       join: pt in ProjectTeam,
       on: pt.team_id == t.id,
-      where: pt.project_id == ^project_id
+      where: pt.project_id == ^project_id and is_nil(pt.environment_id)
     )
     |> Repo.all()
   end
